@@ -6,6 +6,7 @@
 #define __pitd_util_h__
 
 #include<vector>
+#include<string>
 /* #include<map> */
 /* #include<iostream> */
 /* #include<iomanip> */
@@ -18,6 +19,30 @@
 
 namespace FIT
 {
+  struct linFit_t
+  {
+    std::vector<double> m; // the matrix element at T
+    std::vector<double> T; // the T's
+    gsl_matrix * covinv;   // inverse of data covariance
+  linFit_t(std::vector<double> &_m, std::vector<int> &_T, gsl_matrix *cov_inv): m(_m), T(_T), covinv(cov_inv) {}
+  };
+
+  struct FitRes_t
+  {
+    double a, b, c, d;
+    std::string type;
+
+    double func(int T)
+    {
+      if ( type == "LINEAR" )
+	return a + b*T;
+      if ( type == "LIN_tExp" )
+	return a + b*T + c*T*exp(-d*T);
+    }
+    
+  FitRes_t(std::string &_type, double _a = 0.0, double _b = 0.0, double _c = 0.0, double _d = 0.0) :
+    a(_a), b(_b), c(_c), d(_d) { type = _type; }
+  };
   /* struct momVals */
   /* { */
   /*   double                             IT; */
@@ -134,5 +159,6 @@ namespace FIT
 
   void printMat(gsl_matrix *g);
   int matrixInv(gsl_matrix * M, gsl_matrix * MInv);
+  double chi2Linear(const gsl_vector * x, void *data);
 }
 #endif

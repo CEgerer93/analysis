@@ -3,17 +3,11 @@
 */
 #include "summation.h"
 #include "fit_util.h"
-// #include<iostream>
 
-/*
-  Helpful utilities in adat/lib/hadron/irrep_util.cc
+#include <gsl/gsl_multifit.h>
+#include <gsl/gsl_multimin.h> // multidimensional minimization
+#include <gsl/gsl_multifit_nlinear.h>
 
-  Array<int> canonicalOrder(const Array<int>& mom)
-  std::string shortMom(const Array<int>& mom)
-  Array<int> Mom3d(int p1, int p2, int p3) - helper function; make an Array<int> of momenta
-
-  Mult replace each Array<T>& element: *=val
-*/
 
 using namespace FIT;
 
@@ -106,6 +100,100 @@ namespace Summation
     covI.svsI = matrixInv(covI.cov, covI.inv);
   }
 
+
+  
+  /*
+    HERE FOR FIT STUFF
+  */
+  // Perform a fit to jackknife samples
+  void Ratios::fit(std::string &s)
+  {
+    
+    size_t order;
+    gsl_vector *_ini, *_iniSteps;
+
+    if ( s == "LINEAR" )
+      {
+	order = 2;
+	for ( size_t p = 0; p < order; p++ ) { gsl_vector_set(_ini,p,0.4); gsl_vector_set(_iniSteps,p,0.2); }
+      }
+
+
+
+    // Fit both the real/imag data
+    for ( int COMP = 1; COMP < 3; COMP++ )
+      {
+
+	// Initialize the solver here
+	const gsl_multimin_fminimizer_type *minimizer = gsl_multimin_fminimizer_nmsimplex2rand;
+	gsl_multimin_fminimizer * fmin = gsl_multimin_fminimizer_alloc(minimizer,_ini->size);
+	
+	
+        // Fit per jackknife sample
+	for ( int J = 0; J < ratio.begin()->second.tData.ncor.size(); J++ )
+	  {
+	    
+	    // Initialize struct to hold this jack's data
+	    std::vector<double> dum;
+	    for ( auto it = ratio.begin(); it != ratio.end(); ++it )
+	      {
+		if ( COMP == 1 )
+		  dum.push_back( it->second.tData.ncor[J].real[0][0] );
+		if ( COMP == 2 )
+		  dum.push_back( it->second.tData.ncor[J].imag[0][0] );
+	      }
+	    if ( COMP == 1 )
+	      linFit_t jfit(dum, tseries, covR.inv);
+	    if ( COMP == 2 )
+	      linFit_t jfit(dum, tseries, covI.inv);
+	    
+	    
+	    // Define the gsl_multimin_function
+	    gsl_multimin_function Chi2;
+	    // Dimension of the system
+	    Chi2.n = _ini->size;
+	    // Function to minimize
+	    Chi2.f = &chi2Linear;
+	    Chi2.params = &jfit;
+	    
+	    
+	    std::cout << "Establishing initial state for minimizer..." << std::endl;
+	    int status = gsl_multimin_fminimizer_set(fmin,&Chi2,_ini,_iniSteps);
+	    std::cout << "Minimizer established..." << std::endl;
+	    
+	    // Iteration count
+	    int k = 1;
+	    double tolerance = 0.0000001; // 0.0001
+	    int maxIters = 10000;         // 1000
+	    
+	    while ( gsl_multimin_test_size( gsl_multimin_fminimizer_size(fmin), tolerance) == GSL_CONTINUE )
+	      {
+		// End after maxIters
+		if ( k > maxIters ) { break; }
+		// Iterate
+		gsl_multimin_fminimizer_iterate(fmin);
+		
+		k++;
+	      }
+	    
+	    // Return the best fit parameters
+	    gsl_vector *bestFitParams = gsl_vector_alloc(_ini->size);
+	    bestFitParams = gsl_multimin_fminimizer_x(fmin);
+	    
+	    // Return the best correlated Chi2
+	    double chiSq = gsl_multimin_fminimizer_minimum(fmin);
+	    // Determine the reduced chi2
+	    double reducedChiSq;
+	    if ( COMP == 0 )
+	      reducedChiSq = chiSq / (z->second.moms.size() - _ini->size - rawPseudo.data.svsR[z->first]);
+	    if ( COMP == 1 )
+	      reducedChiSq = chiSq / (z->second.moms.size() - _ini->size - rawPseudo.data.svsI[z->first]);
+
+
+	  } // end J
+
+      } // end COMP
+  } // end fit
 
 
 } // Summation

@@ -6,6 +6,7 @@
 
 /* #include<vector> */
 #include "personal_fns.h"
+#include "fit_util.h"
 #include<stdlib.h>
 #include<map>
 #include<vector>
@@ -60,6 +61,8 @@ namespace Summation
 
     std::map<int, NtCorr_t> ratio;
 
+    std::map<int, FitRes_t> ratioFit;
+
     struct covariances
     {
       gsl_matrix * cov, * inv;
@@ -67,6 +70,7 @@ namespace Summation
     } covR, covI;
 
     int tmin, tstep, tmax;
+    std::vector<int> tseries;
     
 
     // constructors
@@ -76,6 +80,7 @@ namespace Summation
       /* tmin = _tmin; tstep = _tstep; tmax = _tmax; */
       for ( int t = tmin; t <= tmax; t+=tstep )
 	{
+	  tseries.push_back( t );
 	  NtCorr_t dum(cfgs);
 	  std::pair<int, NtCorr_t> tsepR(t, dum);
 	  ratio.insert(tsepR);
@@ -98,6 +103,9 @@ namespace Summation
     void makeCovs();
     // Determine the inverses of data covariances
     void makeInvCovs();
+
+    // Perform a fit to jackknife samples
+    void fit(std::string &s);
     
   }; // Ratios
 

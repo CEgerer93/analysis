@@ -1000,13 +1000,14 @@ int main(int argc, char *argv[])
   SR.makeCovs();
   SR.makeInvCovs();
 
+  SR.fit("LINEAR");
 
   exit(40);
 
 
 
 
-
+#if 0
   /*
     Correct for bias in each jackknife ensemble average estimate of summed ratio
     & concatenate corrected jackknife ensemble average estimates per tsep

@@ -3,11 +3,12 @@
   From adat based correlators; fitting with gsl
 */
 #include "fit_util.h"
+#include "summation.h"
 
 #include<iostream>
 #include<gsl/gsl_permutation.h> // permutation header for matrix inversions
 #include<gsl/gsl_blas.h>
-#include <gsl/gsl_linalg.h> // linear algebra
+#include<gsl/gsl_linalg.h> // linear algebra
 
 namespace FIT
 {
@@ -99,80 +100,56 @@ namespace FIT
   }
 
 
-//   /*
-//     Calculate the full data covariance
-//   */
-//   void reducedPITD::calcCov()
-//   {
-//     // Instantiate pointers to gsl matrices and set all entries to zero
-//     data.covR = gsl_matrix_calloc(data.disps.size()*data.disps.begin()->second.moms.size(),
-// 				  data.disps.size()*data.disps.begin()->second.moms.size());
-//     data.covI = gsl_matrix_calloc(data.disps.size()*data.disps.begin()->second.moms.size(),
-// 				  data.disps.size()*data.disps.begin()->second.moms.size());
-//     for ( std::map<int, zvals>::iterator di = data.disps.begin(); di != data.disps.end(); ++di )
-//       {
-// 	for ( std::map<std::string, momVals>::const_iterator mi = di->second.moms.begin();
-// 	      mi != di->second.moms.end(); mi++ )
-// 	  {
-// 	    // Get the Ith index
-// 	    int I = std::distance<std::map<std::string, momVals>::const_iterator>
-// 	      (di->second.moms.begin(), mi) + (di->first-zminCut)*di->second.moms.size();
-
-// 	    for ( auto dj = data.disps.begin(); dj != data.disps.end(); ++dj )
-// 	      {
-// 		for ( auto mj = dj->second.moms.begin(); mj != dj->second.moms.end(); mj++ )
-// 		  {
-// 		    // Get the Jth index
-// 		    int J = std::distance(dj->second.moms.begin(), mj) + (dj->first-zminCut)*dj->second.moms.size();
-
-// 		    double _r(0.0), _i(0.0);
-
-// 		    for ( int J = 0; J < gauge_configs; J++ )
-// 		      {
-
-// 			_r += ( mi->second.mat[J].real() - mi->second.matAvg.real() )*
-// 			  ( mj->second.mat[J].real() - mj->second.matAvg.real() );
-// 			_i += ( mi->second.mat[J].imag() - mi->second.matAvg.imag() )*
-// 			  ( mj->second.mat[J].imag() - mj->second.matAvg.imag() );
-		      
-// 		      } // end J
 
 
-// 		    // Set the covariance entry and proceed
-// #ifdef UNCORRELATED
-// 		    if ( I == J )
-// 		      {
-// 			gsl_matrix_set(data.covR, I, J, (( gauge_configs - 1 )/(1.0*gauge_configs))*_r );
-// 			gsl_matrix_set(data.covI, I, J, (( gauge_configs - 1 )/(1.0*gauge_configs))*_i );
-// 		      }
-// #else
-// 		    gsl_matrix_set(data.covR, I, J, (( gauge_configs - 1 )/(1.0*gauge_configs))*_r );
-// 		    gsl_matrix_set(data.covI, I, J, (( gauge_configs - 1 )/(1.0*gauge_configs))*_i );
-// #endif
-// 		  } // end mj
-// 	      } // end dj
-// 	  } // end mi
-//       } // end di
-//   }
+  double chi2Linear(const gsl_vector * x, void *data)
+  {
+    
+    // Get a pointer to the void data structure
+    linFit_t * jfitCpy = (linFit_t *)data;
+    // The current fit params
+    FitRes_t fit( "LINEAR", gsl_vector_get(x,0), gsl_vector_get(x,1) );
 
-//   /*
-//     Calculate the inverse of full data covariance
-//   */
-//   void reducedPITD::calcInvCov()
-//   {
-//     int dumZi = -1;
-//     std::map<int, gsl_matrix *> dumInvsMap;
 
-//     // Get the inverse
-//     data.svsFullR = matrixInv(data.covR, dumInvsMap, dumZi);
-//     // Rip out the matrix inverse
-//     data.invCovR = dumInvsMap.begin()->second;
+    // Evaluate the linear fit for these parameters at each time
+    std::vector<double> predict;
+    for ( auto t = jfitCpy->tseries.begin(); t != jfitCpy->tseries.end(); ++t )
+      {
+	predict.push_back( fit.func(*t) );
+      }
 
-//     // Get the inverse
-//     data.svsFullI = matrixInv(data.covI, dumInvsMap, dumZi);
-//     // Rip out the matrix inverse
-//     data.invCovI = dumInvsMap.begin()->second;
-//   }
+
+    // Begin chi2 computation
+    double chi2(0.0);
+    gsl_vector *iDiffVec = gsl_vector_alloc(jfitCpy->tseries.size());
+    gsl_vector *jDiffVec = gsl_vector_alloc(jfitCpy->tseries.size());
+
+    for ( auto l = jfitCpy->m.begin(); l != jfitCpy->m.end(); ++l )
+      {
+	int idx = std::distance(jfitCpy->m.begin(),l);
+	gsl_vector_set(iDiffVec, idx, predict[idx] - *l );
+      }
+    // Copy the difference vector
+    gsl_vector_memcpy(jDiffVec, iDiffVec);
+
+    // Initialize cov^-1 right multiplying jDiffVec
+    gsl_vector *invCovRightMult = gsl_vector_alloc(jfitCpy->m.size());
+    gsl_blas_dgemv(CblasNoTrans,1.0,jfitCpy->covinv,jDiffVec,0.0,invCovRightMult);
+
+    // Form the scalar dot product of iDiffVec & result of invCov x jDiffVec
+    gsl_blas_ddot(iDiffVec,invCovRightMult,&chi2);
+
+    // Free some memory
+    gsl_vector_free(iDiffVec);
+    gsl_vector_free(jDiffVec);
+    gsl_vector_free(invCovRightMult);
+
+    return chi2;
+
+  } // chi2Linear
+		       
+    
+
 
   
 // #if 0  
