@@ -113,7 +113,7 @@ namespace FIT
 
     // Evaluate the linear fit for these parameters at each time
     std::vector<double> predict;
-    for ( auto t = jfitCpy->tseries.begin(); t != jfitCpy->tseries.end(); ++t )
+    for ( auto t = jfitCpy->T.begin(); t != jfitCpy->T.end(); ++t )
       {
 	predict.push_back( fit.func(*t) );
       }
@@ -121,8 +121,8 @@ namespace FIT
 
     // Begin chi2 computation
     double chi2(0.0);
-    gsl_vector *iDiffVec = gsl_vector_alloc(jfitCpy->tseries.size());
-    gsl_vector *jDiffVec = gsl_vector_alloc(jfitCpy->tseries.size());
+    gsl_vector *iDiffVec = gsl_vector_alloc(jfitCpy->T.size());
+    gsl_vector *jDiffVec = gsl_vector_alloc(jfitCpy->T.size());
 
     for ( auto l = jfitCpy->m.begin(); l != jfitCpy->m.end(); ++l )
       {

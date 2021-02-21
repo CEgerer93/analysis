@@ -7,6 +7,7 @@
 
 #include<vector>
 #include<string>
+#include<math.h>
 /* #include<map> */
 /* #include<iostream> */
 /* #include<iomanip> */
@@ -22,9 +23,12 @@ namespace FIT
   struct linFit_t
   {
     std::vector<double> m; // the matrix element at T
-    std::vector<double> T; // the T's
+    std::vector<int> T; // the T's
     gsl_matrix * covinv;   // inverse of data covariance
-  linFit_t(std::vector<double> &_m, std::vector<int> &_T, gsl_matrix *cov_inv): m(_m), T(_T), covinv(cov_inv) {}
+
+    // Constructors
+    linFit_t() {};
+  linFit_t(std::vector<double> &_m, std::vector<int> &_T, gsl_matrix *cov_inv) : m(_m), T(_T), covinv(cov_inv) {}
   };
 
   struct FitRes_t
@@ -38,9 +42,11 @@ namespace FIT
 	return a + b*T;
       if ( type == "LIN_tExp" )
 	return a + b*T + c*T*exp(-d*T);
+      else
+	return 0.0;
     }
     
-  FitRes_t(std::string &_type, double _a = 0.0, double _b = 0.0, double _c = 0.0, double _d = 0.0) :
+  FitRes_t(std::string _type, double _a = 0.0, double _b = 0.0, double _c = 0.0, double _d = 0.0) :
     a(_a), b(_b), c(_c), d(_d) { type = _type; }
   };
   /* struct momVals */

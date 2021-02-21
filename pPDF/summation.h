@@ -61,12 +61,12 @@ namespace Summation
 
     std::map<int, NtCorr_t> ratio;
 
-    std::map<int, FitRes_t> ratioFit;
+    std::map<int, FIT::FitRes_t> ratioFit;
 
     struct covariances
     {
       gsl_matrix * cov, * inv;
-      int svsR, svsI; // singular values removed in inverse computation
+      int svs; // singular values removed in inverse computation
     } covR, covI;
 
     int tmin, tstep, tmax;
@@ -105,7 +105,7 @@ namespace Summation
     void makeInvCovs();
 
     // Perform a fit to jackknife samples
-    void fit(std::string &s);
+    void fit(std::string s);
     
   }; // Ratios
 

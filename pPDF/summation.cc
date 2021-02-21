@@ -6,7 +6,7 @@
 
 #include <gsl/gsl_multifit.h>
 #include <gsl/gsl_multimin.h> // multidimensional minimization
-#include <gsl/gsl_multifit_nlinear.h>
+#include <gsl/gsl_multifit_nlin.h>
 
 
 using namespace FIT;
@@ -96,8 +96,8 @@ namespace Summation
     covR.inv = gsl_matrix_alloc(ratio.size(), ratio.size());
     covI.inv = gsl_matrix_alloc(ratio.size(), ratio.size());
 
-    covR.svsR = matrixInv(covR.cov, covR.inv);
-    covI.svsI = matrixInv(covI.cov, covI.inv);
+    covR.svs = matrixInv(covR.cov, covR.inv);
+    covI.svs = matrixInv(covI.cov, covI.inv);
   }
 
 
@@ -106,19 +106,20 @@ namespace Summation
     HERE FOR FIT STUFF
   */
   // Perform a fit to jackknife samples
-  void Ratios::fit(std::string &s)
+  void Ratios::fit(std::string s)
   {
-    
     size_t order;
     gsl_vector *_ini, *_iniSteps;
-
     if ( s == "LINEAR" )
       {
 	order = 2;
+	_ini      = gsl_vector_alloc(order);
+	_iniSteps = gsl_vector_alloc(order);
 	for ( size_t p = 0; p < order; p++ ) { gsl_vector_set(_ini,p,0.4); gsl_vector_set(_iniSteps,p,0.2); }
       }
 
-
+    std::ofstream out;
+    out.open("TEST.dat");
 
     // Fit both the real/imag data
     for ( int COMP = 1; COMP < 3; COMP++ )
@@ -134,6 +135,7 @@ namespace Summation
 	  {
 	    
 	    // Initialize struct to hold this jack's data
+	    linFit_t * jfit;
 	    std::vector<double> dum;
 	    for ( auto it = ratio.begin(); it != ratio.end(); ++it )
 	      {
@@ -142,10 +144,15 @@ namespace Summation
 		if ( COMP == 2 )
 		  dum.push_back( it->second.tData.ncor[J].imag[0][0] );
 	      }
+
 	    if ( COMP == 1 )
-	      linFit_t jfit(dum, tseries, covR.inv);
+	      jfit = new linFit_t(dum, tseries, covR.inv);
 	    if ( COMP == 2 )
-	      linFit_t jfit(dum, tseries, covI.inv);
+	      jfit = new linFit_t(dum, tseries, covI.inv);
+
+	    for ( auto a = jfit->T.begin(); a != jfit->T.end(); ++a )
+	      std::cout << *a;
+	    std::cout << "\n";
 	    
 	    
 	    // Define the gsl_multimin_function
@@ -154,7 +161,7 @@ namespace Summation
 	    Chi2.n = _ini->size;
 	    // Function to minimize
 	    Chi2.f = &chi2Linear;
-	    Chi2.params = &jfit;
+	    Chi2.params = jfit;
 	    
 	    
 	    std::cout << "Establishing initial state for minimizer..." << std::endl;
@@ -184,15 +191,22 @@ namespace Summation
 	    double chiSq = gsl_multimin_fminimizer_minimum(fmin);
 	    // Determine the reduced chi2
 	    double reducedChiSq;
-	    if ( COMP == 0 )
-	      reducedChiSq = chiSq / (z->second.moms.size() - _ini->size - rawPseudo.data.svsR[z->first]);
 	    if ( COMP == 1 )
-	      reducedChiSq = chiSq / (z->second.moms.size() - _ini->size - rawPseudo.data.svsI[z->first]);
+	      reducedChiSq = chiSq / (ratio.size() - _ini->size - covR.svs);
+	    if ( COMP == 2 )
+	      reducedChiSq = chiSq / (ratio.size() - _ini->size - covI.svs);
 
+	    
+	    out << std::setprecision(12) << "A " << gsl_vector_get(bestFitParams,0) << "\n"
+		<< "B " << gsl_vector_get(bestFitParams,1) << "\n"
+		<< "rChi2 " << reducedChiSq << std::endl;
+
+	    delete jfit;
 
 	  } // end J
 
       } // end COMP
+    out.close();
   } // end fit
 
 
