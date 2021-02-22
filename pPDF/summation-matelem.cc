@@ -1000,11 +1000,17 @@ int main(int argc, char *argv[])
   SR.makeCovs();
   SR.makeInvCovs();
 
-  SR.fit("LINEAR");
 
-  exit(40);
+  /*
+    Do the linear fit
+    But first make a good name for the file
+  */
+  tempKey3pt.key.npoint[1].t_slice = -60; // set the output ensem - w/ -60 indicating a summed ratio
+  std::string fitFileName = Hadron::ensemFileName(tempKey3pt.key);
+  fitFileName.erase(fitFileName.end()-4,fitFileName.end());
+  fitFileName += ".summedRatio";
 
-
+  SR.fit("LINEAR", fitFileName);
 
 
 #if 0

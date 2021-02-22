@@ -104,8 +104,8 @@ namespace Summation
     // Determine the inverses of data covariances
     void makeInvCovs();
 
-    // Perform a fit to jackknife samples
-    void fit(std::string s);
+    // Perform a fit to jackknife samples + write to file
+    void fit(std::string s, std::string outName);
     
   }; // Ratios
 

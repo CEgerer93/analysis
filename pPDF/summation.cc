@@ -106,7 +106,7 @@ namespace Summation
     HERE FOR FIT STUFF
   */
   // Perform a fit to jackknife samples
-  void Ratios::fit(std::string s)
+  void Ratios::fit(std::string s, std::string outName)
   {
     size_t order;
     gsl_vector *_ini, *_iniSteps;
@@ -118,12 +118,18 @@ namespace Summation
 	for ( size_t p = 0; p < order; p++ ) { gsl_vector_set(_ini,p,0.4); gsl_vector_set(_iniSteps,p,0.2); }
       }
 
-    std::ofstream out;
-    out.open("TEST.dat");
+    std::ofstream out; // the out file stream
 
     // Fit both the real/imag data
     for ( int COMP = 1; COMP < 3; COMP++ )
       {
+	std::string component;
+	if ( COMP == 1 )
+	  component = "RE";
+	if ( COMP == 2 )
+	  component = "IM";
+	// Open the file to contain fit results
+	out.open(outName+"."+component+"_fit.dat");
 
 	// Initialize the solver here
 	const gsl_multimin_fminimizer_type *minimizer = gsl_multimin_fminimizer_nmsimplex2rand;
@@ -205,8 +211,8 @@ namespace Summation
 
 	  } // end J
 
+	out.close();
       } // end COMP
-    out.close();
   } // end fit
 
 
