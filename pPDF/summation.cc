@@ -40,6 +40,35 @@ namespace Summation
   }
 
 
+
+  // Correct for bias in jackknifing
+  void Ratios::antiJkRatio()
+  {
+    int num_jk_samples = ratio.begin()->second.tData.ncor.size();
+    
+    for ( auto r = ratio.begin(); r != ratio.end(); ++r )
+      {
+	for ( auto g = r->second.tData.ncor.begin(); g != r->second.tData.ncor.end(); ++g )
+	  {
+	    // std::cout << "BEFORE = " << g->real[0][0] << std::endl;
+	    // std::cout << "NUM JK = " << num_jk_samples << std::endl;
+	    // std::cout << "AVG EST = " << r->second.avgR << std::endl;
+
+	    double tmp = g->real[0][0]; 
+
+	    // std::cout << "TMP = " << tmp << std::endl;
+	    // std::cout << "(NJK-1)*tmp = " << ( num_jk_samples - 1 )*tmp << std::endl;
+	    // std::cout << "BIAS CORRECTED = " << num_jk_samples*r->second.avgR - ( num_jk_samples - 1 )*tmp
+	    // 	      << std::endl;
+	    g->real[0][0] = ( num_jk_samples*r->second.avgR - ( num_jk_samples - 1 )*tmp );
+	    // std::cout << "AFTER = " << g->real[0][0] << std::endl;
+	    // exit(80);
+	    tmp = g->imag[0][0];
+	    g->imag[0][0] = ( num_jk_samples*r->second.avgI - ( num_jk_samples - 1 )*tmp );
+	  }
+      }
+  }
+
   
   // Get a central value estimate of summed ratios
   void Ratios::mean()
@@ -101,6 +130,31 @@ namespace Summation
   }
 
 
+
+  /*
+    Write out the SR data
+  */
+  void Ratios::writeSR(std::string out)
+  {
+    // Stream to a file
+    std::ofstream os;
+    os.open(out+".dat");
+    os << ratio.begin()->second.tData.ncor.size() << " " << ratio.size() << " 1 0 1\n";
+
+    for ( int J = 0; J < ratio.begin()->second.tData.ncor.size(); J++ )
+      {
+	for ( auto ir = ratio.begin(); ir != ratio.end(); ++ir )
+	  {
+	    int idx = std::distance(ratio.begin(), ir); // need 0-based index for time series written to file
+	    os << std::setprecision(10) << idx << " "
+	       << ir->second.tData.ncor[J].real[0][0] << " "
+	       << ir->second.tData.ncor[J].imag[0][0] << "\n";
+	  }
+      }
+    os.close();
+  }
+
+
   
   /*
     HERE FOR FIT STUFF
@@ -137,7 +191,7 @@ namespace Summation
 	
 	
         // Fit per jackknife sample
-	for ( int J = 0; J < ratio.begin()->second.tData.ncor.size(); J++ )
+	for ( int J = 1; J < ratio.begin()->second.tData.ncor.size(); J++ )
 	  {
 	    
 	    // Initialize struct to hold this jack's data
@@ -156,9 +210,9 @@ namespace Summation
 	    if ( COMP == 2 )
 	      jfit = new linFit_t(dum, tseries, covI.inv);
 
-	    for ( auto a = jfit->T.begin(); a != jfit->T.end(); ++a )
-	      std::cout << *a;
-	    std::cout << "\n";
+	    // for ( auto a = jfit->m.begin(); a != jfit->m.end(); ++a )
+	    //   std::cout << *a << " ";
+	    // std::cout << "\n";
 	    
 	    
 	    // Define the gsl_multimin_function
@@ -176,8 +230,8 @@ namespace Summation
 	    
 	    // Iteration count
 	    int k = 1;
-	    double tolerance = 0.0000001; // 0.0001
-	    int maxIters = 10000;         // 1000
+	    double tolerance = 0.00000000000001; // 0.0001
+	    int maxIters = 10000;                // 1000
 	    
 	    while ( gsl_multimin_test_size( gsl_multimin_fminimizer_size(fmin), tolerance) == GSL_CONTINUE )
 	      {
@@ -185,6 +239,9 @@ namespace Summation
 		if ( k > maxIters ) { break; }
 		// Iterate
 		gsl_multimin_fminimizer_iterate(fmin);
+
+		// std::cout << "Current params = " << gsl_vector_get(gsl_multimin_fminimizer_x(fmin),0)
+		// 	  << " " << gsl_vector_get(gsl_multimin_fminimizer_x(fmin),1) << std::endl;
 		
 		k++;
 	      }
@@ -206,6 +263,8 @@ namespace Summation
 	    out << std::setprecision(12) << "A " << gsl_vector_get(bestFitParams,0) << "\n"
 		<< "B " << gsl_vector_get(bestFitParams,1) << "\n"
 		<< "rChi2 " << reducedChiSq << std::endl;
+
+	    // exit(90);
 
 	    delete jfit;
 

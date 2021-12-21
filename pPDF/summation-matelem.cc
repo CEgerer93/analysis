@@ -64,8 +64,10 @@ struct info3pt
   // XMLArray::Array2d<int> rows;
   // XMLArray::Array2d<int> signs;
 
-  XMLArray::Array<XMLArray::Array<int> > rows;
-  XMLArray::Array<XMLArray::Array<int> > signs;
+  XMLArray::Array<int> rows;
+
+  // XMLArray::Array<XMLArray::Array<int> > rows;
+  // XMLArray::Array<XMLArray::Array<int> > signs;
   
 } db3ptInfo;
 
@@ -74,8 +76,11 @@ struct info2pt
   // std::vector<std::string> base;
   std::string base;
   std::string momTag, ensem, state, nvec, t0Tag;
-  XMLArray::Array<XMLArray::Array<int> > rows;
-  XMLArray::Array<XMLArray::Array<int> > signs;
+  
+  XMLArray::Array<int> rows;
+
+  // XMLArray::Array<XMLArray::Array<int> > rows;
+  // XMLArray::Array<XMLArray::Array<int> > signs;
 } db2ptInfo;
 
 
@@ -304,8 +309,8 @@ void read(XMLReader& xml, const std::string path, info3pt& d)
     read(xml, path+"/nvec", d.nvec);
     read(xml, path+"/t0Tag", d.t0Tag);
     read(xml, path+"/zTag", d.zTag);
-    read(xml, path+"/rowinfo/rows", d.rows);
-    read(xml, path+"/rowinfo/signs", d.signs);
+    read(xml, path+"/rows", d.rows);
+    // read(xml, path+"/rowinfo/signs", d.signs);
   } catch ( std::string &e ) {
     std::cerr << "Unable to parse db3ptInfo struct from ini xml " << e << std::endl;
     exit(1);
@@ -322,8 +327,8 @@ void read(XMLReader& xml, const std::string path, info2pt& d)
     read(xml, path+"/state", d.state);
     read(xml, path+"/nvec", d.nvec);
     read(xml, path+"/t0Tag", d.t0Tag);
-    read(xml, path+"/rowinfo/rows", d.rows);
-    read(xml, path+"/rowinfo/signs", d.signs);
+    read(xml, path+"/rows", d.rows);
+    // read(xml, path+"/rowinfo/signs", d.signs);
   } catch ( std::string &e ) {
     std::cerr << "Unable to parse db2ptInfo struct from ini xml " << e << std::endl;
     exit(1);
@@ -997,6 +1002,7 @@ int main(int argc, char *argv[])
     Determine covariance + inverse of covariance matrices
   */
   SR.mean();
+  SR.antiJkRatio();
   SR.makeCovs();
   SR.makeInvCovs();
 
@@ -1009,10 +1015,10 @@ int main(int argc, char *argv[])
   std::string fitFileName = Hadron::ensemFileName(tempKey3pt.key);
   fitFileName.erase(fitFileName.end()-4,fitFileName.end());
   fitFileName += ".summedRatio";
-
+  // And now perform the fit
   SR.fit("LINEAR", fitFileName);
 
-
+  SR.writeSR(fitFileName);
 #if 0
   /*
     Correct for bias in each jackknife ensemble average estimate of summed ratio

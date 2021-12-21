@@ -6,9 +6,9 @@ import sys
 ########################################################
 # Dictionary associating Chroma Gamma with string label
 ########################################################
-gammaDict={0: '$\mathbb{1}$', 1: '$\gamma_x$', 2: '$\gamma_y$', 3: '$\gamma_x\gamma_y$',
-           4: '$\gamma_z$', 5: '$\gamma_x\gamma_z', 6: '$\gamma_y\gamma_z$', 7: '$\gamma_4\gamma_5$',
-           8: '$\gamma_4$'}
+gammaDict={0: '$\mathbb{1}$', 1: '$\gamma_x$', 2: '$\gamma_y$', 3: '$\gamma_x\gamma_y$', \
+           4: '$\gamma_z$', 5: '$\gamma_x\gamma_z', 6: '$\gamma_y\gamma_z$', 7: '$\gamma_4\gamma_5$', \
+           8: '$\gamma_4$', 11: '$\gamma_z\gamma_5$', 13: '$\gamma_y\gamma_5$', 14:'$\gamma_x\gamma_5$'}
 
 ##########################################################################
 # Dictionary for converting gammas in circular basis into Cartesian basis
@@ -16,7 +16,9 @@ gammaDict={0: '$\mathbb{1}$', 1: '$\gamma_x$', 2: '$\gamma_y$', 3: '$\gamma_x\ga
 crtsnGamma={1: { 'norm': 1/np.sqrt(2), 'firstRow': 1.0, 'secondRow': -1.0 }, \
             2: { 'norm': 1/np.sqrt(2), 'firstRow': 1.0, 'secondRow': 1.0 }, \
             5: { 'norm': 1/(2*np.sqrt(2)), 'firstRow': 1.0, 'secondRow': 1.0 }, \
-            6: { 'norm': 1/(2*np.sqrt(2)), 'firstRow': 1.0, 'secondRow': -1.0} }
+            6: { 'norm': 1/(2*np.sqrt(2)), 'firstRow': 1.0, 'secondRow': -1.0}, \
+            13: { 'norm': 1/np.sqrt(2), 'firstRow': 1.0, 'secondRow': 1.0}, \
+            14: { 'norm': 1/np.sqrt(2), 'firstRow': 1.0, 'secondRow': -1.0} }
 
 
 ##################################

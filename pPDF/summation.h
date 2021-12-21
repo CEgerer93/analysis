@@ -6,7 +6,7 @@
 
 /* #include<vector> */
 #include "personal_fns.h"
-#include "fit_util.h"
+/* #include "fit_util.h" */
 #include<stdlib.h>
 #include<map>
 #include<vector>
@@ -61,7 +61,7 @@ namespace Summation
 
     std::map<int, NtCorr_t> ratio;
 
-    std::map<int, FIT::FitRes_t> ratioFit;
+    /* std::map<int, FIT::FitRes_t> ratioFit; */
 
     struct covariances
     {
@@ -97,6 +97,10 @@ namespace Summation
     }
 
 
+    // Correct for bias in jackknifing
+    void antiJkRatio();
+
+
     // Get a central value estimate of summed ratios
     void mean();
     // Determine the data covariance matrices
@@ -104,11 +108,13 @@ namespace Summation
     // Determine the inverses of data covariances
     void makeInvCovs();
 
+    // Write the SR data to file
+    void writeSR(std::string out);
+
     // Perform a fit to jackknife samples + write to file
     void fit(std::string s, std::string outName);
     
   }; // Ratios
-
 
 } // Summation
 #endif

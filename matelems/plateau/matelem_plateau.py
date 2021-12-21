@@ -1,4 +1,4 @@
-#!/usr/bin/python2.7
+#!/usr/bin/python
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -108,6 +108,7 @@ for F in nptCorrs:
     elif len(F.split(' ')) == 2:
         dumCorr1=np.loadtxt(F.split(' ')[0], delimiter=' ', skiprows=1)
         dumCorr2=np.loadtxt(F.split(' ')[1], delimiter=' ', skiprows=1)
+        print dumCorr1
         mergedCorr=mergeCorrs(dumCorr1,dumCorr2,gamma)
         data3pt.append(mergedCorr)
     else:

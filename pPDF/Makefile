@@ -1,6 +1,8 @@
+# -Wall -Wextra -g -fsanitize=undefined -qopt-report=0 -qopt-report-phase=vec
+
 CXX=icpc
 
-CXXFLAGS=-Wall -Wextra -g -fsanitize=undefined -qopenmp -D_REENTRANT -O3 -finline-functions -fma -falias -std=c++14 -xAVX -qopt-report=0 -qopt-report-phase=vec -restrict -I/dist/gmp-6.0.0/include -I/volatile/JLabLQCD/cegerer/qcd_software/jlab/scalar-knl_PDFs/install/adat/include -I/usr/include/libxml2 -I/dist/gsl-1.15/include/gsl -I/home/cegerer/src -I/home/cegerer/analysis/fitting -I/home/cegerer/analysis/pPDF
+CXXFLAGS=-qopenmp -D_REENTRANT -O3 -finline-functions -fma -falias -std=c++14 -xAVX -restrict -I/dist/gmp-6.0.0/include -I/volatile/JLabLQCD/cegerer/qcd_software/jlab/scalar-knl_PDFs/install/adat/include -I/usr/include/libxml2 -I/dist/gsl-1.15/include/gsl -I/home/cegerer/src -I/home/cegerer/analysis/fitting -I/home/cegerer/analysis/pPDF
 
 
 LDFLAGS=-L/volatile/JLabLQCD/cegerer/qcd_software/jlab/scalar-knl_PDFs/install/adat/lib -L/dist/gsl-1.15/lib

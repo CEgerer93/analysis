@@ -22,7 +22,7 @@ namespace Pseudo
 
   // Set correct operator names and src/snk momenta based on global properties
   void setOpsMoms(Hadron::KeyHadronSUNNPartNPtCorr_t *k3, Hadron::KeyHadronSUNNPartNPtCorr_t& k2f,
-		  Hadron::KeyHadronSUNNPartNPtCorr_t& k2i, global& g)
+		  Hadron::KeyHadronSUNNPartNPtCorr_t& k2i, global_t& g)
   {
     // Setting the 3pt ops/moms
     k3->npoint[1].irrep.irrep_mom.mom = g.pf; // snk mom
@@ -48,8 +48,42 @@ namespace Pseudo
     std::cout << "  Set src/snk operators/momenta in template keys " << std::endl;
   }
 
+  // Set correct operator names and src/snk momenta based on global properties
+  void setOpsMoms(Hadron::KeyHadronSUNNPartNPtCorr_t *k3, Hadron::KeyHadronSUNNPartNPtCorr_t& k2f,
+                  Hadron::KeyHadronSUNNPartNPtCorr_t& k2i,
+		  Hadron::KeyHadronSUNNPartNPtCorr_t& k2Rest, global_t& g)
+  {
+    // Setting the 3pt ops/moms
+    k3->npoint[1].irrep.irrep_mom.mom = g.pf; // snk mom
+    k3->npoint[1].irrep.op.ops[1].name = g.opMomXML[shortMom(g.pf,"")]; // snk op
+    k3->npoint[1].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k3->npoint[1].irrep.irrep_mom.mom);
+    k3->npoint[3].irrep.irrep_mom.mom = g.pi; // src mom
+    k3->npoint[3].irrep.op.ops[1].name = g.opMomXML[shortMom(g.pi,"")]; // src op
+    k3->npoint[3].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k3->npoint[3].irrep.irrep_mom.mom);
+    k3->npoint[2].irrep.irrep_mom.mom = g.pf - g.pi; // q
+    k3->npoint[2].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k3->npoint[2].irrep.irrep_mom.mom);
+    // Setting the 2pt ops/moms
+    for ( int n = 1; n != k2f.npoint.size()+1; n++ )
+      {
+        // Setting the snk 2pt ops/moms
+        k2f.npoint[n].irrep.irrep_mom.mom = g.pf;
+        k2f.npoint[n].irrep.op.ops[1].name = g.opMomXML[shortMom(g.pf,"")];
+        k2f.npoint[n].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k2f.npoint[n].irrep.irrep_mom.mom);
+        // Setting the src 2pt ops/moms
+        k2i.npoint[n].irrep.irrep_mom.mom = g.pi;
+        k2i.npoint[n].irrep.op.ops[1].name = g.opMomXML[shortMom(g.pi,"")];
+        k2i.npoint[n].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k2i.npoint[n].irrep.irrep_mom.mom);
+
+	// Setting the rest 2pt ops/moms
+	k2Rest.npoint[n].irrep.irrep_mom.mom = g.rest;
+	k2Rest.npoint[n].irrep.op.ops[1].name = g.opMomXML[shortMom(g.rest,"")];
+	k2Rest.npoint[n].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k2Rest.npoint[n].irrep.irrep_mom.mom);
+      }
+    std::cout << "  Set src/snk operators/momenta in template keys " << std::endl;
+  }
+
   // Negate all npoint[N] moms, accepting original full set of keys (k)
-  void checkKeyMomNegate(std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t>& k, global& g)
+  void checkKeyMomNegate(std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t>& k, global_t& g)
   {
     // Make a copy of the passed vector of keys, so they may be modified via
     // pointer, and thus not affect the contents of k
@@ -122,17 +156,6 @@ namespace Pseudo
   /*
     Some debugging utilities
   */
-
-  // Print databases to be searched through
-  template<typename T>
-  void dumpDBs(std::vector<T>& vdb)
-  {
-    for ( std::vector<T>::const_iterator it = vdb.begin(); it != vdb.end(); ++it )
-      {
-	std::cout << *it << std::endl;
-      }
-  }
-
   // Print keys to be search for in databases
   void dumpKeys(std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t>& vk, int n)
   {
