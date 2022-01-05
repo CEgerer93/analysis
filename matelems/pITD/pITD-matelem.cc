@@ -1211,7 +1211,6 @@ int main(int argc, char *argv[])
   */
   rowAvg(funcs3pt);
 
-
   // for ( auto a = funcs3pt.begin(); a != funcs3pt.end(); ++a )
   //   {
   //     for ( auto aa = a->keyCorrMap.begin(); aa != a->keyCorrMap.end(); ++aa )
@@ -1276,6 +1275,17 @@ int main(int argc, char *argv[])
   // exit(8);
 
 
+#if 0
+  /*
+    Jackknife each 3pt function, and compute jk ens average
+  */
+  std::vector<NCOR::correlator> ratio(funcs3pt.size());
+  for ( auto a = funcs3pt.begin(); a != funcs3pt.end(); ++a )
+    {
+      int idx = std::distance(funcs3pt.begin(), a);
+      ratio[idx] = 
+#endif  
+
 
   /*
     For each 3pt function, divide by 2pt function at same tsep
@@ -1311,9 +1321,9 @@ int main(int argc, char *argv[])
       this3pt.jackknife();
       this3pt.ensAvg();
 
-      // Local copy of this tsep
-      int T = this3pt.ensemble.T.size();
 
+      // Local copy of this tsep
+      const int T = this3pt.ensemble.T.size();
 
       // Loop over time for this 3pt
       for ( auto tau = this3pt.ensemble.T.begin(); tau != this3pt.ensemble.T.end(); ++tau )
@@ -1332,13 +1342,19 @@ int main(int argc, char *argv[])
             }
         } //tau
 
+      // Get ensemble avg so bias removal can proceed
+      ratio[idx].ensAvg();
+      // std::cout << "Remove bias" << std::endl;
+      // Correct for bias in forming ratio - i.e. "anti-jackknife"
+      ratio[idx].removeBias();
+      // std::cout << "Summation" << std::endl;
+      ratio[idx].summation();
 
-      std::cout << "Raw ratio" << std::endl;
-      ratio[idx].jackknife(); ratio[idx].ensAvg();
-      std::cout << ratio[idx] << std::endl;
 
-      // // Correct for bias in ratio
-      // ratio[idx].removeBias();
+      // std::cout << "Raw ratio" << std::endl;
+      // ratio[idx].jackknife(); ratio[idx].ensAvg();
+      // std::cout << ratio[idx] << std::endl;
+
     } // it
   // exit(8);
 
@@ -1412,7 +1428,7 @@ int main(int argc, char *argv[])
     {
       int idx = std::distance(ratio.begin(), it);
 
-      it->summation();
+      //      it->summation();
       
       // Map the summed ratio data into the SR instance so covariance/fitting members can be used
       for ( auto gg = it->ensemble.ens.begin(); gg != it->ensemble.ens.end(); ++gg )
@@ -1425,8 +1441,8 @@ int main(int argc, char *argv[])
 
   SR.jackknife();
   SR.ensAvg();
-  SR.removeBias();
-  std::cout << SR << std::endl;
+  // SR.removeBias();
+  // std::cout << SR << std::endl;
   SR.Cov();
 
   LinAlg::printMat(SR.cov.dat["real"]);

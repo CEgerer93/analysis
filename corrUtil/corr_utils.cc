@@ -305,8 +305,11 @@ namespace NCOR
     // Maybe do this with a pointer, so VVC is left unaltered.
     for ( int g = 0; g < getCfgs(); ++g )
       {
-	for ( int t = 1; t < getNt(); ++t )
-	  ensemble.ens[g][0] += ensemble.ens[g][t];
+	// Explicitly ignore t=0 contact term - add t\in[2,Nt-1] terms to t=1 term
+	for ( int t = 2; t < getNt(); ++t )
+	  ensemble.ens[g][1] += ensemble.ens[g][t];
+	// Replace t=0 value with summed value
+	ensemble.ens[g][0] = ensemble.ens[g][1];
 	ensemble.ens[g].erase(ensemble.ens[g].begin()+1,ensemble.ens[g].end());
       }
     // Temporal range is now only a single element w/ value of correlator.Nt before summation
