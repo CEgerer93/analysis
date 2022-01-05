@@ -1,6 +1,6 @@
 /*
   Define classes/structs/methods needed to handle matrix element extraction
-  From adat based correlators; fitting with gsl
+ 65;6003;1c From adat based correlators; fitting with gsl
 */
 #include "fit_util.h"
 #include "cov_utils.h"
@@ -55,9 +55,9 @@ namespace NFIT
 
     // Initialize any vectors gsl_vectors need in chi2 evaluation (including in VarPro format)
     std::vector<double> predict;
-    gsl_vector *iDiffVec = gsl_vector_alloc(subDomain.size());
-    gsl_vector *jDiffVec = gsl_vector_alloc(subDomain.size());
-    gsl_vector *dataVec  = gsl_vector_alloc(subDomain.size()); // vector of data to be fit
+    gsl_vector *iDiffVec = gsl_vector_calloc(subDomain.size());
+    gsl_vector *jDiffVec = gsl_vector_calloc(subDomain.size());
+    gsl_vector *dataVec  = gsl_vector_calloc(subDomain.size()); // vector of data to be fit
     // Initialize any constants needed in evaluation
     double chi2(0.0);
     int buff = ( _min - b->jkDat.T[0]) / ( b->jkDat.T[1] - b->jkDat.T[0] );
@@ -73,6 +73,13 @@ namespace NFIT
       }
     //--------------------------------------------------------------
 
+    // More DEBUGS
+#if 0
+    std::cout << "Predict = ";
+    for ( auto p = predict.begin(); p != predict.end(); ++p )
+      std::cout << *p;
+    std::cout << "\n";
+#endif
 
     // Populate dataVec & iDiffVec vectors
     for ( int l = 0; l < subDomain.size(); ++l )
@@ -91,6 +98,10 @@ namespace NFIT
 	  }
       }
 
+    // More DEBUGS
+#if 0
+    std::cout << "DATAVEC = " << dataVec << std::endl;
+#endif
 
 
     /*
@@ -149,6 +160,13 @@ namespace NFIT
       }
     else
       {
+#if 0
+	// Some more debugs
+	std::cout << "Init chi2 = " << chi2 << std::endl;
+	std::cout << "IDIFFVEC = " << iDiffVec << std::endl;
+	std::cout << "CovInv = ";
+	LinAlg::printMat(&(b->covInv));
+#endif
 	// Copy the difference vector
 	gsl_vector_memcpy(jDiffVec, iDiffVec);
 
@@ -251,11 +269,10 @@ namespace NFIT
 	// gsl_vector_set(finParams,finParams->size-1,gsl_vector_get(fminBest,fminBest->size-1));
 
 	fminBest = gsl_multimin_fminimizer_x(fmin);
-	std::cout << "Got fminBest : " << fminBest << std::endl;
-	std::cout << "Finparams here : " << finParams << std::endl;
 	// Return the associated reduced chi2	
 	double chiSq = gsl_multimin_fminimizer_minimum(fmin);
 	chiSq /= ( c->fit.theFit.range.numT() - c->fit.num - c->fit.fitCov.svs[comp] );
+	std::cout << "Chi2 w/ finparams = " << chiSq << std::endl;
 
 
 	/*
@@ -290,7 +307,6 @@ namespace NFIT
 	    soln.makePhi(c->fit.fitCov.inv[comp], prior);
 	    soln.getInvPhi();
 	    soln.getSoln();
-	    std::cout << "[BEST] CONST VEC = " << soln.soln << std::endl;
 
 
 	    // Append constants determined via VarPro onto finParams

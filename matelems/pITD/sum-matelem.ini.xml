@@ -14,8 +14,8 @@
     <Lt>64</Lt>
     <Lx>32</Lx>
     <rest>0 0 0</rest> <!-- lazy me -->
-    <pf>0 0 -1</pf>
-    <pi>0 0 -1</pi>
+    <pf>0 0 PZ</pf>
+    <pi>0 0 PZ</pi>
     <momNegate>false</momNegate> <!-- When forming keys/dbs, include those w/ opposite parity momenta from {pf,pi} -->
     <OpMap>
       <elem><Key>000</Key><Val>NucleonMG1g1MxD0J0S_J1o2_G1g1</Val></elem>
@@ -53,9 +53,9 @@
     <threePt>
       <funcType>l</funcType>
       <range>
-        <tmin>4</tmin>
+        <tmin>3PTTmin</tmin>
         <tstep>2</tstep>
-        <tmax>14</tmax>
+        <tmax>3PTTmax</tmax>
       </range>
     </threePt>
   </fitting>
@@ -82,8 +82,9 @@
     <twoPt>
       <tseries>
 	<range>
-	  <tmin>0</tmin><tstep>1</tstep><tmax>15</tmax> PZ = -1
+	  <!-- <tmin>0</tmin><tstep>1</tstep><tmax>15</tmax> --> <!-- PZ = -1 -->
 	  <!-- <tmin>0</tmin><tstep>1</tstep><tmax>20</tmax> --> <!-- PZ = 1 -->
+	  <tmin>0</tmin><tstep>1</tstep><tmax>TMAX</tmax>
 	</range>
       </tseries>
       <base>/cache/isoClover/b6p3/cl21_32_64_b6p3_m0p2390_m0p2050/2ptcorrs/unphased/t0_avg</base>
@@ -129,13 +130,13 @@
 	      </flavor>
 	      <irmom>
 		<row>1</row>
-		<mom>0 0 1</mom>
+		<mom>0 0 PZ</mom>
 	      </irmom>
 	      <Op>
 		<Operators>
 		  <elem>
 		    <name>XOPX</name>
-		    <mom_type>1 0 0</mom_type>
+		    <mom_type>MODMOM 0 0</mom_type>
 		  </elem>
 		</Operators>
 		<CGs>
@@ -154,17 +155,17 @@
 		<twoI_z>0</twoI_z>
 	      </flavor>
 	      <irmom>
-		<row>1</row>
+		<row>ROWINS</row>
 		<mom>0 0 0</mom>
 	      </irmom>
 	      <Op>
 		<Operators>
 		  <elem>
-		    <name>b_b0xDA__J0_A1pP</name>
+		    <!-- <name>b_b0xDA__J0_A1pP</name> -->
 		    <!-- <name>a_a1xDA__J1_T1pM</name> -->
+		    <name>INS</name>
 		    <mom_type>0 0 0</mom_type>
-		    <!-- <disp_list>DZ</disp_list> -->
-		    <disp_list></disp_list>
+		    <disp_list>DZ</disp_list>
 		  </elem>
 		</Operators>
 		<CGs>
@@ -184,13 +185,13 @@
 	      </flavor>
 	      <irmom>
 		<row>1</row>
-		<mom>0 0 1</mom>
+		<mom>0 0 PZ</mom>
 	      </irmom>
 	      <Op>
 		<Operators>
 		  <elem>
 		    <name>XOPX</name>
-		    <mom_type>1 0 0</mom_type>
+		    <mom_type>MODMOM 0 0</mom_type>
 		  </elem>
 		</Operators>
 		<CGs>
@@ -219,13 +220,13 @@
 	      </flavor>
 	      <irmom>
 		<row>1</row>
-		<mom>0 0 1</mom> <!-- handle search of opposing momenta internally -->
+		<mom>0 0 PZ</mom> <!-- handle search of opposing momenta internally -->
 	      </irmom>
 	      <Op>
 		<Operators>
 		  <elem>
  		    <name>XOPX</name>
-		    <mom_type>1 0 0</mom_type>
+		    <mom_type>MODMOM 0 0</mom_type>
 		  </elem>
 		</Operators>
 		<CGs>
@@ -234,8 +235,9 @@
 	    </Irrep>
 	  </elem>
 	  <elem>
-	    <!-- <t_slice>-2</t_slice> --> <!-- PZ = +1 -->
-	    <t_slice>0</t_slice>  <!-- 0 for t0 = 0 & 48 ??? -->
+	    <!-- <t_slice>-2</t_slice> --> <!-- PZ = 0, +1 -->
+	    <!-- <t_slice>0</t_slice> -->  <!-- 0 for t0 = 0 & 48 ??? -->
+	    <t_slice>TSLICE2PT</t_slice>
 	    <Irrep>
 	      <creation_op>true</creation_op>
 	      <smearedP>true</smearedP>
@@ -246,13 +248,13 @@
 	      </flavor>
 	      <irmom>
 	    	<row>1</row>
-	    	<mom>0 0 1</mom>
+	    	<mom>0 0 PZ</mom>
 	      </irmom>
 	      <Op>
 	    	<Operators>
 	    	  <elem>
 		    <name>XOPX</name>
-	    	    <mom_type>1 0 0</mom_type>
+	    	    <mom_type>MODMOM 0 0</mom_type>
 	    	  </elem>
 	    	</Operators>
 	    	<CGs>

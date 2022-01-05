@@ -39,6 +39,9 @@
 #include "io/adat_xmlio.h"
 #include "io/adat_xml_group_reader.h"
 #include "adat/handle.h"
+
+#include "hadron/irreps_cubic_factory.h"
+#include "hadron/irreps_cubic_oct_factory.h"
 #include "hadron/irreps_cubic_helicity_factory.h"
 #include "hadron/subduce_tables_oct_factory.h"
 #include "hadron/subduce_tables_lg_factory.h"
@@ -58,7 +61,8 @@ domain_t temporal3pt, temporal2pt, temporal2ptRest;
 info3pt db3ptInfo;
 info2pt db2ptInfo, db2ptRestInfo;
 
-
+// Constants
+const std::complex<double> redFact(sqrt(2),0);
 
 class subduceInfo
 {
@@ -78,14 +82,22 @@ public:
   subduceInfo(std::string s, XMLArray::Array<int> m)
   {
     name = s;
-    
-    opHelIrrepLG = Hadron::getSingleHadronOpIrrep(name);
-    opIrrepLG    = Hadron::removeHelicity(opHelIrrepLG);
-    opIrrep      = Hadron::removeIrrepLG(opIrrepLG);
-    opIrrepNoP   = Hadron::getCubicRepNoParity(opHelIrrepLG);
+
+    opHelIrrepLG   = Hadron::getSingleHadronOpIrrep(name);
+    opIrrepLG      = Hadron::removeHelicity(opHelIrrepLG);
+    opIrrep        = Hadron::removeIrrepLG(opIrrepLG);
     opLG         = Hadron::getIrrepLG(opIrrepLG);
-    
-    irrep_dim    = Hadron::getIrrepDim(opIrrepLG);
+    // Don't know why getIrrepDim/getCubicRepNoParity fails when given irrep G1g1 - so do a hard code here
+    if ( shortMom(m,"") == "000" )
+      {
+	opIrrepNoP   = Hadron::getCubicRepNoParity("G1g");
+	irrep_dim    = Hadron::getIrrepDim("G1g");
+      }
+    else
+      {
+	opIrrepNoP   = Hadron::getCubicRepNoParity(opHelIrrepLG);
+	irrep_dim    = Hadron::getIrrepDim(opIrrepLG);
+      }
 
     // Set handle based on momentum
     if ( shortMom(m,"") == "000" )
@@ -569,7 +581,6 @@ void rowAvg(std::vector<NCOR::corrEquivalence>& v)
     {
       // Convenience
       Hadron::KeyHadronSUNNPartNPtCorr_t tmp = vi->keyCorrMap.begin()->first;
-
       // Each corrEquivalence member must have same irrep momenta
       subduceInfo snkOp(tmp.npoint[1].irrep.op.ops[1].name,tmp.npoint[1].irrep.irrep_mom.mom);
       subduceInfo srcOp(tmp.npoint[3].irrep.op.ops[1].name,tmp.npoint[3].irrep.irrep_mom.mom);
@@ -737,9 +748,16 @@ void rowAvg(std::vector<NCOR::corrEquivalence>& v)
 		      NCOR::conj(&thisCorr.ensemble.ens);
 		    }
 
+		  /*
+		    Only append this reweighted *.ensemble if weight != 0
+		    Otherwise, merging below will average over non-zero 
+		         & zero entries
+		  */
 		  // Pack this correlator for averaging
 		  // toAvg[(j-1)*2+d].push_back(dum);
-		  toMerge[i-1].push_back(thisCorr.ensemble.ens);
+		  std::complex<double> null(0.0,0.0);
+		  if ( weight != null )
+		    toMerge[i-1].push_back(thisCorr.ensemble.ens);
 
 		} // d
 	    } // j
@@ -767,7 +785,25 @@ void rowAvg(std::vector<NCOR::corrEquivalence>& v)
 
 
 	      // Merge along toMerge[*] dimension
-	      NCOR::correlator mergeCorr = NCOR::mergeCorrs(toMerge[j+i*srcOp.irrep_dim]);
+	      std::cout << "DEBUG - here we have " << toMerge[j+i*srcOp.irrep_dim].size() << " corrs to merge " << std::endl;
+	      // NCOR::correlator mergeCorr = NCOR::mergeCorrs(toMerge[j+i*srcOp.irrep_dim]);
+
+
+	      // Try a direct add
+	      Pseudo::domain_t dumD(0,1,tmp.npoint[1].t_slice-1);
+	      Pseudo::prop_t dumP(global.cfgs, dumD);
+	      NCOR::correlator mergeCorr(dumP);
+
+	      mergeCorr.ensemble.ens = toMerge[j+i*srcOp.irrep_dim][0];
+	      if ( toMerge[j+i*srcOp.irrep_dim].size() > 1 )
+		{
+		  for ( int s = 1; s < toMerge[j+i*srcOp.irrep_dim].size(); ++s )
+		    {
+		      NCOR::dat_t dumDat; dumDat.ens = toMerge[j+i*srcOp.irrep_dim][s];
+		      mergeCorr.ensemble += dumDat;
+		    }
+		}
+		
 	      cavg.insert(tmp, mergeCorr);
 	    }
 	}
@@ -899,6 +935,8 @@ int main(int argc, char *argv[])
 
 
   // Register all the necessary factories for relating lattice matrix elements and helicity amplitudes
+  Hadron::IrrepsCubicEnv::registerAll();
+  Hadron::IrrepsCubicOctEnv::registerAll();
   Hadron::IrrepsCubicHelicityEnv::registerAll();
   Hadron::SubduceTablesOctEnv::registerAll();
   Hadron::SubduceTablesLgEnv::registerAll();
@@ -1094,7 +1132,6 @@ int main(int argc, char *argv[])
   writeCorr(&rest2pt);
 
 
-
   /*
     Do some checks of 2pt functions
   */
@@ -1152,37 +1189,6 @@ int main(int argc, char *argv[])
 
 
 
-//   /*
-//     Reweight the 3pt functions
-//   */
-//   for ( std::vector<NCOR::corrEquivalence>::iterator i = funcs3pt.begin(); i != funcs3pt.end(); ++i )
-//     {
-//       // These const_iterators in adat are killing me
-//       // So make a new map and fill it with modified values
-//       ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, NCOR::correlator> rescaleMap;
-//       NCOR::correlator rescale;
-
-//       for ( auto k = i->keyCorrMap.begin(); k != i->keyCorrMap.end(); ++k )
-// 	{
-// 	  std::complex<double> reweight = lgToHelicityAmps(&(k->first));
-// 	  std::cout << "*******WEIGHT to Key = " << k->first << "\n    IS = " << reweight << std::endl;
-
-// 	  // Again because of const_iters in adat, pull out value associated with this key and then reweight
-// 	  NCOR::correlator unscaled = i->keyCorrMap[k->first];
-// #warning "Assuming subduction/Wigner-D reweights are strictly real!"
-
-// 	  rescale.ensemble = unscaled.ensemble * (1.0/reweight);
-	  
-// 	  // Pack the reweighted value
-// 	  rescaleMap.insert(k->first, rescale);
-// 	}
-
-//       i->keyCorrMap.clear();
-//       i->keyCorrMap = rescaleMap;
-//     }
-
-
-
   // for ( auto a = funcs3pt.begin(); a != funcs3pt.end(); ++a )
   //   {
   //     for ( auto aa = a->keyCorrMap.begin(); aa != a->keyCorrMap.end(); ++aa )
@@ -1230,21 +1236,18 @@ int main(int argc, char *argv[])
       antialign.npoint[1].irrep.irrep_mom.row = -2;
       antialign.npoint[3].irrep.irrep_mom.row = -2;
 
-     
-	
+
+      std::complex<double> spinAvg(0.5,0.0);
       // Now form the unpolarized or polarized combination based on global projection
       switch ( global.chromaGamma )
 	{
 	case 8:
-	  std::cout << "Case unpolarized" << std::endl;
 	  a->keyCorrMap[align].ensemble += a->keyCorrMap[antialign].ensemble;
-
-	  // a->keyCorrMap.clear();
-	  // a->keyCorrMap[align].ensemble = a->keyCorrMap[align].ensemble + a->keyCorrMap[antialign].ensemble;
+	  a->keyCorrMap[align].ensemble *= (spinAvg * redFact);
 	  break;
 	case 11:
-	  std::cout << "Case polarized" << std::endl;
 	  a->keyCorrMap[align].ensemble -= a->keyCorrMap[antialign].ensemble;
+	  a->keyCorrMap[align].ensemble *= (spinAvg * redFact);
 	  break;
 	}
 
@@ -1290,9 +1293,7 @@ int main(int argc, char *argv[])
       props->npt     = 3;
       props->gamma   = global.chromaGamma;
       props->key     = it->keyCorrMap.begin()->first;
-      // props->mom.fin = it->keyCorrMap.begin()->first.npoint[1].irrep.irrep_mom.mom;
-      // props->mom.ini = it->keyCorrMap.begin()->first.npoint[3].irrep.irrep_mom.mom;
-      // props->disp    = it->keyCorrMap.begin()->first.npoint[2].irrep.op.ops[1].disp_list;
+
       // Lazy here - make sure the displacement being passed is positive
       if ( props->key.npoint[2].irrep.op.ops[1].disp_list.size() != 0
            && props->key.npoint[2].irrep.op.ops[1].disp_list[0] < 0 )
@@ -1309,7 +1310,6 @@ int main(int argc, char *argv[])
 
       this3pt.jackknife();
       this3pt.ensAvg();
-      std::cout << this3pt << std::endl;
 
       // Local copy of this tsep
       int T = this3pt.ensemble.T.size();
@@ -1333,9 +1333,14 @@ int main(int argc, char *argv[])
         } //tau
 
 
+      std::cout << "Raw ratio" << std::endl;
+      ratio[idx].jackknife(); ratio[idx].ensAvg();
+      std::cout << ratio[idx] << std::endl;
+
       // // Correct for bias in ratio
       // ratio[idx].removeBias();
     } // it
+  // exit(8);
 
 
   // Per jackknife sample, fold in standard kinematic factors
@@ -1354,8 +1359,10 @@ int main(int argc, char *argv[])
 
           it->ensemble.ens[j] *= (1.0/kin);
         }
+      // it->jackknife();
+      // it->ensAvg();
+      // std::cout << *it << "\n" << std::endl;
     }
-
 
   // ratio now rescaled and basic kinefactor applied
   /*
@@ -1382,7 +1389,7 @@ int main(int argc, char *argv[])
       // std::cout << *it << std::endl;
       // std::cout << "*********************" << std::endl;
     }
-
+  // exit(8);
 
   
 
@@ -1427,6 +1434,24 @@ int main(int argc, char *argv[])
 
   // Init a linear fit for SR
   SR.fit = NCOR::fitFunc_t(threePtFitInfo,SR.cov.dat, temporal3pt);
+
+  // DEBUGS
+  std::cout << "SR.fit.type = " << SR.fit.getType() << std::endl;
+  std::cout << "SR.fit.num = " << SR.fit.num << std::endl;
+  std::cout << "SR.fit.fitCov[real] = ";
+#warning "FIX ME! - sqrt(cov[i][j]) is off by factor of cfgs!"
+  LinAlg::printMat(SR.fit.fitCov.dat["real"]);
+  std::cout << "SR.fit.fitCov[imag] = ";
+  LinAlg::printMat(SR.fit.fitCov.dat["imag"]);
+  std::cout << "SR.fit.theFit.verbose = " << SR.fit.theFit.verbose() << std::endl;
+  std::cout << "SR.fit.theFit.range.min = " << SR.fit.theFit.range.min << std::endl;
+  std::cout << "SR.fit.theFit.range.step = " << SR.fit.theFit.range.step << std::endl;
+  std::cout << "SR.fit.theFit.range.max = " << SR.fit.theFit.range.max << std::endl;
+  std::cout << "SR.fit.theFit.range.numT = " << SR.fit.theFit.range.numT() << std::endl;
+  // SR.fit.theFit.range.makeDomain();
+  // std::cout << "SR.fit.theFit.range.domain = " << SR.fit.theFit.range.makeDomain() << std::endl;
+  // exit(8);
+  
 
 
 

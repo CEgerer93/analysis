@@ -123,7 +123,21 @@ namespace NCOR
        << c.ensemble.ens[0].size() << "\n";
     os << "    - avg:      size    = " << c.ensemble.avg.size() << "\n";
     if ( c.ensemble.avg.size() > 0 )
-      os << "    - avg:      entries = " << c.ensemble.avg;
+      {
+	os << "    - avg:      entries = " << c.ensemble.avg;
+
+#warning "Delete the below commented stuff once errors of SR data are comfirmed correct"	
+	// for ( int i = 0; i < c.cov.dat["real"]->size1; ++i )
+	//   {
+	//     for ( int j = 0; j < c.cov.dat["real"]->size2; ++j )
+	//       {
+	// 	os << "    - err:      entries = ";
+	// 	if ( i == j )
+	// 	  os << "(" << sqrt(gsl_matrix_get(c.cov.dat["real"],i,j))
+	// 	     << ", " << sqrt(gsl_matrix_get(c.cov.dat["imag"],i,j)) << ") ";
+	//       }
+	//   }
+      }
     return os;
   }
 
