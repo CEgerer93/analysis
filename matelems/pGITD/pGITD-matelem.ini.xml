@@ -1,62 +1,78 @@
 <?xml version="1.0"?>
-<PITD>
+<PGITD>
   <global>
-    <ensem>cl21_32_64_b6p3_m0p2390_m0p2050</ensem>
-    <cfgs>259</cfgs>
+    <ensem>cl21_32_64_b6p3_m0p2350_m0p2050</ensem>
+    <cfgs>349</cfgs>
     <t2ptRows>1</t2ptRows>
-    <observable>pPDF</observable>
+    <observable>pGITD</observable>
     <state>nuc</state>
     <projection>
-      <gamma>GAMMA</gamma>
-      <!-- <gamma>8</gamma> -->
-      <!-- <gamma>11</gamma> -->
+      <gamma>8</gamma>
     </projection>
     <nvec>64</nvec>
     <Lt>64</Lt>
     <Lx>32</Lx>
     <rest>0 0 0</rest> <!-- lazy me -->
-    <pf>0 0 PZ</pf>
-    <pi>0 0 PZ</pi>
+    <pf>XPFX</pf>
+    <pi>XPIX</pi>
+    <!-- <pf>0 0 1</pf> -->
+    <!-- <pi>0 0 0</pi> -->
     <momNegate>false</momNegate> <!-- When forming keys/dbs, include those w/ opposite parity momenta from {pf,pi} -->
     <OpMap>
-      <elem><Key>000</Key><Val>NucleonMG1g1MxD0J0S_J1o2_G1g1</Val></elem>
-      <elem><Key>001</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</Val></elem>
-      <elem><Key>00-1</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</Val></elem>
-      <elem><Key>002</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</Val></elem>
-      <elem><Key>00-2</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</Val></elem>
-      <elem><Key>003</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</Val></elem>
-      <elem><Key>00-3</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</Val></elem>
-      <elem><Key>004</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</Val></elem>
-      <elem><Key>00-4</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</Val></elem>
-      <elem><Key>005</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</Val></elem>
-      <elem><Key>00-5</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</Val></elem>
-      <elem><Key>006</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</Val></elem>
-      <elem><Key>00-6</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1</Val></elem>
+      <elem>
+	<Key>000</Key>
+	<Val>Nucleon_proj0_p000_G1g</Val> <!-- 7 Op GEVP -->
+      </elem>
+      <elem>
+	<Key>001</Key>
+	<Val>Nucleon_proj0_p100_H1o2D4E1</Val> <!-- 16 Op GEVP -->
+      </elem>
+      <elem>
+	<Key>00-1</Key>
+	<Val>Nucleon_proj1_p100_H1o2D4E1</Val> <!-- 16 Op GEVP -->
+      </elem>
+      <elem>
+	<Key>002</Key>
+	<Val>Nucleon_proj0_p200_H1o2D4E1</Val> <!-- 16 Op GEVP -->
+      </elem>
+      <elem>
+      	<Key>00-2</Key>
+      	<Val>Nucleon_proj1_p200_H1o2D4E1</Val> <!-- 16 Op GEVP -->
+      </elem>
+      <elem>
+	<Key>011</Key>
+	<Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D2E</Val>
+      </elem>
+      <elem>
+	<Key>01-2</Key>
+	<Val>NucleonMG1g1MxD0J0S_J1o2_H1o2C4nm0E</Val>
+      </elem>
     </OpMap>
   </global>
   <fitting>
     <twoPt>
       <funcType>t</funcType>
       <range>
-        <tmin>2PTTmin</tmin>
-        <tstep>1</tstep>
-        <tmax>2PTTmax</tmax>
+	<tmin>2</tmin>
+	<tstep>1</tstep>
+	<tmax>15</tmax>
       </range>
     </twoPt>
     <twoPtRest>
       <funcType>t</funcType>
       <range>
-        <tmin>2</tmin>
-        <tstep>1</tstep>
-        <tmax>18</tmax>
+	<tmin>2</tmin>
+	<tstep>1</tstep>
+	<tmax>20</tmax>
       </range>
     </twoPtRest>
     <threePt>
       <funcType>l</funcType>
       <range>
-        <tmin>3PTTmin</tmin>
-        <tstep>2</tstep>
-        <tmax>3PTTmax</tmax>
+	<tmin>TMIN</tmin>
+	<!-- <tmin>4</tmin> -->
+	<tstep>2</tstep>
+	<tmax>14</tmax>
       </range>
     </threePt>
   </fitting>
@@ -64,34 +80,36 @@
     <threePt>
       <tseries>
 	<range>
-	  <tmin>4</tmin><tstep>2</tstep><tmax>14</tmax>
+	  <tmin>4</tmin>
+	  <tstep>2</tstep>
+	  <tmax>14</tmax>
 	</range>
       </tseries>
       <base>
-	<elem>/cache/lqcdpdf/isoClover/dist_ppdf</elem>
-	<elem>/PHASEDIR/t0_avg/tsnk_</elem>
-	<!-- <elem>/unphased/t0_avg/tsnk_</elem> -->
-	<!-- <elem>/phased/t0_avg/tsnk_</elem> -->
+      	<elem>/lustre/cache/lqcdpdf/isoClover/dist_pgitd</elem>
+      	<elem>/unphased/t0_avg/tsnk</elem>
+	<!-- <elem>/unphased/t0_0/tsnk</elem> -->
       </base>
       <momTag>momXYZ</momTag>
       <tsnkTag>tsnk</tsnkTag>
       <t0Tag>t0_avg</t0Tag>
-      <zTag>Z-8-8</zTag>
+      <!-- <t0Tag>t0_0</t0Tag> -->
+      <!-- <zTag>absZ-8-8</zTag>  -->
+      <zTag>Z-8.Z8</zTag>  <!-- Individual t0's & phased abs(z) <= 8 -->
+      <!-- <zTag>absZ9-16</zTag> -->
       <rows>
-	<!-- <elem>1 1</elem><elem>2 2</elem> -->
 	<elem>1 1</elem><elem>1 2</elem><elem>2 1</elem><elem>2 2</elem>
       </rows>
     </threePt>
     <twoPt>
       <tseries>
 	<range>
-	  <!-- <tmin>0</tmin><tstep>1</tstep><tmax>15</tmax> --> <!-- PZ = -1 -->
-	  <!-- <tmin>0</tmin><tstep>1</tstep><tmax>20</tmax> --> <!-- PZ = 1 -->
-	  <tmin>0</tmin><tstep>1</tstep><tmax>TMAX</tmax>
+	  <tmin>0</tmin><tstep>1</tstep><tmax>20</tmax>
 	</range>
       </tseries>
-      <!-- <base>/cache/isoClover/b6p3/cl21_32_64_b6p3_m0p2390_m0p2050/2ptcorrs/unphased/t0_avg</base> -->
-      <base>/cache/isoClover/b6p3/cl21_32_64_b6p3_m0p2390_m0p2050/2ptcorrs/PHASESTUB/t0_avg</base>
+      <!-- <base>/work/JLabLQCD/cegerer/nucleon_2pt</base> -->
+      <!-- <base>/work/JLabLQCD/cegerer/nucleon_2pt/cl21_32_64_b6p3_m0p2350_m0p2050/t0_avg</base> -->
+      <base>/cache/isoClover/b6p3/cl21_32_64_b6p3_m0p2350_m0p2050/2ptcorrs/unphased/t0_avg</base>
       <momTag>momXYZ</momTag>
       <t0Tag>t0_avg</t0Tag>
       <rows>
@@ -100,15 +118,15 @@
     </twoPt>
     <twoPtRest>
       <tseries>
-        <range>
-          <tmin>0</tmin><tstep>1</tstep><tmax>20</tmax>
-        </range>
+	<range>
+	  <tmin>0</tmin><tstep>1</tstep><tmax>20</tmax>
+	</range>
       </tseries>
-      <base>/cache/isoClover/b6p3/cl21_32_64_b6p3_m0p2390_m0p2050/2ptcorrs/unphased/t0_avg</base>
+      <base>/cache/isoClover/b6p3/cl21_32_64_b6p3_m0p2350_m0p2050/2ptcorrs/unphased/t0_avg</base>
       <momTag>momXYZ</momTag>
       <t0Tag>t0_avg</t0Tag>
       <rows>
-        <elem>1 1</elem>
+	<elem>1 1</elem>
       </rows>
     </twoPtRest>
   </dbInfo>
@@ -117,9 +135,6 @@
     <!--            THE THREE PT OPERATORS             -->
     <!-- $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ -->
     <threePt>
-      <annotation>
-	3pt operators appearing in summed 3pt/2pt ratio to fetch
-      </annotation>
       <keyTemplate>
 	<NPoint>
 	  <elem>
@@ -134,13 +149,13 @@
 	      </flavor>
 	      <irmom>
 		<row>1</row>
-		<mom>0 0 PZ</mom>
+		<mom>0 0 0</mom>
 	      </irmom>
 	      <Op>
 		<Operators>
 		  <elem>
 		    <name>XOPX</name>
-		    <mom_type>MODMOM 0 0</mom_type>
+		    <mom_type>0 0 0</mom_type>
 		  </elem>
 		</Operators>
 		<CGs>
@@ -159,17 +174,16 @@
 		<twoI_z>0</twoI_z>
 	      </flavor>
 	      <irmom>
-		<row>ROWINS</row>
-		<mom>0 0 0</mom>
+		<row>1</row>
+		<mom>0 0 -1</mom>
 	      </irmom>
 	      <Op>
 		<Operators>
 		  <elem>
-		    <!-- <name>b_b0xDA__J0_A1pP</name> -->
-		    <!-- <name>a_a1xDA__J1_T1pM</name> -->
-		    <name>INS</name>
-		    <mom_type>0 0 0</mom_type>
-		    <disp_list>DZ</disp_list>
+		    <name>b_b0xDA__J0_A1pP</name>
+		    <mom_type>1 0 0</mom_type>
+		    <!-- <disp_list></disp_list> -->
+		    <disp_list>DISP</disp_list>
 		  </elem>
 		</Operators>
 		<CGs>
@@ -178,7 +192,8 @@
 	    </Irrep>
 	  </elem>
 	  <elem>
-	    <t_slice>0</t_slice>
+	    <t_slice>-3</t_slice>
+	    <!-- <t_slice>0</t_slice> -->
 	    <Irrep>
 	      <creation_op>true</creation_op>
 	      <smearedP>true</smearedP>
@@ -189,13 +204,13 @@
 	      </flavor>
 	      <irmom>
 		<row>1</row>
-		<mom>0 0 PZ</mom>
+		<mom>0 0 0</mom>
 	      </irmom>
 	      <Op>
 		<Operators>
 		  <elem>
 		    <name>XOPX</name>
-		    <mom_type>MODMOM 0 0</mom_type>
+		    <mom_type>0 0 0</mom_type>
 		  </elem>
 		</Operators>
 		<CGs>
@@ -207,9 +222,6 @@
       </keyTemplate>
     </threePt>
     <twoPt>
-      <annotation>
-        2pt operators appearing in summed 3pt/2pt ratio to fetch
-      </annotation>
       <keyTemplate>
 	<NPoint>
 	  <elem>
@@ -224,13 +236,13 @@
 	      </flavor>
 	      <irmom>
 		<row>1</row>
-		<mom>0 0 PZ</mom> <!-- handle search of opposing momenta internally -->
+		<mom>0 0 1</mom> <!-- handle search of opposing momenta internally -->
 	      </irmom>
 	      <Op>
 		<Operators>
 		  <elem>
  		    <name>XOPX</name>
-		    <mom_type>MODMOM 0 0</mom_type>
+		    <mom_type>1 0 0</mom_type>
 		  </elem>
 		</Operators>
 		<CGs>
@@ -239,9 +251,8 @@
 	    </Irrep>
 	  </elem>
 	  <elem>
-	    <!-- <t_slice>-2</t_slice> --> <!-- PZ = 0, +1 -->
-	    <!-- <t_slice>0</t_slice> -->  <!-- 0 for t0 = 0 & 48 ??? -->
-	    <t_slice>TSLICE2PT</t_slice>
+	    <!-- <t_slice>-2</t_slice> -->
+	    <t_slice>0</t_slice>
 	    <Irrep>
 	      <creation_op>true</creation_op>
 	      <smearedP>true</smearedP>
@@ -252,13 +263,13 @@
 	      </flavor>
 	      <irmom>
 	    	<row>1</row>
-	    	<mom>0 0 PZ</mom>
+	    	<mom>0 0 1</mom>
 	      </irmom>
 	      <Op>
 	    	<Operators>
 	    	  <elem>
 		    <name>XOPX</name>
-	    	    <mom_type>MODMOM 0 0</mom_type>
+	    	    <mom_type>1 0 0</mom_type>
 	    	  </elem>
 	    	</Operators>
 	    	<CGs>
@@ -294,7 +305,8 @@
             </Irrep>
           </elem>
           <elem>
-            <t_slice>-2</t_slice>
+            <!-- <t_slice>-2</t_slice> -->
+            <t_slice>0</t_slice>
             <Irrep>
               <creation_op>true</creation_op>
               <smearedP>true</smearedP>
@@ -318,4 +330,4 @@
       </keyTemplate>
     </twoPtRest>
   </Ops>
-</PITD>
+</PGITD>

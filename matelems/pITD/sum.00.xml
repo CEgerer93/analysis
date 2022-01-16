@@ -7,7 +7,7 @@
     <observable>pPDF</observable>
     <state>nuc</state>
     <projection>
-      <gamma>GAMMA</gamma>
+      <gamma>8</gamma>
       <!-- <gamma>8</gamma> -->
       <!-- <gamma>11</gamma> -->
     </projection>
@@ -15,8 +15,8 @@
     <Lt>64</Lt>
     <Lx>32</Lx>
     <rest>0 0 0</rest> <!-- lazy me -->
-    <pf>0 0 PZ</pf>
-    <pi>0 0 PZ</pi>
+    <pf>0 0 0</pf>
+    <pi>0 0 0</pi>
     <momNegate>false</momNegate> <!-- When forming keys/dbs, include those w/ opposite parity momenta from {pf,pi} -->
     <OpMap>
       <elem><Key>000</Key><Val>NucleonMG1g1MxD0J0S_J1o2_G1g1</Val></elem>
@@ -38,9 +38,9 @@
     <twoPt>
       <funcType>t</funcType>
       <range>
-        <tmin>2PTTmin</tmin>
+        <tmin>2</tmin>
         <tstep>1</tstep>
-        <tmax>2PTTmax</tmax>
+        <tmax>18</tmax>
       </range>
     </twoPt>
     <twoPtRest>
@@ -54,9 +54,9 @@
     <threePt>
       <funcType>l</funcType>
       <range>
-        <tmin>3PTTmin</tmin>
+        <tmin>4</tmin>
         <tstep>2</tstep>
-        <tmax>3PTTmax</tmax>
+        <tmax>14</tmax>
       </range>
     </threePt>
   </fitting>
@@ -69,7 +69,7 @@
       </tseries>
       <base>
 	<elem>/cache/lqcdpdf/isoClover/dist_ppdf</elem>
-	<elem>/PHASEDIR/t0_avg/tsnk_</elem>
+	<elem>/unphased/t0_avg/tsnk_</elem>
 	<!-- <elem>/unphased/t0_avg/tsnk_</elem> -->
 	<!-- <elem>/phased/t0_avg/tsnk_</elem> -->
       </base>
@@ -85,13 +85,13 @@
     <twoPt>
       <tseries>
 	<range>
-	  <!-- <tmin>0</tmin><tstep>1</tstep><tmax>15</tmax> --> <!-- PZ = -1 -->
-	  <!-- <tmin>0</tmin><tstep>1</tstep><tmax>20</tmax> --> <!-- PZ = 1 -->
-	  <tmin>0</tmin><tstep>1</tstep><tmax>TMAX</tmax>
+	  <!-- <tmin>0</tmin><tstep>1</tstep><tmax>15</tmax> --> <!-- 0 = -1 -->
+	  <!-- <tmin>0</tmin><tstep>1</tstep><tmax>20</tmax> --> <!-- 0 = 1 -->
+	  <tmin>0</tmin><tstep>1</tstep><tmax>20</tmax>
 	</range>
       </tseries>
       <!-- <base>/cache/isoClover/b6p3/cl21_32_64_b6p3_m0p2390_m0p2050/2ptcorrs/unphased/t0_avg</base> -->
-      <base>/cache/isoClover/b6p3/cl21_32_64_b6p3_m0p2390_m0p2050/2ptcorrs/PHASESTUB/t0_avg</base>
+      <base>/cache/isoClover/b6p3/cl21_32_64_b6p3_m0p2390_m0p2050/2ptcorrs/unphased/t0_avg</base>
       <momTag>momXYZ</momTag>
       <t0Tag>t0_avg</t0Tag>
       <rows>
@@ -134,13 +134,13 @@
 	      </flavor>
 	      <irmom>
 		<row>1</row>
-		<mom>0 0 PZ</mom>
+		<mom>0 0 0</mom>
 	      </irmom>
 	      <Op>
 		<Operators>
 		  <elem>
 		    <name>XOPX</name>
-		    <mom_type>MODMOM 0 0</mom_type>
+		    <mom_type>0 0 0</mom_type>
 		  </elem>
 		</Operators>
 		<CGs>
@@ -159,7 +159,7 @@
 		<twoI_z>0</twoI_z>
 	      </flavor>
 	      <irmom>
-		<row>ROWINS</row>
+		<row>1</row>
 		<mom>0 0 0</mom>
 	      </irmom>
 	      <Op>
@@ -167,9 +167,9 @@
 		  <elem>
 		    <!-- <name>b_b0xDA__J0_A1pP</name> -->
 		    <!-- <name>a_a1xDA__J1_T1pM</name> -->
-		    <name>INS</name>
+		    <name>b_b0xDA__J0_A1pP</name>
 		    <mom_type>0 0 0</mom_type>
-		    <disp_list>DZ</disp_list>
+		    <disp_list></disp_list>
 		  </elem>
 		</Operators>
 		<CGs>
@@ -189,13 +189,13 @@
 	      </flavor>
 	      <irmom>
 		<row>1</row>
-		<mom>0 0 PZ</mom>
+		<mom>0 0 0</mom>
 	      </irmom>
 	      <Op>
 		<Operators>
 		  <elem>
 		    <name>XOPX</name>
-		    <mom_type>MODMOM 0 0</mom_type>
+		    <mom_type>0 0 0</mom_type>
 		  </elem>
 		</Operators>
 		<CGs>
@@ -224,13 +224,13 @@
 	      </flavor>
 	      <irmom>
 		<row>1</row>
-		<mom>0 0 PZ</mom> <!-- handle search of opposing momenta internally -->
+		<mom>0 0 0</mom> <!-- handle search of opposing momenta internally -->
 	      </irmom>
 	      <Op>
 		<Operators>
 		  <elem>
  		    <name>XOPX</name>
-		    <mom_type>MODMOM 0 0</mom_type>
+		    <mom_type>0 0 0</mom_type>
 		  </elem>
 		</Operators>
 		<CGs>
@@ -239,9 +239,9 @@
 	    </Irrep>
 	  </elem>
 	  <elem>
-	    <!-- <t_slice>-2</t_slice> --> <!-- PZ = 0, +1 -->
+	    <!-- <t_slice>-2</t_slice> --> <!-- 0 = 0, +1 -->
 	    <!-- <t_slice>0</t_slice> -->  <!-- 0 for t0 = 0 & 48 ??? -->
-	    <t_slice>TSLICE2PT</t_slice>
+	    <t_slice>-2</t_slice>
 	    <Irrep>
 	      <creation_op>true</creation_op>
 	      <smearedP>true</smearedP>
@@ -252,13 +252,13 @@
 	      </flavor>
 	      <irmom>
 	    	<row>1</row>
-	    	<mom>0 0 PZ</mom>
+	    	<mom>0 0 0</mom>
 	      </irmom>
 	      <Op>
 	    	<Operators>
 	    	  <elem>
 		    <name>XOPX</name>
-	    	    <mom_type>MODMOM 0 0</mom_type>
+	    	    <mom_type>0 0 0</mom_type>
 	    	  </elem>
 	    	</Operators>
 	    	<CGs>

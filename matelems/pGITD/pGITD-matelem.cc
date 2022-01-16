@@ -1,14 +1,18 @@
 /*
   ROUTINE TO READ IN 2PT/3PT CORRELATORS COMPUTED IN DISTILLATION,
-  WHERE 3PT FUNCTION ARE MATELEMS OF PSEUDO-PDF FORMALISM
+  WHERE 3PT FUNCTION ARE MATELEMS OF PSEUDO-GPD FORMALISM
 
-  SUMMATION OF OPERATOR INSERTION IS PERFORMED INTERNALLY,
-  ALLOWING FOR SUMMATION METHOD TO EXTRACT MATRIX ELEMENT
+  2PT & 3PT FUNCTIONS ARE COMBINED ACCORDING TO KINEMATICS/DISPLACEMENTS
+
+  DATA WRITTEN TO FILE ACCORDING TO:
+     + 2-STATE FITS: 2PT/3PT WRITTEN SEPARATELY FOR FITTING
+     + SUMMATION: SUMMED 3PT/2PT RATIO WRITTEN TO FILE FOR FITTING
 */
 #include<vector>
 #include<fstream>
 #include<math.h>
 #include<string>
+#include<tuple>
 #include<sstream>
 #include<stdlib.h>
 #include<iomanip>
@@ -22,8 +26,11 @@
 #include<libxml/xpath.h>
 #include<libxml/parser.h>
 
+// #include "summation.h"
 #include "operators.h"
 #include "pseudo_utils.h"
+// #include "pseudo_structs.h"
+
 #include "corr_utils.h"
 #include "fit_util.h"
 #include "threept_tr.h"
@@ -49,9 +56,13 @@
 #include "hadron/subduce_tables_factory.h"
 #include "hadron/single_hadron_coeffs.h"
 
+
 using namespace ADATXML;
 using namespace Pseudo;
 using namespace NCOR;
+
+
+typedef XMLArray::Array<XMLArray::Array<int> > XML2D;
 
 // Define a struct for global props
 global_t global;
@@ -63,6 +74,7 @@ info2pt db2ptInfo, db2ptRestInfo;
 
 // Constants
 const std::complex<double> redFact(sqrt(2),0);
+
 
 class subduceInfo
 {
@@ -82,28 +94,20 @@ public:
   subduceInfo(std::string s, XMLArray::Array<int> m)
   {
     name = s;
-
-    opHelIrrepLG   = Hadron::getSingleHadronOpIrrep(name);
-    opIrrepLG      = Hadron::removeHelicity(opHelIrrepLG);
-    opIrrep        = Hadron::removeIrrepLG(opIrrepLG);
+    
+    opHelIrrepLG = Hadron::getSingleHadronOpIrrep(name);
+    opIrrepLG    = Hadron::removeHelicity(opHelIrrepLG);
+    opIrrep      = Hadron::removeIrrepLG(opIrrepLG);
+    opIrrepNoP   = Hadron::getCubicRepNoParity(opHelIrrepLG);
     opLG         = Hadron::getIrrepLG(opIrrepLG);
-    // Don't know why getIrrepDim/getCubicRepNoParity fails when given irrep G1g1 - so do a hard code here
-    if ( shortMom(m,"") == "000" )
-      {
-	opIrrepNoP   = Hadron::getCubicRepNoParity("G1g");
-	irrep_dim    = Hadron::getIrrepDim("G1g");
-      }
-    else
-      {
-	opIrrepNoP   = Hadron::getCubicRepNoParity(opHelIrrepLG);
-	irrep_dim    = Hadron::getIrrepDim(opIrrepLG);
-      }
+    
+    irrep_dim    = Hadron::getIrrepDim(opIrrepLG);
 
     // Set handle based on momentum
     if ( shortMom(m,"") == "000" )
       {
-        contLGLabel = "J1o2->" + opIrrepNoP + ",1";
-        H = Hadron::TheSubduceTableFactory::Instance().createObject(contLGLabel);
+	contLGLabel = "J1o2->" + opIrrepNoP + ",1";
+	H = Hadron::TheSubduceTableFactory::Instance().createObject(contLGLabel);
       }
     else {
       contLGLabel = "H1o2->H1o2" + opIrrepNoP + ",1";
@@ -124,13 +128,30 @@ public:
     for ( int _i = 1; _i <= irrep_dim; ++_i )
       {
 	std::cout << "                     ";
-        for ( int _j = 1; _j <= irrep_dim; ++_j )
+	for ( int _j = 1; _j <= irrep_dim; ++_j )
 	  std::cout << (*H).operator()(_i,_j) << " ";
 	std::cout << "\n";
       }
   }
+  
+
 };
 
+
+//! Zero out bits of a complex number - n.b. not in an adat header
+std::complex<double> zeroComplex(const std::complex<double>& w)
+{
+  const double fuzz = 1.0e-11;
+  // Pretty print the complex number. Replace noise with 0.
+  double op_r = real(w);
+  double op_i = imag(w);
+  
+  if (fabs(op_r) < fuzz)
+    op_r = 0;
+  if (fabs(op_i) < fuzz)
+  
+  return std::complex<double>(op_r,op_i);
+}
 
 /*
   Convert between lattice LG rows and helicity amplitudes
@@ -165,13 +186,13 @@ std::complex<double> lgToHelicityAmps(const Hadron::KeyHadronSUNNPartNPtCorr_t *
   // Irrep stuff
   std::cout << "SNK/SRC IRREP DIMS = " << snkOp.irrep_dim << "/" << srcOp.irrep_dim << std::endl;
   std::cout << "Snk Euler Angles:"
-            << "        alpha = " << snkRot.alpha
-            << "        beta  = " << snkRot.beta
-            << "        gamma = " << snkRot.gamma << std::endl;
+	    << "        alpha = " << snkRot.alpha
+	    << "        beta  = " << snkRot.beta
+	    << "        gamma = " << snkRot.gamma << std::endl;
   std::cout << "Src Euler Angles:"
-            << "        alpha = " << srcRot.alpha
-            << "        beta  = " << srcRot.beta
-            << "        gamma = " << srcRot.gamma << std::endl;
+	    << "        alpha = " << srcRot.alpha
+	    << "        beta  = " << srcRot.beta
+	    << "        gamma = " << srcRot.gamma << std::endl;
 #endif
 
   // Inner subduction/Wigner-D matrix mults
@@ -179,11 +200,11 @@ std::complex<double> lgToHelicityAmps(const Hadron::KeyHadronSUNNPartNPtCorr_t *
     {
       int twoJZ_a = pow((-1),a-1);
       for ( int b = 1; b <= snkOp.irrep_dim; ++b )
-        {
-          int twoJZ_b = pow((-1),b-1);
-          for ( int c = 1; c <= srcOp.irrep_dim; ++c )
-            {
-              int twoJZ_c = pow((-1),c-1);
+	{
+	  int twoJZ_b = pow((-1),b-1);
+	  for ( int c = 1; c <= srcOp.irrep_dim; ++c )
+	    {
+	      int twoJZ_c = pow((-1),c-1);
 
 #if VERBOSITY>2
 	      std::cout << "NEW COMBO" << std::endl;
@@ -193,25 +214,63 @@ std::complex<double> lgToHelicityAmps(const Hadron::KeyHadronSUNNPartNPtCorr_t *
 	      std::cout << "Src Subduction: " << (*srcOp.H).operator()(c,k->npoint[3].irrep.irrep_mom.row) << std::endl;
 #endif
 
-              // Build the weight
-              weight += (*snkOp.H).operator()(k->npoint[1].irrep.irrep_mom.row,a)*
-                Hadron::Wigner_D(1,twoJZ_a,twoJZ_b,
-                                 snkRot.alpha,snkRot.beta,snkRot.gamma)*
-                Hadron::Wigner_D(1,twoJZ_b,twoJZ_c,
-                                 srcRot.alpha,srcRot.beta,srcRot.gamma)*
-                (*srcOp.H).operator()(c,k->npoint[3].irrep.irrep_mom.row);
+	      // Build the weight
+	      weight += (*snkOp.H).operator()(k->npoint[1].irrep.irrep_mom.row,a)*
+		Hadron::Wigner_D(1,twoJZ_a,twoJZ_b,
+				 snkRot.alpha,snkRot.beta,snkRot.gamma)*
+		Hadron::Wigner_D(1,twoJZ_b,twoJZ_c,
+				 srcRot.alpha,srcRot.beta,srcRot.gamma)*
+		(*srcOp.H).operator()(c,k->npoint[3].irrep.irrep_mom.row);
 
 
-            } // c
-        } // b
+	    } // c
+	} // b
     } // a
 
 #if VERBOSITY>0
   std::cout << "WEIGHT = " << weight << std::endl;
 #endif
 
-  return weight;                        
+  return weight;			
 }
+
+
+// /*
+//   Insertion is computed in Redstar from source interpolator (i.e. contact term) forward to
+//   tslice = Tsep - 1. So to neglect constant term in fits to summed ratio data, ignore the T=0 entry
+//  */
+// void summation(std::vector<corrFunc> &f)
+// {
+//   // #pragma omp parallel for
+// //   {
+// // #pragma omp for
+//   for ( std::vector<corrFunc>::iterator it = f.begin(); it != f.end(); ++it )
+//     {
+//       (*it).initializeSummedJkEnsAvgs();
+//       for ( int g = 0; g < (*it).dataJkEnsAvg.ncor.size(); ++g )
+// 	{
+// 	  it->dataSummedJkEnsAvg.ncor[g].real.resize(1);
+// 	  it->dataSummedJkEnsAvg.ncor[g].imag.resize(1);
+
+// 	  double dumR=0.0;
+// 	  double dumI=0.0;
+// 	  /*
+// 	    Do the actual summation in t here
+// 	    Start summation from T = 1 - neglecting contact term
+// 	  */
+// 	  for ( int t = 1; t < (*it).getT(); t++ )
+// 	    {
+// 	      dumR += (*it).dataJkEnsAvg.ncor[g].real[0][t];
+// 	      dumI += (*it).dataJkEnsAvg.ncor[g].imag[0][t];
+// 	    }
+// 	  // Assignment
+// 	  (*it).dataSummedJkEnsAvg.ncor[g].real[0].push_back(dumR);
+// 	  (*it).dataSummedJkEnsAvg.ncor[g].imag[0].push_back(dumI);
+// 	}
+//     }
+//   // } // #pragma omp parallel
+// }
+
 
 /*
   SOME CALLS TO HELP ADAT READ
@@ -223,6 +282,10 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
   typedef Hadron::KeyHadronSUNNPartNPtCorr_t       K;
   typedef ENSEM::VectorComplex                     V;
 
+  // Initialize map returned to main associating keys with correlators datatypes
+  // n.b. cannot use a std::map here as I haven't created a comparator
+  // ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, correlators> retMap;
+
   // vector of corrEquivalences forall 3pt tseps to return
   std::vector<NCOR::corrEquivalence> ret( temporal3pt.numT() );
 
@@ -233,7 +296,7 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
   std::vector< std::vector<ADATIO::SerialDBData<V> > > dataFetch(keyFetch.size());
 
   // Now run over the keys
-  for ( std::vector<ADATIO::SerialDBKey<K> >::iterator k = keyFetch.begin(); k != keyFetch.end(); k++ )
+  for ( std::vector<ADATIO::SerialDBKey<K> >::iterator k = keyFetch.begin(); k != keyFetch.end(); ++k )
     {
       int cnt = k-keyFetch.begin();
       (*k).key() = fetch[cnt]; // set the key
@@ -261,9 +324,8 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
 	      database.close();
 	      break;
 	    }
-	  else {
+	  else
 	    continue;
-	  }
 	  database.close();
 	} // end dbase
 
@@ -285,35 +347,34 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
   // With all the keys found and SerialDBData obtained, parse into correlators form
   for ( int k = 0; k < keyFetch.size(); ++k )
     {
-      // Initialize a prop_t struct for correlator initialization
-#warning "Assuming foreach 3pt, trange = [0,tsep-1]"
-      Pseudo::domain_t dom(0, 1, keyFetch[k].key().npoint[1].t_slice - 1);
-      Pseudo::prop_t   p(global.cfgs, dom, keyFetch[k].key());
       // Make some array to associate with this key
-      NCOR::correlator ensAdat(p);
+      NCOR::correlator ensAdat;
 
-
+      ensAdat.ensemble.ens.resize(enscfgs);
+      // ensAdat.ncor[0].imag.resize(enscfgs);
       // Parse data for all configs for this key
       for ( int g = 0; g < dataFetch[k].size(); ++g )
-        {
-          // Loop over the data elems for the config of this key
-          for ( int dd = 0; dd < dataFetch[k][g].data().numElem(); ++dd )
-            {
-              double r_, i_;
-              sIn << ENSEM::peekObs(ENSEM::real(dataFetch[k][g].data()),dd);
-              sIn >> r_; sIn.clear(); sIn.str(std::string());
-              sIn << ENSEM::peekObs(ENSEM::imag(dataFetch[k][g].data()),dd);
-              sIn >> i_; sIn.clear(); sIn.str(std::string());
+	{
+	  // Loop over the data elems for the config of this key
+	  for ( int dd = 0; dd < dataFetch[k][g].data().numElem(); ++dd )
+	    {
+	      double r_, i_;
+	      sIn << ENSEM::peekObs(ENSEM::real(dataFetch[k][g].data()),dd);
+	      sIn >> r_; sIn.clear(); sIn.str(std::string());
+	      sIn << ENSEM::peekObs(ENSEM::imag(dataFetch[k][g].data()),dd);
+	      sIn >> i_; sIn.clear(); sIn.str(std::string());
 
-              
+	      
 	      std::complex<double> dc(r_,i_);
 
-	      ensAdat.ensemble.ens[g][dd] = dc;
-            }
-        }
+	      ensAdat.ensemble.ens[g].push_back(dc);
+		// .real[g].push_back(r_);
+	      // ensAdat.ncor[0].imag[g].push_back(i_);
+	    }
+	}
       // Insert this key-correlator combo
       ret[ (keyFetch[k].key().npoint[1].t_slice - temporal3pt.min)/temporal3pt.step ].
-        keyCorrMap.insert(keyFetch[k].key(),ensAdat);
+	keyCorrMap.insert(keyFetch[k].key(),ensAdat);
     }
 
   return ret;
@@ -338,7 +399,6 @@ void read(XMLReader& xml, const std::string path, global_t& g)
     read(xml, path+"/pf", g.pf);
     read(xml, path+"/momNegate", g.momNegate);
     read(xml, path+"/OpMap", g.opMomXML);
-    // read(xml, path+"/t2ptNorm", g.t2ptNorm);
   } catch ( std::string &e ) {
     std::cerr << "Unable to parse global properties " << e << std::endl;
   }
@@ -367,7 +427,6 @@ void read(XMLReader& xml, const std::string path, NCOR::fitInfo_t& I)
   }
 }
 
-
 // Reader for db3ptInfo struct
 void read(XMLReader& xml, const std::string path, info3pt& d)
 {
@@ -378,6 +437,7 @@ void read(XMLReader& xml, const std::string path, info3pt& d)
     read(xml, path+"/t0Tag", d.t0Tag);
     read(xml, path+"/zTag", d.zTag);
     read(xml, path+"/rows", d.rows);
+    // read(xml, path+"/rowinfo", d.rowWeights);
   } catch ( std::string &e ) {
     std::cerr << "Unable to parse db3ptInfo struct from ini xml " << e << std::endl;
     exit(1);
@@ -392,6 +452,7 @@ void read(XMLReader& xml, const std::string path, info2pt& d)
     read(xml, path+"/momTag", d.momTag);
     read(xml, path+"/t0Tag", d.t0Tag);
     read(xml, path+"/rows", d.rows);
+    // read(xml, path+"/rowinfo", d.rowWeights);
   } catch ( std::string &e ) {
     std::cerr << "Unable to parse db2ptInfo struct from ini xml " << e << std::endl;
     exit(1);
@@ -399,51 +460,82 @@ void read(XMLReader& xml, const std::string path, info2pt& d)
 }
 
 
-// /*
-//   Modify the src/snk row structure of passed key to allow a second RowCombo (RC2) to be accessed
-// */
-// void makeKeyRC2(Hadron::KeyHadronSUNNPartNPtCorr_t &kRC2, XMLArray::Array<int> &newRC)
-// {
-//   // newRC2 = db2ptInfo.rows[1]; i.e. an XML::Array<int> object
-//   kRC2.npoint[1].irrep.irrep_mom.row = newRC[0]; // new snk row
-//   kRC2.npoint[2].irrep.irrep_mom.row = newRC[1]; // new src row
-// }	  
-  
+/*
+  Modify the src/snk row structure of passed key to allow a second RowCombo (RC2) to be accessed
+*/
+void makeKeyRC2(Hadron::KeyHadronSUNNPartNPtCorr_t &kRC2, XMLArray::Array<int> &newRC)
+{
+  // newRC2 = db2ptInfo.rows[1]; i.e. an XML::Array<int> object
+  kRC2.npoint[1].irrep.irrep_mom.row = newRC[0]; // new snk row
+  kRC2.npoint[2].irrep.irrep_mom.row = newRC[1]; // new src row
+}
+
 
 /*
   Accept a std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> of keys, and
   row/sign modifiers and create new keys to append
 */
 void expandRowCombinations(std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t>& v,
-                           XMLArray::Array<XMLArray::Array<int> >& r)
+			   XMLArray::Array<XMLArray::Array<int> >& r)
 {
   // Make r.size local copies of the vector of keys
   std::vector<std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> > modV(r.size(),v);
 
   for ( int i = 0; i < r.size(); i++ )
     {
-      for ( int j = 0; j < modV[0].size(); j++ )
-        {
 
-	  // Perform a quick check on first key in &v to see if this row combo (ri) exists,
-	  // if so skip inputting this row combo
-          if ( modV[0][j].npoint[1].irrep.irrep_mom.row == r[i][0]
-               && modV[0][j].npoint[3].irrep.irrep_mom.row == r[i][1] )
-            {
-              continue;
-            }
-          else {
-            modV[i][j].npoint[1].irrep.irrep_mom.row = r[i][0];
-            modV[i][j].npoint[3].irrep.irrep_mom.row = r[i][1]; 
-          }
-        }
+      // modV[i][0].npoint[1].irrep.irrep_mom.row = r[i][0];
+      // modV[i][0].npoint[3].irrep.irrep_mom.row = r[i][1];
+
+      // }
+      
+
+
+  // exit(10);
+
+  // // Iterate over the *NEW* (starting at idx1) different row combinations
+  // auto ri = r.begin();
+  // while ( ri != r.end() )
+  //   {
+
+      for ( int j = 0; j < modV[0].size(); j++ )
+	{
+
+  // Perform a quick check on first key in &v to see if this row combo (ri) exists,
+  // if so skip inputting this row combo
+	  if ( modV[0][j].npoint[1].irrep.irrep_mom.row == r[i][0]
+	       && modV[0][j].npoint[3].irrep.irrep_mom.row == r[i][1] )
+	    {
+	      continue;
+	    }
+	  else {
+	    modV[i][j].npoint[1].irrep.irrep_mom.row = r[i][0];
+	    modV[i][j].npoint[3].irrep.irrep_mom.row = r[i][1];
+	    
+	    // int idx = std::distance(r.begin(),ri);
+	    // for ( auto i = modV[idx].begin(); i != modV[idx].end(); ++i )
+	    //   {
+	    //     // Modify the 1st npoint struct
+	    //     i->npoint[1].irrep.irrep_mom.row = ri->first[0];
+	    //     // Modify the 2nd npoint struct, unless we are iterating through a 3pt key
+	    //     if ( i->npoint.size() == 2 ) { i->npoint[2].irrep.irrep_mom.row = ri->first[1]; }
+	    //     else { i->npoint[3].irrep.irrep_mom.row = ri->first[1]; }
+	    //   }
+	    
+	  }
+	  
+	}
 
       if ( i != 0 )
-        // Now tack these modified keys onto the end of v
-        v.insert(v.end(), modV[i].begin(), modV[i].end());
+	// Now tack these modified keys onto the end of v
+	v.insert(v.end(), modV[i].begin(), modV[i].end());
+	
+      // } // end check for existing row combo in first entry of &v
+      
+      // ri++; // iterate
     }
 }
-
+  
 
 /*
   Utility to make 2pt db list
@@ -456,18 +548,19 @@ std::vector<std::string> makeDBList(global_t& g, info2pt& I, Hadron::KeyHadronSU
   Array<int> thisMom = kTemplate->npoint[1].irrep.irrep_mom.mom;
 
   // A temporary db to set
-  std::string tmp_db_plus = I.base+"/"+g.ensem+"/"+I.t0Tag+"/momXYZ."+shortMom(thisMom,".")
+  std::string tmp_db_plus = I.base+"/"+g.ensem+"/"+I.t0Tag+"/momXYZ."+shortMom(thisMom,".") \
     +"/EDB/"+g.ensem+"."+g.state+"_p"+shortMom(thisMom,"")+".n"+g.nvec+"."+I.t0Tag+".edb";
       
   // Push to db list
   s.push_back(tmp_db_plus);
-      
+
+  // Make a db name for potentially negated momentum combinations
   if ( shortMom(thisMom,"") != "000" && global.momNegate )
     {
       Array<int> thisMomMinus = thisMom*-1;
       // A temporary db to set
       std::string tmp_db_minus = I.base+"/"+g.ensem+"/"+I.t0Tag+"/momXYZ."+shortMom(thisMomMinus,".") \
-        +"/EDB/"+g.ensem+"."+g.state+"_p"+shortMom(thisMomMinus,"")+".n"+g.nvec+"."+I.t0Tag+".edb";
+	+"/EDB/"+g.ensem+"."+g.state+"_p"+shortMom(thisMomMinus,"")+".n"+g.nvec+"."+I.t0Tag+".edb";
       // Push to db list
       s.push_back(tmp_db_minus);
     }
@@ -483,24 +576,24 @@ std::vector<std::string> makeDBList(global_t& g, info3pt& I, domain_t& t, Hadron
   for ( int ti = t.min; ti <= t.max; ti+=t.step )
     {
       // A temporary db to set
-      std::string tmp_db_plus = I.base[0]+"/"+g.ensem+I.base[1]+ti+"/momXYZ."+shortMom(g.pf,".") \
-        +"/EDB/"+g.ensem+"."+g.state+"."+g.observable+"_pf"+shortMom(g.pf,"") \
-        +"_pi"+shortMom(g.pi,"")+".n"+g.nvec+"."+I.t0Tag+"_"+
-        I.tsnkTag+ti+"."+I.zTag+".edb";
-          
+      std::string tmp_db_plus = I.base[0]+"/"+g.ensem+I.base[1]+ti+"/snk"+shortMom(g.pf,".") \
+	+"_src"+shortMom(g.pi,".")+"/EDB/"+g.ensem+"."+g.state+"."+g.observable+"_pf"+shortMom(g.pf,"") \
+	+"_pi"+shortMom(g.pi,"")+".n"+g.nvec+"."+I.t0Tag+"_"+
+	I.tsnkTag+ti+"."+I.zTag+".edb";
+	  
       // Push to db list
       s.push_back(tmp_db_plus);
       // Check for any non-trivial 3pt momenta and make new db file names
       if ( global.momNegate && ( shortMom(g.pf,"") != "000" || shortMom(g.pi,"") != "000" ) )
-        {
-          // A temporary db to set
-	  std::string tmp_db_minus = I.base[0]+"/"+g.ensem+I.base[1]+ti+"/momXYZ."+shortMom(g.pf*-1,".") \
-            +"/EDB/"+g.ensem+"."+g.state+"."+g.observable+"_pf"+shortMom(g.pf*-1,"") \
-            +"_pi"+shortMom(g.pi*-1,"")+".n"+g.nvec+"."+I.t0Tag+"_"+
-            I.tsnkTag+ti+"."+I.zTag+".edb";
-          // Push to db list
-          s.push_back(tmp_db_minus);
-        }
+	{
+	  // A temporary db to set
+	  std::string tmp_db_minus = I.base[0]+"/"+g.ensem+I.base[1]+ti+"/snk"+shortMom(g.pf*-1,".") \
+	    +"_src"+shortMom(g.pi*-1,".")+"/EDB/"+g.ensem+"."+g.state+"."+g.observable+"_pf"+shortMom(g.pf*-1,"") \
+	    +"_pi"+shortMom(g.pi*-1,"")+".n"+g.nvec+"."+I.t0Tag+"_"+
+	    I.tsnkTag+ti+"."+I.zTag+".edb";
+	  // Push to db list
+	  s.push_back(tmp_db_minus);
+	}
     }
   std::cout << "  Made 3pt db list" << std::endl;
   return s;
@@ -513,7 +606,7 @@ std::vector<std::string> makeDBList(global_t& g, info3pt& I, domain_t& t, Hadron
 std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> makeKeyList(Hadron::KeyHadronSUNNPartNPtCorr_t &kTemplate)
 {
   std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> s;
-  
+
   s.push_back(kTemplate);
   // Default to row1-row1 combo (from template key); add the row2-row2 combo if t2ptRows = 0
   if ( global.t2ptRows == 0 )
@@ -551,14 +644,14 @@ std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> makeKeyList(domain_t& t, Hadron:
 
       // Make a key for opposing displacement, if disp_list != ''
       if ( tmp_k.npoint[2].irrep.op.ops[1].disp_list.size() > 0 )
-        {
-          for ( int d = 0; d < tmp_k.npoint[2].irrep.op.ops[1].disp_list.size(); ++d )
-            {
-              tmp_k.npoint[2].irrep.op.ops[1].disp_list[d]*=-1;
-            }
-          // insert this key with opposite displacement
-          s.push_back(tmp_k);
-        }
+	{
+	  for ( int d = 0; d < tmp_k.npoint[2].irrep.op.ops[1].disp_list.size(); ++d )
+	    {
+	      tmp_k.npoint[2].irrep.op.ops[1].disp_list[d]*=-1;
+	    }
+	  // insert this key with opposite displacement
+	  s.push_back(tmp_k);
+	}
     }
 
   // Potentially include negated momentum combination
@@ -569,6 +662,88 @@ std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> makeKeyList(domain_t& t, Hadron:
 }
 
 
+#if 0
+void rowAvg(std::vector<corrEquivalence> &tC, ADAT::MapObject<XMLArray::Array<int>, double> &r)
+{
+  std::cout << "New corrEquivalence to average" << std::endl;
+  // Iterate over std::vec components - i.e. time slices
+  for ( std::vector<corrEquivalence>::iterator it = tC.begin(); it != tC.end(); ++it )
+    {
+      // For this tsep, organize keys within each pz/z channel
+      Hadron::KeyHadronSUNNPartNPtCorr_t kAvg = it->keyCorrMap.begin()->first;
+      ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, correlators> cAvg;
+
+      std::cout << "--- Running through this corrEquivalence" << std::endl;
+      // Hold z's & p's as temporaries
+      XMLArray::Array<int> _pi, _pf, _q;
+      std::vector<int> _d;
+      _pf = kAvg.npoint[1].irrep.irrep_mom.mom;
+      _q  = kAvg.npoint[2].irrep.irrep_mom.mom;
+      _pi = kAvg.npoint[3].irrep.irrep_mom.mom;
+      _d  = kAvg.npoint[2].irrep.op.ops[1].disp_list;
+
+      // Try to negate momentum & z's, and fetch new keys
+      for ( int i = 1; i > -2; i-=2 )
+	{
+	  for ( int j = 1; j > -2; j-=2 )
+	    {
+	      std::cout << "------ Swap pair = ( " << i << " , " << j << " )" << std::endl;
+	      kAvg.npoint[1].irrep.irrep_mom.mom = _pf * i; // allow swap of snk mom
+	      kAvg.npoint[2].irrep.irrep_mom.mom = _q * i; // allow swap of ins mom
+	      kAvg.npoint[3].irrep.irrep_mom.mom = _pi * i; // allow swap of src mom
+	      // Since we are accessing a key from the tc[*].keyCorrMap map (unordered)
+	      // We have no guarantee the operator name is correct after setting opposing momenta
+	      // So we enforce the correct name here...
+	      kAvg.npoint[1].irrep.op.ops[1].name =
+		global.opMomXML[shortMom(kAvg.npoint[1].irrep.irrep_mom.mom,"")];
+	      kAvg.npoint[3].irrep.op.ops[1].name =
+		global.opMomXML[shortMom(kAvg.npoint[3].irrep.irrep_mom.mom,"")];
+	      
+
+	      // Allow swap of z
+	      for ( int d = 0; d != _d.size(); ++d )
+		{ 
+		  kAvg.npoint[2].irrep.op.ops[1].disp_list[d] = _d[d] * j;
+		}
+
+	      
+	      // Collect the correlators to average
+	      correlators toAvg(r.size());
+
+	      for ( auto rows = r.begin(); rows != r.end(); ++rows )
+		{
+		  kAvg.npoint[1].irrep.irrep_mom.row = rows->first[0];
+		  kAvg.npoint[3].irrep.irrep_mom.row = rows->first[1];
+
+		  std::cout << "*****Key = " << kAvg << std::endl;
+
+		  // Map matelem btwn lattice LG rows to helicity amplitudes
+		  std::complex<double> weight = lgToHelicityAmps(&kAvg);
+
+		  std::cout << "*****Weight = " << weight << std::endl;
+		  std::cout << "\n\n";
+
+		  // // Fetch this correlator, applying weight in line
+		  // toAvg.ncor[std::distance(r.begin(),rows)] = rows->second * it->keyCorrMap[kAvg].ncor[0];
+		}
+	      
+	      // Set row values to "-60" to indicate averaging
+	      kAvg.npoint[1].irrep.irrep_mom.row = -60;
+	      kAvg.npoint[3].irrep.irrep_mom.row = -60;
+	      // Insert this average key and result of merged correlators
+	      cAvg.insert(kAvg, mergeCorrelators(toAvg));
+	    } // for zswap (j)
+	} // for 3-mom swap (i)
+
+      // With all swapping done, clear std::vector<corrEquivalence>[*it].keyCorrMap and refill it with "cAvg"
+      it->keyCorrMap.clear();
+      it->keyCorrMap = cAvg;
+
+    } // for std::vector<corrEquivalence> iterator
+}
+#endif
+
+
 /*
   Try a new version of rowAvg
      - this will collapse keyCorrMap member of each corrEquivalence class to a single entry
@@ -577,269 +752,22 @@ std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> makeKeyList(domain_t& t, Hadron:
 */
 void rowAvg(std::vector<NCOR::corrEquivalence>& v)
 {
-  for ( auto vi = v.begin(); vi != v.end(); ++vi )
-    {
-      // Convenience
-      Hadron::KeyHadronSUNNPartNPtCorr_t tmp = vi->keyCorrMap.begin()->first;
-      // Each corrEquivalence member must have same irrep momenta
-      subduceInfo snkOp(tmp.npoint[1].irrep.op.ops[1].name,tmp.npoint[1].irrep.irrep_mom.mom);
-      subduceInfo srcOp(tmp.npoint[3].irrep.op.ops[1].name,tmp.npoint[3].irrep.irrep_mom.mom);
-
-      // Init canonical rotation structs
-      Hadron::CubicCanonicalRotation_t snkRot, srcRot;
-      // Set angles based on irrep momenta
-      if ( shortMom(tmp.npoint[1].irrep.irrep_mom.mom,"") != "000" )
-	snkRot = Hadron::cubicCanonicalRotation(tmp.npoint[1].irrep.irrep_mom.mom);
-      else
-	snkRot.alpha=0; snkRot.beta=0; snkRot.gamma=0;
-
-      if ( shortMom(tmp.npoint[3].irrep.irrep_mom.mom,"") != "000" )
-	srcRot = Hadron::cubicCanonicalRotation(tmp.npoint[3].irrep.irrep_mom.mom);
-      else
-	srcRot.alpha=0; srcRot.beta=0; srcRot.gamma=0;
-
-
-
-      // Build the src subduction & Wigner-D matrices
-      gsl_complex gc;
-      std::complex<double> wig;
-      gsl_matrix_complex * subduceSrc = gsl_matrix_complex_calloc(srcOp.irrep_dim,srcOp.irrep_dim);
-      gsl_matrix_complex * wignerDSrc = gsl_matrix_complex_calloc(srcOp.irrep_dim,srcOp.irrep_dim);
-      for ( int i = 1; i <= srcOp.irrep_dim; ++i )
-	{
-	  for ( int j = 1; j <= srcOp.irrep_dim; ++j )
-	    {
-	      gc = gsl_complex_rect((*srcOp.H).operator()(i,j).real(),
-				    (*srcOp.H).operator()(i,j).imag());
-	      gsl_matrix_complex_set(subduceSrc,i-1,j-1,gc);
-
-
-	      wig = Hadron::Wigner_D(1,pow(-1,i+1),
-				     pow(-1,j+1),srcRot.alpha,srcRot.beta,srcRot.gamma);
-	      gc = gsl_complex_rect(wig.real(), wig.imag());
-	      gsl_matrix_complex_set(wignerDSrc,i-1,j-1,gc);
-	    }
-	}
-      
-      // Build the snk subduction & Wigner-D matrices
-      gsl_matrix_complex * subduceSnk = gsl_matrix_complex_calloc(snkOp.irrep_dim,snkOp.irrep_dim);
-      gsl_matrix_complex * wignerDSnk = gsl_matrix_complex_calloc(snkOp.irrep_dim,snkOp.irrep_dim);
-      for ( int i = 1; i <= snkOp.irrep_dim; ++i )
-	{
-	  for ( int j = 1; j <= snkOp.irrep_dim; ++j )
-	    {
-	      gc = gsl_complex_rect((*snkOp.H).operator()(i,j).real(),
-				    (*snkOp.H).operator()(i,j).imag());
-	      gsl_matrix_complex_set(subduceSnk,i-1,j-1,gc);
-
-
-	      wig = Hadron::Wigner_D(1,pow(-1,i+1),
-				     pow(-1,j+1),snkRot.alpha,snkRot.beta,snkRot.gamma);
-	      gc = gsl_complex_rect(wig.real(), wig.imag());
-	      gsl_matrix_complex_set(wignerDSnk,i-1,j-1,gc);
-	    }
-	}
-      
-      // Alloc & set tensor product of subduction & Wigner-D matrices
-      gsl_matrix_complex *subduceTensProd, *wignerDTensProd;
-      // res = gsl_matrix_complex_alloc
-      subduceTensProd = LinAlg::tensorProd(subduceSnk,subduceSrc);
-      wignerDTensProd = LinAlg::tensorProd(wignerDSnk,wignerDSrc);
-
-
-      gsl_matrix_complex * subWigD = gsl_matrix_complex_calloc(subduceTensProd->size1,
-							       subduceTensProd->size2);
-
-      gsl_complex dum = gsl_complex_rect(1.0,0.0);
-      gsl_complex dum2 = gsl_complex_rect(0.0,0.0);
-      
-
-      // std::cout << "Tensor product : ";
-      // LinAlg::printMat(subduceTensProd);
-      // std::cout << "Wigner Tensor Product : ";
-      // LinAlg::printMat(wignerDTensProd);
-
-      int stat = gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,dum,subduceTensProd,
-				wignerDTensProd,dum2,subWigD);
-
-      std::cout << "Result : ";
-      LinAlg::printMat(subWigD);
-
-      // Invert the subduction/Wigner-D products  -- maybe save this for later for now
-
-
-
-
-      // Determine if +/- zsep need to be stored
-      int disp2Store(1);
-      std::vector<std::vector<int> > dispsContainer(1,tmp.npoint[2].irrep.op.ops[1].disp_list);
-      if ( ! tmp.npoint[2].irrep.op.ops[1].disp_list.empty() )
-	{
-	  disp2Store = 2;
-	  std::vector<int> dum = dispsContainer[0]; dum *= -1;
-	  dispsContainer.push_back(dum);
-	}
-
-
-      // Collect the correlators to average
-      std::vector<std::vector<NCOR::VVC> > toMerge(snkOp.irrep_dim * srcOp.irrep_dim);
-
-
-      std::map<int, std::pair<int,int> > tensorProdMap; std::pair<int,int> tp;
-      tp = std::make_pair(1,1); tensorProdMap[1] = tp;
-      tp = std::make_pair(1,2); tensorProdMap[2] = tp;
-      tp = std::make_pair(2,1); tensorProdMap[3] = tp;
-      tp = std::make_pair(2,2); tensorProdMap[4] = tp;
-
-
-      /*
-	With subduction/wigner-D product determined, run through row combinations and
-	reorganize as linear combination of original rows - this would make canonical states then
-      */
-      for ( int i = 1; i <= snkOp.irrep_dim*srcOp.irrep_dim; ++i )
-	{
-	  for ( int j = 1; j <= snkOp.irrep_dim*srcOp.irrep_dim; ++j )
-	    {
-	      for ( int d = 0; d < disp2Store; ++d )
-		{
-		  tmp.npoint[1].irrep.irrep_mom.row = tensorProdMap[j].first;
-		  tmp.npoint[3].irrep.irrep_mom.row = tensorProdMap[j].second;
-		  tmp.npoint[2].irrep.op.ops[1].disp_list = dispsContainer[d];
-
-#if VERBOSITY>2
-		  std::cout << "TMP = " << tmp << std::endl;
-#endif
-
-		  // Access this correlator
-		  NCOR::correlator thisCorr = vi->keyCorrMap[tmp];
-		  // Reweight
-		  gsl_complex elem = gsl_matrix_complex_get(subWigD,i-1,j-1);
-		  std::complex<double> weight(elem.dat[0],elem.dat[1]);
-
-#if VERBOSITY>2
-#warning "Hey! Head's up! Returned keyCorrMap from rowAvg call will be wrong!"
-		  std::cout << "(" << i << "," << j << ") weight = " << weight << std::endl;
-
-		  
-		  thisCorr.jackknife(); thisCorr.ensAvg();
-
-		  std::cout << "B4 = " << thisCorr << std::endl;
-
-		  NCOR::correlator AFTER = thisCorr;
-		  AFTER.ensemble = thisCorr.ensemble * weight;
-
-		  AFTER.jackknife(); AFTER.ensAvg();
-		  std::cout << "AFTER = " << AFTER << std::endl;
-#endif
-
-		  thisCorr.ensemble = thisCorr.ensemble * weight;
-
-		  
-		  // Get Ioffe-time
-		  int ioffe(0);
-		  if ( ! tmp.npoint[2].irrep.op.ops[1].disp_list.empty() )
-		    ioffe = tmp.npoint[2].irrep.op.ops[1].disp_list.back();
-
-		  // Conjugate if Ioffe-time is negative
-		  if ( ioffe < 0 )
-		    {
-		      std::cout << "Ioffe = " << ioffe << " for key = ";
-		      std::cout << tmp << std::endl;
-		      NCOR::conj(&thisCorr.ensemble.ens);
-		    }
-
-		  /*
-		    Only append this reweighted *.ensemble if weight != 0
-		    Otherwise, merging below will average over non-zero 
-		         & zero entries
-		  */
-		  // Pack this correlator for averaging
-		  // toAvg[(j-1)*2+d].push_back(dum);
-		  std::complex<double> null(0.0,0.0);
-		  if ( weight != null )
-		    toMerge[i-1].push_back(thisCorr.ensemble.ens);
-
-		} // d
-	    } // j
-	} // i
-
-
-
-      // Erase the original keyCorrMap
-      vi->keyCorrMap.clear();
-      // Make a new keyCorrMap
-      ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, NCOR::correlator> cavg;
-
-
-      // Loop once more over dimensions of src & snk subductions to assign rows
-      for ( int i = 0; i < snkOp.irrep_dim; ++i )
-	{
-	  for ( int j = 0; j < srcOp.irrep_dim; ++j )
-	    {
-	      tmp.npoint[1].irrep.irrep_mom.row = (-1*(i+1));
-	      tmp.npoint[3].irrep.irrep_mom.row = (-1*(j+1));
-	      // Force disp key to be positive
-	      if ( !tmp.npoint[2].irrep.op.ops[1].disp_list.empty()
-		   && tmp.npoint[2].irrep.op.ops[1].disp_list.back() < 0 )
-		tmp.npoint[2].irrep.op.ops[1].disp_list *= -1;
-
-
-	      // Merge along toMerge[*] dimension
-	      std::cout << "DEBUG - here we have " << toMerge[j+i*srcOp.irrep_dim].size() << " corrs to merge " << std::endl;
-	      // NCOR::correlator mergeCorr = NCOR::mergeCorrs(toMerge[j+i*srcOp.irrep_dim]);
-
-
-	      // Try a direct add
-	      Pseudo::domain_t dumD(0,1,tmp.npoint[1].t_slice-1);
-	      Pseudo::prop_t dumP(global.cfgs, dumD);
-	      NCOR::correlator mergeCorr(dumP);
-
-	      mergeCorr.ensemble.ens = toMerge[j+i*srcOp.irrep_dim][0];
-	      if ( toMerge[j+i*srcOp.irrep_dim].size() > 1 )
-		{
-		  for ( int s = 1; s < toMerge[j+i*srcOp.irrep_dim].size(); ++s )
-		    {
-		      NCOR::dat_t dumDat; dumDat.ens = toMerge[j+i*srcOp.irrep_dim][s];
-		      mergeCorr.ensemble += dumDat;
-		    }
-		}
-		
-	      cavg.insert(tmp, mergeCorr);
-	    }
-	}
-
-
-      // Assign cavg to vi->keyCorrMap and proceed to next iteration
-      vi->keyCorrMap = cavg;
-      
-      // Clean up
-      gsl_matrix_complex_free(subduceSrc);
-      gsl_matrix_complex_free(subduceSnk);
-      gsl_matrix_complex_free(subduceTensProd);
-    } // vi
-}
-
-
-#if 0
-void rowAvg(std::vector<NCOR::corrEquivalence>& v)
-{
   for ( auto a = v.begin(); a != v.end(); ++a )
     {
+      
       // Access the first key in map to store info
       Hadron::KeyHadronSUNNPartNPtCorr_t tmp = a->keyCorrMap.begin()->first;
       
       // Obtain the snk/src subduction info
       subduceInfo snkOp(tmp.npoint[1].irrep.op.ops[1].name,tmp.npoint[1].irrep.irrep_mom.mom);
       subduceInfo srcOp(tmp.npoint[3].irrep.op.ops[1].name,tmp.npoint[3].irrep.irrep_mom.mom);
-
-      
       
 
 
       // Determine if +/-zsep need to be stored
       int disp2Store(1);
       if ( ! tmp.npoint[2].irrep.op.ops[1].disp_list.empty() )
-        disp2Store = 2;
+	disp2Store = 2;
 
       
       // Collect the correlators to average
@@ -848,28 +776,28 @@ void rowAvg(std::vector<NCOR::corrEquivalence>& v)
 
       // For this corrEquivance instance, access each correlator and pack into 'toAvg'
       for ( auto m = a->keyCorrMap.begin(); m != a->keyCorrMap.end(); ++m )
-        {
-          int idx = std::distance(a->keyCorrMap.begin(),m);
+	{
+	  int idx = std::distance(a->keyCorrMap.begin(),m);
 
-          // Get Ioffe-time
+	  // Get Ioffe-time
 	  int ioffe(0);
-          if ( ! m->first.npoint[2].irrep.op.ops[1].disp_list.empty() )
-            ioffe = m->first.npoint[2].irrep.op.ops[1].disp_list.back();
+	  if ( ! m->first.npoint[2].irrep.op.ops[1].disp_list.empty() )
+	    ioffe = m->first.npoint[2].irrep.op.ops[1].disp_list.back();
 
-          // Conjugate if Ioffe-time is negative
+	  // Conjugate if Ioffe-time is negative
 	  NCOR::VVC dum = m->second.ensemble.ens;
 #if 1
-          if ( ioffe < 0 )
-            {
+	  if ( ioffe < 0 )
+	    {
 	      std::cout << "Ioffe = " << ioffe << " for key = ";
 	      std::cout << m->first << std::endl;
 	      NCOR::conj(&dum);
-            }
+	    }
 #endif
-                  
-          // Pack this correlator
-          toAvg[idx] = dum;
-        }
+	    	  
+	  // Pack this correlator
+	  toAvg[idx] = dum;
+	}
 
 
       // Modify the tmp key to represent final row averaged correlator
@@ -878,8 +806,8 @@ void rowAvg(std::vector<NCOR::corrEquivalence>& v)
       
 
       if ( !tmp.npoint[2].irrep.op.ops[1].disp_list.empty()
-           && tmp.npoint[2].irrep.op.ops[1].disp_list.back() < 0 )
-        tmp.npoint[2].irrep.op.ops[1].disp_list *= -1;
+	   && tmp.npoint[2].irrep.op.ops[1].disp_list.back() < 0 )
+	tmp.npoint[2].irrep.op.ops[1].disp_list *= -1;
 
 
       // Erase the original keyCorrMap
@@ -893,7 +821,8 @@ void rowAvg(std::vector<NCOR::corrEquivalence>& v)
       a->keyCorrMap = cavg;
     }
 }
-#endif
+
+
 
 /*
   MUST INCLUDE THIS DUMB READER FOR INSTANCES WHERE 2PT AND 3PT CORRELATORS WERE MADE
@@ -910,14 +839,44 @@ bool checkExist(const std::string n)
 
 void Reads2pt(std::ifstream &inFile, NCOR::correlator& dum, info2pt& I, Hadron::KeyHadronSUNNPartNPtCorr_t *h)
 {
-  std::string dumb = I.base+"/"+I.momTag+"."+shortMom(h->npoint[1].irrep.irrep_mom.mom,".")
-    +"/ENS/"+Hadron::ensemFileName(*h);
-  
-  NCOR::read(inFile,dumb,dum.ensemble);
+  // // Look and check for existence of potentially several files
+  // for ( auto d = I.base.begin(); d != I.base.end(); ++d )
+  //   {  --> *d
+      std::string dumb = I.base+"/"+I.momTag+"."+shortMom(h->npoint[1].irrep.irrep_mom.mom,".")
+	+"/ENS/"+Hadron::ensemFileName(*h);
+
+
+      NCOR::read(inFile,dumb,dum.ensemble);
+      // arr_print(dum.ncor[0]);
 }
 #endif
 
 
+// /*
+//   Utility to ensure data has been parsed correctly from dbs
+// */
+// // void parseCheck(ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, correlators> A)
+// void parseCheck(std::vector<corrEquivalence> T)
+// {
+//   for ( auto tt = T.begin(); tt != T.end(); ++tt )
+//     {
+//       for ( auto kc = tt->keyCorrMap.begin(); kc != tt->keyCorrMap.end(); ++kc )
+// 	{
+// 	  std::cout << "Performing simple ensemble average check on key = \n"
+// 		    << "     " << kc->first << std::endl;
+	  
+// 	  corrFunc funcDum;
+// 	  funcDum.data = kc->second;
+// 	  std::cout << "We have dimensions: " << funcDum.data.ncor.size() << " X "
+// 		    << funcDum.data.ncor[0].real.size() << " X "
+// 		    << funcDum.data.ncor[0].real[0].size() << std::endl;
+// 	  // arr_print(funcDum.data.ncor[0]);
+// 	  ensemble funcDumAvg = corrAvg(funcDum.data);
+// 	  std::cout << " Now the average" << std::endl;
+// 	  arr_print(funcDumAvg);
+// 	}
+//     }
+// }
 
 int main(int argc, char *argv[])
 {
@@ -927,7 +886,6 @@ int main(int argc, char *argv[])
       exit(1);
     }
 
-
   // Instantiate a string streamer
   std::stringstream ss;
 
@@ -936,9 +894,7 @@ int main(int argc, char *argv[])
 
 
   // Register all the necessary factories for relating lattice matrix elements and helicity amplitudes
-  Hadron::IrrepsCubicEnv::registerAll();
-  Hadron::IrrepsCubicOctEnv::registerAll();
-  Hadron::IrrepsCubicHelicityEnv::registerAll();
+  // Hadron::IrrepsCubicHelicityEnv::registerAll();
   Hadron::SubduceTablesOctEnv::registerAll();
   Hadron::SubduceTablesLgEnv::registerAll();
 
@@ -946,32 +902,18 @@ int main(int argc, char *argv[])
   /*
     Determine global properties
   */
-  read(xmlSR, "/PITD/global", global);
+  read(xmlSR, "/PGITD/global", global);
   /*
     Determine the db info - sets where/what edbs to search for keys
   */
-  read(xmlSR, "/PITD/dbInfo/threePt/tseries/range", temporal3pt);
-  read(xmlSR, "/PITD/dbInfo/threePt", db3ptInfo);
-  read(xmlSR, "/PITD/dbInfo/twoPt/tseries/range", temporal2pt);
-  read(xmlSR, "/PITD/dbInfo/twoPt", db2ptInfo);
-  read(xmlSR, "/PITD/dbInfo/twoPtRest/tseries/range", temporal2ptRest);
-  read(xmlSR, "/PITD/dbInfo/twoPtRest", db2ptRestInfo);
-
-#if 1
-  polVec_t pol1 = polVec_t(1);
-  polVec_t pol2 = polVec_t(2);
-  polVec_t pol3 = polVec_t(3);
-  polVec_t pol4 = polVec_t(4);
-  std::cout << "S^1 = " << pol1.eval(global.pf,0.5699, 0.535,1,global.Lx) << " " << std::endl;
-  std::cout << "S^2 = " << pol2.eval(global.pf,0.5699, 0.535,1,global.Lx) << " " << std::endl;
-  std::cout << "S^3 = " << pol3.eval(global.pf,0.5699, 0.535,1,global.Lx) << " " << std::endl;
-  std::cout << "S^4 = " << pol4.eval(global.pf,0.5699, 0.535,1,global.Lx) << " " << std::endl;
-
-  std::cout << "2E = " << 2*0.6 << std::endl;
-
-
-  exit(10);
-#endif
+  read(xmlSR, "/PGITD/dbInfo/threePt/tseries/range", temporal3pt);
+  read(xmlSR, "/PGITD/dbInfo/threePt", db3ptInfo);
+  read(xmlSR, "/PGITD/dbInfo/twoPt/tseries/range", temporal2pt);
+  read(xmlSR, "/PGITD/dbInfo/twoPt", db2ptInfo);
+  read(xmlSR, "/PGITD/dbInfo/twoPtRest/tseries/range", temporal2ptRest);
+  read(xmlSR, "/PGITD/dbInfo/twoPtRest", db2ptRestInfo);
+  // dumpRowInfo(db3ptInfo.rows,db3ptInfo.signs,3);
+  // dumpRowInfo(db2ptInfo.rows,db2ptInfo.signs,2);
 
   // Set the number of tseps once and for all
   const int nTSeps = temporal3pt.numT();
@@ -982,7 +924,7 @@ int main(int argc, char *argv[])
     std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> keys;
     std::vector<std::string>                        dbs;
     // Map of keys and correlators structs returned
-    // std::map<Hadron::KeyHadronSUNNPartNPtCorr_t, correlators> keyscorrs; --> need a comparator
+    // std::map<Hadron::KeyHadronSUNNPartNPtCorr_t, correlators> keycorrMap; --> need a comparator
     ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, NCOR::correlator> keycorrMap;
   };
 
@@ -998,25 +940,27 @@ int main(int argc, char *argv[])
   } tempKey3pt, tempKey2Pi, tempKey2Pf, tempKeyRest;
 
 
-  // Read the template keys from the ini xml
+  /*
+    Read the template keys from the ini xml
+  */
   try {
-    read(xmlSR, "/PITD/Ops/threePt/keyTemplate", tempKey3pt.key);
-    read(xmlSR, "/PITD/Ops/twoPt/keyTemplate", tempKey2Pi.key);
-    read(xmlSR, "/PITD/Ops/twoPt/keyTemplate", tempKey2Pf.key);
-    read(xmlSR, "/PITD/Ops/twoPtRest/keyTemplate", tempKeyRest.key);
+    read(xmlSR, "/PGITD/Ops/threePt/keyTemplate", tempKey3pt.key);
+    read(xmlSR, "/PGITD/Ops/twoPt/keyTemplate", tempKey2Pi.key);
+    read(xmlSR, "/PGITD/Ops/twoPtRest/keyTemplate", tempKeyRest.key);
+    tempKey2Pf = tempKey2Pi;
   } catch ( std::string &e ) {
     std::cerr << "Unable to access key templates from ini xml " << e << std::endl;
   }
   std::cout << "READ THE TEMPLATE KEYS TO FETCH" << std::endl;
 
-
   /*
     Substitute correct momenta and src/snk operator names (based on passed global& global)
     into template 3pt & 2pt keys
   */
+  // setOpsMoms(&tempKey3pt.key, tempKey2Pf.key, tempKey2Pi.key, global);
   setOpsMoms(&tempKey3pt.key, tempKey2Pf.key, tempKey2Pi.key, tempKeyRest.key, global);
 
-
+  
 
 
   /*   Make the 3pt database structures to search   */
@@ -1032,7 +976,6 @@ int main(int argc, char *argv[])
   // dumpKeys(threePt.keydbs.keys, 3);
 
 
-
   /*
     Access and store all three point functions
   */
@@ -1045,6 +988,7 @@ int main(int argc, char *argv[])
     exit(1);
   }
   std::cout << "...........3pt Correlators   ---   SUCCESS!" << std::endl;
+
   /*
     Do some checks of the three-pt functions
   */
@@ -1058,7 +1002,6 @@ int main(int argc, char *argv[])
 #endif
   exit(8);
 #endif
-
 
 
   /*
@@ -1112,6 +1055,8 @@ int main(int argc, char *argv[])
 #endif
 
 
+
+
   twoPtIni.jackknife(); twoPtFin.jackknife(); rest2pt.jackknife();
   twoPtIni.ensAvg();    twoPtFin.ensAvg();    rest2pt.ensAvg();
   twoPtIni.Cov();       twoPtFin.Cov();       rest2pt.Cov();
@@ -1122,8 +1067,8 @@ int main(int argc, char *argv[])
 
   // Get the fit info for ini/fin 2pts & 3pt
   NCOR::fitInfo_t twoPtFitInfo, threePtFitInfo;
-  read(xmlSR, "/PITD/fitting/twoPt", twoPtFitInfo);
-  read(xmlSR, "/PITD/fitting/threePt", threePtFitInfo);
+  read(xmlSR, "/PGITD/fitting/twoPt", twoPtFitInfo);
+  read(xmlSR, "/PGITD/fitting/threePt", threePtFitInfo);
 
   // To set up fit properly, pass the correlator's data covariance
   // Submatrix of covariance is internally grabbed, and its inverse computed
@@ -1131,7 +1076,7 @@ int main(int argc, char *argv[])
   twoPtIni.fit = NCOR::fitFunc_t(twoPtFitInfo,twoPtIni.cov.dat,temporal2pt);
 
   // Get the fit info for rest 2pt
-  read(xmlSR, "/PITD/fitting/twoPtRest", twoPtFitInfo);
+  read(xmlSR, "/PGITD/fitting/twoPtRest", twoPtFitInfo);
   rest2pt.fit = NCOR::fitFunc_t(twoPtFitInfo,rest2pt.cov.dat,temporal2pt);
 
 
@@ -1142,6 +1087,7 @@ int main(int argc, char *argv[])
   NFIT::driver(&twoPtFin, components[0], true); fitResW(&twoPtFin, components[0]);
   NFIT::driver(&twoPtIni, components[0], true); fitResW(&twoPtIni, components[0]);
   NFIT::driver(&rest2pt, components[0], true);  fitResW(&rest2pt, components[0]);
+
 
   writeCorr(&twoPtFin);
   writeCorr(&twoPtIni);
@@ -1169,9 +1115,9 @@ int main(int argc, char *argv[])
     {
       std::cout << "    " << i->first << " : ";
       for ( auto p = i->second.begin(); p != i->second.end(); ++p )
-        {
+	{
 	  std::cout << *p << " ";
-        }
+	}
       std::cout << "\n";
     }
 
@@ -1200,108 +1146,65 @@ int main(int argc, char *argv[])
   for ( auto c = rest2pt.res.chi2.begin(); c != rest2pt.res.chi2.end(); ++c )
     std::cout << *c << " ";
   std::cout << "\n";
-  exit(90);
 #endif
 
 
 
-
-  // for ( auto a = funcs3pt.begin(); a != funcs3pt.end(); ++a )
-  //   {
-  //     for ( auto aa = a->keyCorrMap.begin(); aa != a->keyCorrMap.end(); ++aa )
-  // 	{
-  // 	  std::cout << "NEW ONE" << std::endl;
-  // 	  NCOR::correlator foo = aa->second;
-  // 	  foo.jackknife();
-  // 	  foo.ensAvg();
-  // 	  std::cout << aa->first << std::endl;
-  // 	  std::cout << foo << "\n" << std::endl;
-  // 	}
-  //   }
-
-  // exit(8);
-
   
+
+  /*
+    Reweight the 3pt functions
+  */
+  for ( std::vector<NCOR::corrEquivalence>::iterator i = funcs3pt.begin(); i != funcs3pt.end(); ++i )
+    {
+      // These const_iterators in adat are killing me
+      // So make a new map and fill it with modified values
+      ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, NCOR::correlator> rescaleMap;
+      NCOR::correlator rescale;
+
+      for ( auto k = i->keyCorrMap.begin(); k != i->keyCorrMap.end(); ++k )
+	{
+
+	  std::complex<double> reweight = lgToHelicityAmps(&(k->first));
+	  std::cout << "*******WEIGHT to Key = " << k->first << "\n    IS = " << reweight << std::endl;
+
+	  // Again because of const_iters in adat, pull out value associated with this key
+	  // and then reweight
+	  NCOR::correlator unscaled = i->keyCorrMap[k->first];
+#warning "Assuming subduction/Wigner-D reweights are strictly real!"
+
+
+	  // std::cout << "B4 WEIGHT APPLY" << std::endl;
+	  rescale.ensemble = unscaled.ensemble * (1.0/reweight);
+	  // std::cout << "AFTER WEIGHT APPLY" << std::endl;
+
+
+	  /*
+	    Apply redstar factor
+	  */
+	  rescale.ensemble *= redFact;
+
+	  // Pack the reweighted value
+	  rescaleMap.insert(k->first, rescale);
+
+	}
+
+      i->keyCorrMap.clear();
+      i->keyCorrMap = rescaleMap;
+
+    }
+
+
+
+
+
   /*
     3pt functions at this stage are reweighted
     Now average all 4 row combinations for each p/z combination
   */
   rowAvg(funcs3pt);
+ 
 
-  // for ( auto a = funcs3pt.begin(); a != funcs3pt.end(); ++a )
-  //   {
-  //     for ( auto aa = a->keyCorrMap.begin(); aa != a->keyCorrMap.end(); ++aa )
-  // 	{
-  // 	  std::cout << "NEW ONE" << std::endl;
-  // 	  NCOR::correlator foo = aa->second;
-  // 	  foo.jackknife();
-  // 	  foo.ensAvg();
-  // 	  std::cout << aa->first << std::endl;
-  // 	  std::cout << foo << "\n" << std::endl;
-  // 	}
-  //   }
-  // exit(8);
-
-  for ( auto a = funcs3pt.begin(); a != funcs3pt.end(); ++a )
-    {
-      // Copy reference of first key in each entry of funcs3pt
-      Hadron::KeyHadronSUNNPartNPtCorr_t align = a->keyCorrMap.begin()->first;
-      Hadron::KeyHadronSUNNPartNPtCorr_t antialign = align;
-      align.npoint[1].irrep.irrep_mom.row = -1;
-      align.npoint[3].irrep.irrep_mom.row = -1;
-      antialign.npoint[1].irrep.irrep_mom.row = -2;
-      antialign.npoint[3].irrep.irrep_mom.row = -2;
-
-
-      std::complex<double> spinAvg(0.5,0.0);
-      // Now form the unpolarized or polarized combination based on global projection
-      switch ( global.chromaGamma )
-	{
-	case 8:
-	  a->keyCorrMap[align].ensemble += a->keyCorrMap[antialign].ensemble;
-	  a->keyCorrMap[align].ensemble *= (spinAvg * redFact);
-	  break;
-	case 11:
-	  a->keyCorrMap[align].ensemble -= a->keyCorrMap[antialign].ensemble;
-	  a->keyCorrMap[align].ensemble *= (spinAvg * redFact);
-	  break;
-	}
-
-
-      // Unpol/pol combo now sits in the <-1,-1> row entry
-      // Dump the remaining from the keyCorrMap
-      a->keyCorrMap.erase(antialign);
-      antialign.npoint[1].irrep.irrep_mom.row = -1;   a->keyCorrMap.erase(antialign);
-      antialign.npoint[1].irrep.irrep_mom.row = -2;
-      antialign.npoint[3].irrep.irrep_mom.row = -1;   a->keyCorrMap.erase(antialign);
-    }
-
-  
-  // for ( auto a = funcs3pt.begin(); a != funcs3pt.end(); ++a )
-  //   {
-  //     for ( auto aa = a->keyCorrMap.begin(); aa != a->keyCorrMap.end(); ++aa )
-  // 	{
-  // 	  std::cout << "NEW ONE" << std::endl;
-  // 	  NCOR::correlator foo = aa->second;
-  // 	  foo.jackknife();
-  // 	  foo.ensAvg();
-  // 	  std::cout << aa->first << std::endl;
-  // 	  std::cout << foo << "\n" << std::endl;
-  // 	}
-  //   }
-  // exit(8);
-
-
-#if 0
-  /*
-    Jackknife each 3pt function, and compute jk ens average
-  */
-  std::vector<NCOR::correlator> ratio(funcs3pt.size());
-  for ( auto a = funcs3pt.begin(); a != funcs3pt.end(); ++a )
-    {
-      int idx = std::distance(funcs3pt.begin(), a);
-      ratio[idx] = 
-#endif  
 
 
   /*
@@ -1315,16 +1218,18 @@ int main(int argc, char *argv[])
       int idx = std::distance(funcs3pt.begin(), it);
       // Init this ratio
       Pseudo::domain_t * d = new
-        Pseudo::domain_t(0,1,it->keyCorrMap.begin()->second.ensemble.T.back());
+	Pseudo::domain_t(0,1,it->keyCorrMap.begin()->second.ensemble.T.back());
       prop_t * props = new prop_t(global.cfgs, *d); //, it->keyCorrMap.begin()->first);
       props->npt     = 3;
       props->gamma   = global.chromaGamma;
       props->key     = it->keyCorrMap.begin()->first;
-
+      // props->mom.fin = it->keyCorrMap.begin()->first.npoint[1].irrep.irrep_mom.mom;
+      // props->mom.ini = it->keyCorrMap.begin()->first.npoint[3].irrep.irrep_mom.mom;
+      // props->disp    = it->keyCorrMap.begin()->first.npoint[2].irrep.op.ops[1].disp_list;
       // Lazy here - make sure the displacement being passed is positive
       if ( props->key.npoint[2].irrep.op.ops[1].disp_list.size() != 0
-           && props->key.npoint[2].irrep.op.ops[1].disp_list[0] < 0 )
-        props->key.npoint[2].irrep.op.ops[1].disp_list *= -1;
+	   && props->key.npoint[2].irrep.op.ops[1].disp_list[0] < 0 )
+	props->key.npoint[2].irrep.op.ops[1].disp_list *= -1;
       
       // Now construct a new ratio
       ratio[idx] = NCOR::correlator(*props);
@@ -1333,31 +1238,31 @@ int main(int argc, char *argv[])
 
       // Should be only one correlator now...so the follow should be okay
       NCOR::correlator this3pt = it->keyCorrMap.begin()->second;
-
+	
 
       this3pt.jackknife();
       this3pt.ensAvg();
 
-
       // Local copy of this tsep
       const int T = this3pt.ensemble.T.size();
 
+
       // Loop over time for this 3pt
       for ( auto tau = this3pt.ensemble.T.begin(); tau != this3pt.ensemble.T.end(); ++tau )
-        {
-          // Loop over the jackknife ensemble averages
-          // this3pt is for fixed T with tau varying
-          
-          for ( int j = 0; j < global.cfgs; ++j )
-            {
-              ratio[idx].ensemble.ens[j][*tau] =
-	      	( this3pt.jack[j].avg[*tau] / twoPtFin.jack[j].avg[T].real() ) 
-                * sqrt(( twoPtIni.jack[j].avg[T-*tau].real() * twoPtFin.jack[j].avg[*tau].real()
-                         * twoPtFin.jack[j].avg[T].real() )/
-                       ( twoPtFin.jack[j].avg[T-*tau].real() * twoPtIni.jack[j].avg[*tau].real()
-                         * twoPtIni.jack[j].avg[T].real() ));
-            }
-        } //tau
+	{
+	  // Loop over the jackknife ensemble averages
+	  // this3pt is for fixed T with tau varying
+	  
+	  for ( int j = 0; j < global.cfgs; ++j )
+	    {
+	      ratio[idx].ensemble.ens[j][*tau] = 
+		( this3pt.jack[j].avg[*tau] / twoPtFin.jack[j].avg[T].real() ) 
+		* sqrt(( twoPtIni.jack[j].avg[T-*tau].real() * twoPtFin.jack[j].avg[*tau].real()
+			 * twoPtFin.jack[j].avg[T].real() )/
+		       ( twoPtFin.jack[j].avg[T-*tau].real() * twoPtIni.jack[j].avg[*tau].real()
+			 * twoPtIni.jack[j].avg[T].real() ));
+	    }
+	} //tau
 
       // Get ensemble avg so bias removal can proceed
       ratio[idx].ensAvg();
@@ -1380,18 +1285,17 @@ int main(int argc, char *argv[])
   for ( auto it = ratio.begin(); it != ratio.end(); ++it )
     {
       for ( int j = 0; j < global.cfgs; ++j )
-        {
+	{
 	  std::complex<double> kin(0.0,0.0);
 
-          kin.real( ( 1 / ( 4*twoPtIni.res.params["E0"][j] *
-                            (twoPtFin.res.params["E0"][j] + rest2pt.res.params["E0"][j]) )) *
-                    sqrt( (twoPtIni.res.params["E0"][j]*
-                           (twoPtFin.res.params["E0"][j]+rest2pt.res.params["E0"][j]))
-                          / (twoPtFin.res.params["E0"][j]*(twoPtIni.res.params["E0"][j]+
-                                                           rest2pt.res.params["E0"][j])) ) );
-
-          it->ensemble.ens[j] *= (1.0/kin);
-        }
+	  kin.real( ( 1 / ( 4*twoPtIni.res.params["E0"][j] *
+			    (twoPtFin.res.params["E0"][j] + rest2pt.res.params["E0"][j]) )) *
+		    sqrt( (twoPtIni.res.params["E0"][j]*
+			   (twoPtFin.res.params["E0"][j]+rest2pt.res.params["E0"][j]))
+			  / (twoPtFin.res.params["E0"][j]*(twoPtIni.res.params["E0"][j]+
+							   rest2pt.res.params["E0"][j])) ) );
+	  it->ensemble.ens[j] *= (1.0/kin);
+	}
 
       // it->jackknife();
       // it->ensAvg();
@@ -1411,26 +1315,20 @@ int main(int argc, char *argv[])
   for ( auto it = ratio.begin(); it != ratio.end(); ++it )
     {
       for ( int j = 0; j < global.cfgs; ++j )
-        {
-#if 1
+	{
 	  std::complex<double> trace(0.0,0.0);
-          trace = proj.eval(global.pf,global.pi,twoPtFin.res.params["E0"][j],
-                            twoPtIni.res.params["E0"][j],
-                            rest2pt.res.params["E0"][j],global.Lx);
+	  trace = proj.eval(global.pf,global.pi,twoPtFin.res.params["E0"][j],
+			    twoPtIni.res.params["E0"][j],
+			    rest2pt.res.params["E0"][j],global.Lx);
 
-#if 0
-	  std::cout << "CONSIST: " << trace << " =? "
-		    << 4*twoPtFin.res.params["E0"][j]*(twoPtFin.res.params["E0"][j]+rest2pt.res.params["E0"][j]) << " =? " 
-		    << 4*twoPtIni.res.params["E0"][j]*(twoPtIni.res.params["E0"][j]+rest2pt.res.params["E0"][j]) << std::endl;
-#endif
-#else
-	  std::complex<double> trace(1.0,0.0);
-#endif
-
-	  // Toss in the 2p^\mu prefactor of pseudo-ITD
-	  trace *= (2*twoPtFin.res.params["E0"][j]);
-          it->ensemble.ens[j] *= (1.0/trace);
-        }
+	  /*
+	    Toss in the prefactor <<\gamma^\mu>>
+	  */
+#warning "Need amplitude prefactor!"
+	  std::complex<double> prefactor(1.0,0.0);
+	  trace *= prefactor;
+	  it->ensemble.ens[j] *= (1.0/trace);
+	}
 
       // it->jackknife();
       // it->ensAvg();
@@ -1438,7 +1336,6 @@ int main(int argc, char *argv[])
       // std::cout << "*********************" << std::endl;
     }
   // exit(8);
-
 
 
   
@@ -1462,50 +1359,25 @@ int main(int argc, char *argv[])
     {
       int idx = std::distance(ratio.begin(), it);
 
-      //      it->summation();
-      
       // Map the summed ratio data into the SR instance so covariance/fitting members can be used
       for ( auto gg = it->ensemble.ens.begin(); gg != it->ensemble.ens.end(); ++gg )
-        {
-          int gdx = std::distance(it->ensemble.ens.begin(), gg);
-          SR.ensemble.ens[gdx][idx] = (*gg)[0];
-        }
+	{
+	  int gdx = std::distance(it->ensemble.ens.begin(), gg);
+	  SR.ensemble.ens[gdx][idx] = (*gg)[0];
+	}
     }
   std::cout << "Summations done" << std::endl;
 
   SR.jackknife();
   SR.ensAvg();
-  // SR.removeBias();
 #if 0
   std::cout << SR << std::endl;
   exit(90);
 #endif
   SR.Cov();
 
-  LinAlg::printMat(SR.cov.dat["real"]);
-  LinAlg::printMat(SR.cov.dat["imag"]);
-
   // Init a linear fit for SR
   SR.fit = NCOR::fitFunc_t(threePtFitInfo,SR.cov.dat, temporal3pt);
-
-  // DEBUGS
-#if 0
-  std::cout << "SR.fit.type = " << SR.fit.getType() << std::endl;
-  std::cout << "SR.fit.num = " << SR.fit.num << std::endl;
-  std::cout << "SR.fit.fitCov[real] = ";
-#warning "FIX ME! - sqrt(cov[i][j]) is off by factor of cfgs!"
-  LinAlg::printMat(SR.fit.fitCov.dat["real"]);
-  std::cout << "SR.fit.fitCov[imag] = ";
-  LinAlg::printMat(SR.fit.fitCov.dat["imag"]);
-  std::cout << "SR.fit.theFit.verbose = " << SR.fit.theFit.verbose() << std::endl;
-  std::cout << "SR.fit.theFit.range.min = " << SR.fit.theFit.range.min << std::endl;
-  std::cout << "SR.fit.theFit.range.step = " << SR.fit.theFit.range.step << std::endl;
-  std::cout << "SR.fit.theFit.range.max = " << SR.fit.theFit.range.max << std::endl;
-  std::cout << "SR.fit.theFit.range.numT = " << SR.fit.theFit.range.numT() << std::endl;
-  // SR.fit.theFit.range.makeDomain();
-  // std::cout << "SR.fit.theFit.range.domain = " << SR.fit.theFit.range.makeDomain() << std::endl;
-  // exit(8);
-#endif
 
 
 
@@ -1517,13 +1389,29 @@ int main(int argc, char *argv[])
       NFIT::driver(&SR, *f, false);
       // Write out the fit results
       fitResW(&SR, *f);
+
+#if 0
+      std::cout << "PARAMS FOR SR:" << std::endl;
+      for ( auto i = SR.res.params.begin(); i != SR.res.params.end(); ++i )
+	{
+	  std::cout << "    " << i->first << " : ";
+	  for ( auto p = i->second.begin(); p != i->second.end(); ++p )
+	    {
+	      std::cout << *p << " ";
+	    }
+	  std::cout << "\n";
+	}
+      std::cout << "SR chi2 : " << std::endl;
+      for ( auto a = SR.res.chi2.begin(); a != SR.res.chi2.end(); ++a )
+	std::cout << *a << " ";
+      std::cout << "\n";
+#endif
+
       // Destroy the stored fits values since they've been written
       SR.res.chi2.clear(); SR.res.params.clear();
     }
   writeCorr(&SR);
   delete xprops;
-
-
 
   return 0;
 }

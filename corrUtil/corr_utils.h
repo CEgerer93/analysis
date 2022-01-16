@@ -180,7 +180,7 @@ namespace NCOR
 							     -T.min)/T.step,
 						(theFit.range.min+theFit.range.step*j
 						 -T.min)/T.step));
-		  std::cout << "Grabbed elem = (" << (theFit.range.min+theFit.range.step*i-T.min)/T.step << ", " << (theFit.range.min+theFit.range.step*j-T.min)/T.step << ") of full data covariance" << std::endl;
+		  /* std::cout << "Grabbed elem = (" << (theFit.range.min+theFit.range.step*i-T.min)/T.step << ", " << (theFit.range.min+theFit.range.step*j-T.min)/T.step << ") of full data covariance" << std::endl; */
 		} // j
 	    } // i
 
