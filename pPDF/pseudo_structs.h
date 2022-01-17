@@ -9,6 +9,7 @@
 #include "adat/map_obj.h"
 #include "hadron/hadron_sun_npart_npt_corr.h"
 /* #include "/u/home/cegerer/src/personal_fns.h" */
+#include "threept_tr.h"
 
 namespace Pseudo
 {
@@ -21,7 +22,11 @@ namespace Pseudo
     int t2ptRows; // 1, 2, -or- 0 (for both 1 & 2)
     XMLArray::Array<int> pi, pf, rest; // lazy me
 
-    int chromaGamma; // gamma matrix appearing in 3pt trace
+
+    /* projections::projSelect projector; // Don't want to mess w/ making enum reader */
+    int projector; // whether unpol (1) or pol (2) projector is used in trace
+
+    int chromaGamma; // gamma matrix of insertion
 
     bool momNegate;
 

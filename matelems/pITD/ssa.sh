@@ -8,6 +8,10 @@ if [ $# -ne 5 ]; then
 fi
 
 
+# PROJECTOR in trace
+PROJ=2
+# PROJ=1
+
 PHASEDIR=unphased
 PHASESTUB=$PHASEDIR
 if [ $1 -gt 3 ] || [ $1 -lt -3 ]; then
@@ -94,7 +98,7 @@ for p in $1; do
 	    -e 's@3PTTmin@'"${tmin3ptFit}"'@g' -e 's@3PTTmax@'"${tmax3ptFit}"'@g' \
 	    -e 's@2PTTmin@'"${tmin2ptFit}"'@g' -e 's@2PTTmax@'"${tmax2ptFit}"'@g' \
 	    -e 's@PHASEDIR@'"${PHASEDIR}"'@g' -e 's@PHASESTUB@'"${PHASESTUB}"'@g' \
-	    -e 's@GAMMA@'"${gamma}"'@' \
+	    -e 's@GAMMA@'"${gamma}"'@' -e 's@PROJ@'"${PROJ}"'@' \
 	    sum-matelem.ini.xml > sum.${p}${z}.xml
 
 	    # -e 's@XPHASEX@'"${phaseStub}"'@g' -e 's@XOPX@'"${operator}"'@g' \

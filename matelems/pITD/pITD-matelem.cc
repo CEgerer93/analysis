@@ -329,7 +329,8 @@ void read(XMLReader& xml, const std::string path, global_t& g)
     read(xml, path+"/t2ptRows", g.t2ptRows);
     read(xml, path+"/observable", g.observable);
     read(xml, path+"/state", g.state);
-    read(xml, path+"/projection/gamma", g.chromaGamma);
+    read(xml, path+"/projection", g.projector);
+    read(xml, path+"/insertion/gamma", g.chromaGamma);
     read(xml, path+"/nvec", g.nvec);
     read(xml, path+"/Lt", g.Lt);
     read(xml, path+"/Lx", g.Lx);
@@ -957,17 +958,39 @@ int main(int argc, char *argv[])
   read(xmlSR, "/PITD/dbInfo/twoPtRest/tseries/range", temporal2ptRest);
   read(xmlSR, "/PITD/dbInfo/twoPtRest", db2ptRestInfo);
 
-#if 1
-  polVec_t pol1 = polVec_t(1);
-  polVec_t pol2 = polVec_t(2);
-  polVec_t pol3 = polVec_t(3);
-  polVec_t pol4 = polVec_t(4);
-  std::cout << "S^1 = " << pol1.eval(global.pf,0.5699, 0.535,1,global.Lx) << " " << std::endl;
-  std::cout << "S^2 = " << pol2.eval(global.pf,0.5699, 0.535,1,global.Lx) << " " << std::endl;
-  std::cout << "S^3 = " << pol3.eval(global.pf,0.5699, 0.535,1,global.Lx) << " " << std::endl;
-  std::cout << "S^4 = " << pol4.eval(global.pf,0.5699, 0.535,1,global.Lx) << " " << std::endl;
+#if 0
+  // diracMat_t d1(1,false);
+  // diracMat_t d2(2,false);
+  // diracMat_t d3(3,false);
+  // diracMat_t d4(4,false);
+  // diracMat_t d5(5,false);
+  // LinAlg::printMat(d1.gamma);
+  // LinAlg::printMat(d2.gamma);
+  // LinAlg::printMat(d3.gamma);
+  // LinAlg::printMat(d4.gamma);
+  // LinAlg::printMat(d5.gamma);
 
-  std::cout << "2E = " << 2*0.6 << std::endl;
+  // std::cout << "*&*&*&*&" << std::endl;
+
+  polVec_t pol1 = polVec_t(1,true);
+  polVec_t pol2 = polVec_t(2,true);
+  polVec_t pol3 = polVec_t(3,true);
+  polVec_t pol4 = polVec_t(4,true); // 0.5699
+  std::cout << "S^1 = " << pol1.eval(global.pf,0.56989309716099856, 0.535,1,global.Lx) << " " << std::endl;
+  std::cout << "S^2 = " << pol2.eval(global.pf,0.56989309716099856, 0.535,1,global.Lx) << " " << std::endl;
+  std::cout << "S^3 = " << pol3.eval(global.pf,0.56989309716099856, 0.535,1,global.Lx) << " " << std::endl;
+  std::cout << "S^4 = " << pol4.eval(global.pf,0.56989309716099856, 0.535,1,global.Lx) << " " << std::endl;
+
+  std::cout << "Now the Jz=-1/2 polarization vectors" << std::endl;
+  std::cout << "S^1 = " << pol1.eval(global.pf,0.56989309716099856, 0.535,2,global.Lx) << " " << std::endl;
+  std::cout << "S^2 = " << pol2.eval(global.pf,0.56989309716099856, 0.535,2,global.Lx) << " " << std::endl;
+  std::cout << "S^3 = " << pol3.eval(global.pf,0.56989309716099856, 0.535,2,global.Lx) << " " << std::endl;
+  std::cout << "S^4 = " << pol4.eval(global.pf,0.56989309716099856, 0.535,2,global.Lx) << " " << std::endl;
+  
+
+
+  std::cout << "2E  = " << 2*0.6 << std::endl;
+  std::cout << "E/m = " << 0.5699/0.535 << std::endl;
 
 
   exit(10);
@@ -1404,7 +1427,12 @@ int main(int argc, char *argv[])
     Remaining factor: kinematic factors from 3pt function trace
     Initialize the trace
   */
-  projections::projSelect pr = projections::projSelect::UNPOL;
+  projections::projSelect pr;
+  if ( global.projector == 1 )
+    pr = projections::projSelect::UNPOL;
+  if ( global.projector == 2 )
+    pr = projections::projSelect::POL;
+
   projector_t proj(pr,global.chromaGamma);
   std::cout << "Projector selected" << std::endl;
 
@@ -1418,17 +1446,22 @@ int main(int argc, char *argv[])
                             twoPtIni.res.params["E0"][j],
                             rest2pt.res.params["E0"][j],global.Lx);
 
-#if 0
-	  std::cout << "CONSIST: " << trace << " =? "
-		    << 4*twoPtFin.res.params["E0"][j]*(twoPtFin.res.params["E0"][j]+rest2pt.res.params["E0"][j]) << " =? " 
-		    << 4*twoPtIni.res.params["E0"][j]*(twoPtIni.res.params["E0"][j]+rest2pt.res.params["E0"][j]) << std::endl;
-#endif
+
+	  // Toss in prefactors of pseudo-ITDs
+	  if ( global.chromaGamma == 8 )
+	    trace *= (2*twoPtFin.res.params["E0"][j]); // 2*p^\mu prefactor
+	  if ( global.chromaGamma == 11 )
+	    {
+	      polVec_t S(3,true);
+	      // 2mS^\mu prefactor - n.b. includes "-1" in Mink., but result should be positive...
+	      // ...so for now "-1" is neglected
+	      trace *= (2*rest2pt.res.params["E0"][j]*S.eval(global.pf,twoPtFin.res.params["E0"][j],rest2pt.res.params["E0"][j],1,global.Lx));
+	    }
+
 #else
 	  std::complex<double> trace(1.0,0.0);
 #endif
 
-	  // Toss in the 2p^\mu prefactor of pseudo-ITD
-	  trace *= (2*twoPtFin.res.params["E0"][j]);
           it->ensemble.ens[j] *= (1.0/trace);
         }
 

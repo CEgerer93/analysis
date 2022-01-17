@@ -19,6 +19,8 @@
 #include<gsl/gsl_complex.h>
 #include<gsl/gsl_complex_math.h>
 
+#include "cov_utils.h"
+
 using namespace Pseudo;
 
 namespace projections
@@ -52,18 +54,35 @@ struct projector_t
 	    case 1:
 	      trace.imag( -2*(pf[0]*(2*M_PI/L)*(Ei+m)+pi[0]*(2*M_PI/L)*(Ef+m)) ); break;
 	    default:
-	      std::cerr << "Kinematic factor unknown for Gamma = " << gamma << std::endl;
+	      std::cerr << "Unknown kinematic factor for unpolarized projector and Gamma = "
+			<< gamma << std::endl;
 	    }
 	  break;
 	}
       case projections::POL:
 	{
-	  std::cout << "You selected polarized" << std::endl;
+#warning "Kine factors for pol. projection are correct ONLY in forward limit!"
+	  // Only correct for forward case!
+	  switch(gamma)
+	    {
+	    case 14: // \gamma_x\gamma_5   ---   n.b. need to check - factor may be imag instead
+	      trace.real( 4*pf[2]*pi[1]*pow(2*M_PI/L,2) ); break;
+	    case 13: // \gamma_y\gamma_5   ---   n.b. need to check - factor may be real instead
+	      trace.imag( 4*pf[2]*pi[2]*pow(2*M_PI/L,2) ); break;
+	    case 11: // \gamma_z\gamma_5   ---   n.b. redstar gzg5 has "i", so factor is real
+	      trace.real( 4*(m*Ei+pow(m,2)+pi[2]*pi[2]*pow(2*M_PI/L,2)) ); break;
+	      // Should this be 4\times X  or 2\times X ???  -- prolly 4 because forward v. off-forward
+	    case 7: // \gamma_4\gamma_5
+	      trace.real( -4*pi[2]*(2*M_PI/L)*(Ei+m) ); break;
+	    default:
+	      std::cerr << "Unknown kinematic factor for polarized projector and Gamma = "
+			<< gamma << std::endl;
+	    }
 	  break;
 	}
       default:
 	{
-	  std::cerr << "What is your projector?" << std::endl;
+	  std::cerr << "What is your projector?  -- Unpol. -or- Pol." << std::endl;
 	  exit(2);
 	}
       } // switch
@@ -113,14 +132,16 @@ struct pauli_t
 struct diracMat_t
 {
   gsl_matrix_complex * gamma = gsl_matrix_complex_calloc(4,4);
-  gsl_complex one = gsl_complex_rect(1.0,0.0);
+  gsl_complex one  = gsl_complex_rect(1.0,0.0);
   gsl_complex mone = gsl_complex_rect(-1.0,0.0);
+  gsl_complex I    = gsl_complex_rect(0.0,1.0);
+  gsl_complex mI   = gsl_complex_rect(0.0,-1.0);
 
   // Default
   diracMat_t() {}
 
   // Parameterized constructor
-  diracMat_t(int n)
+  diracMat_t(int n, bool MINK) // MINK = True for Minkowski construction
   {
     pauli_t s(n);
     switch(n)
@@ -130,9 +151,19 @@ struct diracMat_t
 	  {
 	    for ( size_t j = 0; j < s.m->size2; ++j )
 	      {
-		gsl_matrix_complex_set(gamma,i,2+j,gsl_matrix_complex_get(s.m,i,j));
-		gsl_matrix_complex_set(gamma,i+2,j,
-				       gsl_complex_mul(mone,gsl_matrix_complex_get(s.m,i,j)));
+		if ( MINK )
+		  {
+		    gsl_matrix_complex_set(gamma,i,2+j,gsl_matrix_complex_get(s.m,i,j));
+		    gsl_matrix_complex_set(gamma,i+2,j,
+					   gsl_complex_mul(mone,gsl_matrix_complex_get(s.m,i,j)));
+		  }
+		else if ( !MINK )
+		  {
+		    gsl_matrix_complex_set(gamma,i,2+j,
+					   gsl_complex_mul(mI,gsl_matrix_complex_get(s.m,i,j)));
+		    gsl_matrix_complex_set(gamma,i+2,j,
+					   gsl_complex_mul(I,gsl_matrix_complex_get(s.m,i,j)));
+		  }
 	      }
 	  }
 	break;
@@ -141,9 +172,19 @@ struct diracMat_t
 	  {
 	    for ( size_t j = 0; j < s.m->size2; ++j )
 	      {
-		gsl_matrix_complex_set(gamma,i,2+j,gsl_matrix_complex_get(s.m,i,j));
-		gsl_matrix_complex_set(gamma,i+2,j,
-				       gsl_complex_mul(mone,gsl_matrix_complex_get(s.m,i,j)));
+		if ( MINK )
+		  {
+		    gsl_matrix_complex_set(gamma,i,2+j,gsl_matrix_complex_get(s.m,i,j));
+		    gsl_matrix_complex_set(gamma,i+2,j,
+					   gsl_complex_mul(mone,gsl_matrix_complex_get(s.m,i,j)));
+		  }
+		else if ( !MINK )
+		  {
+		    gsl_matrix_complex_set(gamma,i,2+j,
+					   gsl_complex_mul(mI,gsl_matrix_complex_get(s.m,i,j)));
+		    gsl_matrix_complex_set(gamma,i+2,j,
+					   gsl_complex_mul(I,gsl_matrix_complex_get(s.m,i,j)));
+		  }
 	      }
 	  }
 	break;
@@ -152,9 +193,19 @@ struct diracMat_t
 	  {
 	    for ( size_t j = 0; j < s.m->size2; ++j )
 	      {
-		gsl_matrix_complex_set(gamma,i,2+j,gsl_matrix_complex_get(s.m,i,j));
-		gsl_matrix_complex_set(gamma,i+2,j,
-				       gsl_complex_mul(mone,gsl_matrix_complex_get(s.m,i,j)));
+		if ( MINK )
+		  {
+		    gsl_matrix_complex_set(gamma,i,2+j,gsl_matrix_complex_get(s.m,i,j));
+		    gsl_matrix_complex_set(gamma,i+2,j,
+					   gsl_complex_mul(mone,gsl_matrix_complex_get(s.m,i,j)));
+		  }
+		else if ( !MINK )
+		  {
+		    gsl_matrix_complex_set(gamma,i,2+j,
+					   gsl_complex_mul(mI,gsl_matrix_complex_get(s.m,i,j)));
+		    gsl_matrix_complex_set(gamma,i+2,j,
+					   gsl_complex_mul(I,gsl_matrix_complex_get(s.m,i,j)));
+		  }
 	      }
 	  }
 	break;
@@ -165,8 +216,13 @@ struct diracMat_t
 	  gsl_matrix_complex_set(gamma,i,i,mone);
 	break;
       case 5:
-	for ( int i = 3; i > -1; --i ) // int here because size_t decrements aren't intuitive at i = 0
-	  gsl_matrix_complex_set(gamma,-i+3,i,one);
+	for ( size_t i = 0; i < 4; ++i )
+	  {
+	    if ( MINK )
+	      gsl_matrix_complex_set(gamma,i,(i+2)%4,one);
+	    else if ( !MINK )
+	      gsl_matrix_complex_set(gamma,i,(i+2)%4,mone);
+	  }	
 	break;
       default:
 	std::cout << "Not a valid Dirac matrix!" << std::endl;
@@ -193,7 +249,7 @@ struct polVec_t
   // Pauli matrices
   pauli_t sx = pauli_t(1); pauli_t sy = pauli_t(2); pauli_t sz = pauli_t(3);
   // \gamma^4 & \gamma^5 are always apart of S^\mu evaluation
-  diracMat_t g4 = diracMat_t(4); diracMat_t g5 = diracMat_t(5);
+  diracMat_t g4 = diracMat_t(4,true); diracMat_t g5 = diracMat_t(5,true);
 
   // Dirac matrix \gamma^\mu that defines S^\mu
   diracMat_t d;
@@ -280,9 +336,10 @@ struct polVec_t
 #endif
 
 
-#if 1
+#if 0
+    diracMat_t G = diracMat_t(5,false);
     // More debugs
-    gsl_blas_zgemv(CblasNoTrans,one,g4.gamma,u,zero,matVec);
+    gsl_blas_zgemv(CblasNoTrans,one,G.gamma,u,zero,matVec);
     for ( int s = 0; s < 4; ++s )
       std::cout << "r[" << s << "] = " << gsl_vector_complex_get(matVec,s).dat[0] << " " << gsl_vector_complex_get(matVec,s).dat[1] << std::endl;
     exit(8);
@@ -293,6 +350,16 @@ struct polVec_t
     gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,g4.gamma,d.gamma,zero,matProd1);
     // Right multiply by \gamma^5
     gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,matProd1,g5.gamma,zero,matProd2);
+
+
+    /* std::cout << "GAMMA MATRICES PRODUCT 1:" << std::endl; */
+    /* LinAlg::printMat(matProd1); */
+    /* std::cout << "GAMMA5 :" << std::endl; */
+    /* LinAlg::printMat(g5.gamma); */
+    /* std::cout << "GAMMA MATRICES PRODUCT 2:" << std::endl; */
+    /* LinAlg::printMat(matProd2); */
+    /* exit(10); */
+
     // Matrix vector product (gamma's on u-spinor)
     gsl_blas_zgemv(CblasNoTrans,one,matProd2,u,zero,matVec);
     // Inner product of u^\dagger & (\gamma's \times u)  --  result placed in 'zero'
@@ -310,14 +377,14 @@ struct polVec_t
   }
 
   // Default
-  polVec_t(int mu)
+  polVec_t(int mu, bool MINK)
   {
     spinUp = gsl_vector_complex_calloc(2); gsl_vector_complex_set(spinUp,0,one);
     spinDown = gsl_vector_complex_calloc(2); gsl_vector_complex_set(spinDown,1,one);
     matVec = gsl_vector_complex_calloc(4);
     ID2d = gsl_matrix_complex_alloc(2,2); gsl_matrix_complex_set_identity(ID2d);
     ID4d = gsl_matrix_complex_alloc(4,4); gsl_matrix_complex_set_identity(ID4d);
-    d = diracMat_t(mu);
+    d = diracMat_t(mu,MINK);
   };
 };
 
