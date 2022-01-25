@@ -762,6 +762,10 @@ void rowAvg(std::vector<NCOR::corrEquivalence>& v)
 
 		} // d
 	    } // j
+	  std::cout << "SIZE CHECK" << std::endl;
+	  std::cout << "    toMerge[i-1].size() = " << toMerge[i-1].size() << std::endl;
+	  for ( auto k = toMerge[i-1].begin(); k != toMerge[i-1].end(); ++k )
+	    std::cout << "    toMerge[i-1][*].size() = " << k->size() << std::endl;
 	} // i
 
 
@@ -806,7 +810,7 @@ void rowAvg(std::vector<NCOR::corrEquivalence>& v)
 		    }
 		}
 	      // NB(1/24/22): Let's rescale
-	      mergeCorr.ensemble *= (1.0/toMerge[j+i*srcOp.irrep_dim].size());
+	      mergeCorr.ensemble *= (1.0/disp2Store);
 		
 	      cavg.insert(tmp, mergeCorr);
 	    }
@@ -1492,8 +1496,10 @@ int main(int argc, char *argv[])
 			       rest2pt.res.params["E0"][j],1,global.Lx);
 	  }
 
+	std::cout << "Writing polarization vector" << std::endl;
 	// Write the polarization vector for each jackknife bin to h5
 	writePolVec(3,3,global.cfgs,global.pf,polVec); // (3,3...) => npt=3 & mu=3
+	std::cout << "Wrote polVec" << std::endl;
       }
 #endif
 

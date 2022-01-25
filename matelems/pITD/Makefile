@@ -1,6 +1,7 @@
 CXX=icpc
 
-CXXFLAGS=-g -qopenmp -DAMPPREFACTORS -DVERBOSITY=1 -fma -falias -std=c++14 -xAVX -I/dist/gmp-6.0.0/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/adat/include -I/usr/include/libxml2 -I/home/cegerer/analysis/pPDF -I/home/cegerer/analysis/fitting -I/home/cegerer/analysis/linAlg -I/home/cegerer/analysis/kine -I/home/cegerer/analysis/corrUtil -I/u/home/cegerer/gsl-2.6/include -I/u/home/cegerer/hdf5-1.12.1/include
+# -DAMPPREFACTORS
+CXXFLAGS=-g -qopenmp -DVERBOSITY=1 -fma -falias -std=c++14 -xAVX -I/dist/gmp-6.0.0/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/adat/include -I/usr/include/libxml2 -I/home/cegerer/analysis/pPDF -I/home/cegerer/analysis/fitting -I/home/cegerer/analysis/linAlg -I/home/cegerer/analysis/kine -I/home/cegerer/analysis/corrUtil -I/u/home/cegerer/gsl-2.6/include -I/u/home/cegerer/hdf5-1.12.1/include
 
 LDFLAGS=-L/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/adat/lib -L/u/home/cegerer/gsl-2.6/lib -L/home/cegerer/analysis/pPDF -L/u/home/cegerer/hdf5-1.12.1/lib
 
@@ -35,6 +36,6 @@ threept_tr.o:
 	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/kine/threept_tr.cc
 
 clean:
-	rm -f pITD-matelem pITD-matelem.o fit_util.o
+	rm -f pITD-matelem pITD-matelem.o threept_tr.o
 clean-all:
-	rm -f pITD-matelem pITD-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o
+	rm -f pITD-matelem pITD-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o

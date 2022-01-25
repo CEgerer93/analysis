@@ -8,9 +8,6 @@ if [ $# -ne 5 ]; then
 fi
 
 
-# PROJECTOR in trace
-PROJ=2
-# PROJ=1
 
 PHASEDIR=unphased
 PHASESTUB=$PHASEDIR
@@ -28,6 +25,7 @@ operator=''
 op=''
 oprow=0
 gamma=0
+PROJ=0
 
 ##############################################################################
 # Set the 2pt fitting window - sloppy for now!
@@ -53,10 +51,12 @@ if [ $3 -eq 8 ]; then
     op=b_b0xDA__J0_A1pP
     oprow=1
     gamma=8
+    PROJ=1
 elif [ $3 -eq 11 ]; then
     op=a_a1xDA__J1_T1pM
     oprow=2
     gamma=11
+    PROJ=2
 fi
 
 # Get correct 2pt src tslice

@@ -2,8 +2,12 @@
   Utilities to help manage three pt function traces
 */
 #include "threept_tr.h"
-#include "corr_utils.h"
+#include "hdf5.h"
+#include "H5Cpp.h"
+
 #include "pseudo_utils.h"
+
+using namespace H5;
 
 void writePolVec(int npt, int mu, int cfgs, const XMLArray::Array<int> &mom,
 		 std::vector<std::complex<double> > &polVec)
@@ -36,7 +40,7 @@ void writePolVec(int npt, int mu, int cfgs, const XMLArray::Array<int> &mom,
       H5File h5;
 
       // Groups to make
-      std::string strRoot = "/polVec/idx";
+      std::string strRoot = "/polVec"; ///idx";
       std::string idx  = std::to_string(mu);
       std::string DATASET = "pf" + Pseudo::shortMom(mom,"") + "_pi" + Pseudo::shortMom(mom,"");
 
@@ -95,12 +99,12 @@ void writePolVec(int npt, int mu, int cfgs, const XMLArray::Array<int> &mom,
       // Now make the groups for real/imag
       Group subMeans, subBins;
       try {
-	subMeans = means.openGroup(c[0]);
-	subBins  = bins.openGroup(c[0]);
+	subMeans = means.openGroup(&(*c)[0]); //c[0]);
+	subBins  = bins.openGroup(&(*c)[0]);
 	std::cout << "Opened existing subMeans/Bins" << std::endl;
       } catch (GroupIException &groupDNE) {
-	subMeans = means.createGroup(c[0]);
-	subBins  = bins.createGroup(c[0]);
+	subMeans = means.createGroup(&(*c)[0]);
+	subBins  = bins.createGroup(&(*c)[0]);
 	std::cout << "Created new subMeans/Bins" << std::endl;
       }
       
