@@ -743,5 +743,4 @@ namespace NCOR
   root.close();
   h5.close();
   } // fitResW
-
 }

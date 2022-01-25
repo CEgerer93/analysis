@@ -389,4 +389,11 @@ struct polVec_t
 };
 
 
+/*
+  Utilities to help manage three pt function traces
+*/
+void writePolVec(int npt, int mu, int cfgs, const XMLArray::Array<int> &mom,
+		 std::vector<std::complex<double> > &polVec);
+
+
 #endif

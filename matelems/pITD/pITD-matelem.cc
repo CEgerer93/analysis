@@ -717,7 +717,7 @@ void rowAvg(std::vector<NCOR::corrEquivalence>& v)
 		  gsl_complex elem = gsl_matrix_complex_get(subWigD,i-1,j-1);
 		  std::complex<double> weight(elem.dat[0],elem.dat[1]);
 
-#if VERBOSITY>2
+#if VERBOSITY>3
 #warning "Hey! Head's up! Returned keyCorrMap from rowAvg call will be wrong!"
 		  std::cout << "(" << i << "," << j << ") weight = " << weight << std::endl;
 
@@ -802,8 +802,11 @@ void rowAvg(std::vector<NCOR::corrEquivalence>& v)
 		    {
 		      NCOR::dat_t dumDat; dumDat.ens = toMerge[j+i*srcOp.irrep_dim][s];
 		      mergeCorr.ensemble += dumDat;
+		      // NB(1/24/22): Is this where the doubling for z != 0 is coming from?
 		    }
 		}
+	      // NB(1/24/22): Let's rescale
+	      mergeCorr.ensemble *= (1.0/toMerge[j+i*srcOp.irrep_dim].size());
 		
 	      cavg.insert(tmp, mergeCorr);
 	    }
@@ -1446,17 +1449,18 @@ int main(int argc, char *argv[])
                             twoPtIni.res.params["E0"][j],
                             rest2pt.res.params["E0"][j],global.Lx);
 
-
+#ifdef AMPPREFACTORS
+	  std::cout << "Including amplitude prefactors in matrix element extractions!" << std::endl;
 	  // Toss in prefactors of pseudo-ITDs
 	  if ( global.chromaGamma == 8 )
 	    trace *= (2*twoPtFin.res.params["E0"][j]); // 2*p^\mu prefactor
 	  if ( global.chromaGamma == 11 )
 	    {
 	      polVec_t S(3,true);
-	      // 2mS^\mu prefactor - n.b. includes "-1" in Mink., but result should be positive...
-	      // ...so for now "-1" is neglected
+	      // 2mS^\mu prefactor
 	      trace *= (2*rest2pt.res.params["E0"][j]*S.eval(global.pf,twoPtFin.res.params["E0"][j],rest2pt.res.params["E0"][j],1,global.Lx));
 	    }
+#endif
 
 #else
 	  std::complex<double> trace(1.0,0.0);
@@ -1473,6 +1477,25 @@ int main(int argc, char *argv[])
   // exit(8);
 
 
+#ifndef AMPPREFACTORS
+  std::cout << "Not applying kinematic prefactors of pseudo-ITDs" << std::endl;
+    if ( global.chromaGamma == 11 )
+      {
+	// Went through the trouble of allowing S^\mu evaluation,
+	// so if gamma = 11, then compute S^\mu and store it in corr3pt-FitRes.h5
+	std::vector<std::complex<double> > polVec(global.cfgs,std::complex<double> (0.0,0.0));
+	for ( int j = 0; j < global.cfgs; ++j )
+	  {
+	    // std::complex<double> polVec(0.0,0.0);
+	    polVec_t S(3,true);
+	    polVec[j] = S.eval(global.pf,twoPtFin.res.params["E0"][j],
+			       rest2pt.res.params["E0"][j],1,global.Lx);
+	  }
+
+	// Write the polarization vector for each jackknife bin to h5
+	writePolVec(3,3,global.cfgs,global.pf,polVec); // (3,3...) => npt=3 & mu=3
+      }
+#endif
 
   
 
@@ -1495,8 +1518,6 @@ int main(int argc, char *argv[])
     {
       int idx = std::distance(ratio.begin(), it);
 
-      //      it->summation();
-      
       // Map the summed ratio data into the SR instance so covariance/fitting members can be used
       for ( auto gg = it->ensemble.ens.begin(); gg != it->ensemble.ens.end(); ++gg )
         {
@@ -1508,7 +1529,6 @@ int main(int argc, char *argv[])
 
   SR.jackknife();
   SR.ensAvg();
-  // SR.removeBias();
 #if 0
   std::cout << SR << std::endl;
   exit(90);
@@ -1520,26 +1540,6 @@ int main(int argc, char *argv[])
 
   // Init a linear fit for SR
   SR.fit = NCOR::fitFunc_t(threePtFitInfo,SR.cov.dat, temporal3pt);
-
-  // DEBUGS
-#if 0
-  std::cout << "SR.fit.type = " << SR.fit.getType() << std::endl;
-  std::cout << "SR.fit.num = " << SR.fit.num << std::endl;
-  std::cout << "SR.fit.fitCov[real] = ";
-#warning "FIX ME! - sqrt(cov[i][j]) is off by factor of cfgs!"
-  LinAlg::printMat(SR.fit.fitCov.dat["real"]);
-  std::cout << "SR.fit.fitCov[imag] = ";
-  LinAlg::printMat(SR.fit.fitCov.dat["imag"]);
-  std::cout << "SR.fit.theFit.verbose = " << SR.fit.theFit.verbose() << std::endl;
-  std::cout << "SR.fit.theFit.range.min = " << SR.fit.theFit.range.min << std::endl;
-  std::cout << "SR.fit.theFit.range.step = " << SR.fit.theFit.range.step << std::endl;
-  std::cout << "SR.fit.theFit.range.max = " << SR.fit.theFit.range.max << std::endl;
-  std::cout << "SR.fit.theFit.range.numT = " << SR.fit.theFit.range.numT() << std::endl;
-  // SR.fit.theFit.range.makeDomain();
-  // std::cout << "SR.fit.theFit.range.domain = " << SR.fit.theFit.range.makeDomain() << std::endl;
-  // exit(8);
-#endif
-
 
 
   /*
