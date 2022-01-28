@@ -38,4 +38,4 @@ threept_tr.o:
 clean:
 	rm -f pITD-matelem pITD-matelem.o threept_tr.o
 clean-all:
-	rm -f pITD-matelem pITD-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o
+	rm -f pITD-matelem pITD-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o

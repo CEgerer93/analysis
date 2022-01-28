@@ -6,9 +6,10 @@
     <t2ptRows>1</t2ptRows>
     <observable>pGITD</observable>
     <state>nuc</state>
-    <projection>
-      <gamma>8</gamma>
-    </projection>
+    <projection>PROJ</projection> <!-- UNPOL (1) -or- POL (2) -->
+    <insertion>
+      <gamma>GAMMA</gamma>
+    </insertion>
     <nvec>64</nvec>
     <Lt>64</Lt>
     <Lx>32</Lx>

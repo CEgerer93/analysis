@@ -163,3 +163,166 @@ void writePolVec(int npt, int mu, int cfgs, const XMLArray::Array<int> &mom,
       h5.close();
     } // comps iter
 } // writePolVec
+
+void writeSpinorContract(int npt, int mu, int cfgs, const XMLArray::Array<int>& pf,
+			 const XMLArray::Array<int>& pi, int twoJz_f, int twoJz_i,
+			 std::vector<std::complex<double> >& C)
+{
+  Exception::dontPrint(); // silence auto-printing of failures - try/catch to manage them
+
+  // Loop over the real/imaginary components of S^mu internally
+  std::vector<std::string> comps = {"real", "imag"};
+
+  for ( auto c = comps.begin(); c != comps.end(); ++c )
+    {
+      // Rip out desired component into a separate vector
+      std::vector<double> uGu;
+      for ( auto a = C.begin(); a != C.end(); ++a )
+        {
+          if ( *c == "real" )
+            {
+              uGu.push_back(a->real());
+	    }
+          else if ( *c == "imag" )
+            {
+              uGu.push_back(a->imag());
+            }
+        } // accessing done
+
+      /*
+        Set up
+      */
+      const std::string& outH5 = "corr"+std::to_string(npt)+"pt-FitRes.h5";
+      H5File h5;
+
+      // Groups to make
+      std::string strRoot = "/ufbar*gamma_mu*ui";
+      std::vector<std::string> idxMoms(2);
+      idxMoms[0] = std::to_string(mu);
+      idxMoms[1] = "pf" + Pseudo::shortMom(pf,"") + "_pi" + Pseudo::shortMom(pi,"");
+      std::string DATASET = "twoJfz_" + std::to_string(twoJz_f)+"__twoJiz_"
+	+std::to_string(twoJz_i);
+
+      // Define the datatypes that will be written
+      PredType DTYPE(PredType::IEEE_F64LE);
+
+      // Some helpers
+      const char * const collections[] = {"mean", "bins"};
+
+      
+      // Open/create
+      try {
+        h5.openFile(outH5.c_str(), H5F_ACC_RDWR);
+	std::cout << "     Opened h5: " << outH5 << std::endl;
+      } catch (H5::FileIException &file_dne) {
+        h5 = H5File(outH5.c_str(), H5F_ACC_TRUNC);
+	std::cout << "     Created h5: " << outH5 << std::endl;
+      }
+
+      // Make root
+      Group root;
+      try {
+        root = h5.openGroup(&strRoot[0]);
+	std::cout << "Opened existing group" << std::endl;
+      } catch (ReferenceException &groupDNE) {
+        root = h5.createGroup(&strRoot[0]);
+	std::cout << "Created new group" << std::endl;
+      } catch (FileIException &groupDNE) {
+        root = h5.createGroup(&strRoot[0]);
+	std::cout << "Created new group" << std::endl;
+      }
+
+
+      Group g = root;
+      // Make remaining groups
+      for ( auto it = idxMoms.begin(); it != idxMoms.end(); ++it )
+	{
+	  try {
+	    g = root.openGroup(&(*it)[0]);
+	    std::cout << "Opened existing idx/mom" << std::endl;
+	  } catch (GroupIException &groupDNE) {
+	    g = root.createGroup(&(*it)[0]);
+	  } catch (H5::ReferenceException &r) {
+	    std::cout << "Caught reference exception:";
+	  }
+	}
+
+      Group means, bins;
+      try {
+        means = g.openGroup(collections[0]);
+        bins  = g.openGroup(collections[1]);
+	std::cout << "Opened existing means/bins" << std::endl;
+      } catch ( GroupIException &groupDNE) {
+        means = g.createGroup(collections[0]);
+        bins  = g.createGroup(collections[1]);
+      } catch (H5::ReferenceException &r ) {
+	std::cout << "Caught reference exception" << std::endl;
+      }
+
+      // Now make the groups for real/imag
+      Group subMeans, subBins;
+      try {
+        subMeans = means.openGroup(&(*c)[0]); //c[0]);
+        subBins  = bins.openGroup(&(*c)[0]);
+	std::cout << "Opened existing subMeans/Bins" << std::endl;
+      } catch (GroupIException &groupDNE) {
+        subMeans = means.createGroup(&(*c)[0]);
+        subBins  = bins.createGroup(&(*c)[0]);
+	std::cout << "Created new subMeans/Bins" << std::endl;
+      }
+      
+  
+      // Spaces for mean/bins datasets
+      hsize_t binDim[1] = {cfgs};
+      hsize_t meanDim[1] = {2};
+
+      // hid_t
+      DataSpace * binSpace = new DataSpace(1,binDim,NULL);
+      DataSpace * meanSpace = new DataSpace(1,meanDim,NULL);
+
+      // Pull out and organize data into arrays
+      double MEAN[2] = {0.0, 0.0};
+      double BINS[cfgs];
+
+      for ( int j = 0; j < cfgs; ++j )
+        {
+          BINS[j] = uGu[j];
+          MEAN[0] += ( uGu[j] / (1.0*cfgs) );
+        }
+
+      for ( int j = 0; j < cfgs; ++j )
+        MEAN[1] += pow( uGu[j] - MEAN[0], 2);
+      MEAN[1] = sqrt( (( cfgs - 1 )/(1.0*cfgs)) * MEAN[1] );
+
+
+      // Attempt to make datasets
+      DataSet bin, mean;
+      try {
+        bin  = subBins.openDataSet(&DATASET[0]);
+        mean = subMeans.openDataSet(&DATASET[0]);
+	std::cout << "Open existing dataset" << std::endl;
+      } catch (GroupIException &dsetDNE) {
+        bin  = subBins.createDataSet(&DATASET[0], DTYPE, *binSpace);
+        mean = subMeans.createDataSet(&DATASET[0], DTYPE, *meanSpace);
+	std::cout << "Create new dataset" << std::endl;
+      }
+
+      // Write the data
+      try {
+        bin.write(BINS, DTYPE);
+        mean.write(MEAN, DTYPE);
+      } catch (DataSetIException &d) {
+	std::cout << "Failed to write dataset" << std::endl;
+        exit(1);
+      }
+
+      delete binSpace;
+      delete meanSpace;
+
+      bins.close();
+      means.close();
+      g.close();
+      root.close();
+      h5.close();
+    } // comps iter
+} // writeSpinorContract

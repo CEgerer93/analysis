@@ -104,6 +104,12 @@ struct pauli_t
 {
   gsl_matrix_complex * m = gsl_matrix_complex_calloc(2,2);
 
+  /* // Destructor */
+  /* ~pauli_t() */
+  /* { */
+  /*   gsl_matrix_complex_free(m); */
+  /* } */
+
   pauli_t(int n)
   {
     gsl_complex c;
@@ -136,6 +142,12 @@ struct diracMat_t
   gsl_complex mone = gsl_complex_rect(-1.0,0.0);
   gsl_complex I    = gsl_complex_rect(0.0,1.0);
   gsl_complex mI   = gsl_complex_rect(0.0,-1.0);
+
+  /* // Destructor */
+  /* ~diracMat_t() */
+  /* { */
+  /*   gsl_matrix_complex_free(gamma); */
+  /* } */
 
   // Default
   diracMat_t() {}
@@ -229,7 +241,7 @@ struct diracMat_t
 	std::cout << "You entered n = " << n << std::endl;
 	exit(3);
       }
-  }
+  };
 };
 
 
@@ -303,7 +315,7 @@ struct polVec_t
       {
       case 1:
 	gsl_vector_complex_memcpy(tmp,spinUp); break;
-      case 2:
+      case -1:
 	gsl_vector_complex_memcpy(tmp,spinDown); break;
       }
 
@@ -396,4 +408,186 @@ void writePolVec(int npt, int mu, int cfgs, const XMLArray::Array<int> &mom,
 		 std::vector<std::complex<double> > &polVec);
 
 
+/*
+  Lorentz Vector formed by \bar{u}\left(p_f,s_f\right) \gamma^\mu u\left(p_i,s_i\right)
+*/
+struct ugu_t
+{
+  // Common stuff
+  gsl_complex zero = gsl_complex_rect(0.0,0.0);
+  gsl_complex one  = gsl_complex_rect(1.0,0.0);
+
+  gsl_vector_complex * spinUp, * spinDown, *matVec;
+  gsl_matrix_complex * ID2d, * ID4d;
+
+  // Local Pauli matrices
+  pauli_t sx = pauli_t(1); pauli_t sy = pauli_t(2); pauli_t sz = pauli_t(3);
+
+  // \gamma^4 always needed for \bar{u}
+  diracMat_t g4;
+
+  // Dirac matrix \gamma^\mu characterizing Lorentz vector
+  diracMat_t d;
+
+  
+  /*
+    Evaluate
+  */
+  std::complex<double> eval(XMLArray::Array<int>& pf, XMLArray::Array<int>& pi, double Ef, double Ei,
+			    double m, int twoJz_f, int twoJz_i, int L)
+  {
+    std::complex<double> val(0.0,0.0);
+
+    // Initial/final state spinors
+    gsl_vector_complex * ui = gsl_vector_complex_calloc(4);
+    gsl_vector_complex * uf = gsl_vector_complex_calloc(4);
+
+    // To hold \gamma^4 \times \gamma^\mu
+    gsl_matrix_complex * matProd = gsl_matrix_complex_calloc(4,4);
+
+    // Split 'pf' & 'pi' into vec of gsl_complexes
+    std::vector<gsl_complex> pc_i(3), pc_f(3);
+    for ( auto a = pc_i.begin(); a != pc_i.end(); ++a )
+      *a = gsl_complex_rect(((2*M_PI/L)*pi[std::distance(pc_i.begin(),a)])/(Ei+m),0);
+    for ( auto a = pc_f.begin(); a != pc_f.end(); ++a )
+      *a = gsl_complex_rect(((2*M_PI/L)*pf[std::distance(pc_f.begin(),a)])/(Ef+m),0);
+
+#if 0
+    for ( int i = 0; i < 3; ++i )
+      {
+	std::cout << "pc_f[" << i << "] = " << pc_f[i].dat[0] << " " << pc_f[i].dat[1] << std::endl;
+	std::cout << "pc_i[" << i << "] = " << pc_i[i].dat[0] << " " << pc_i[i].dat[1] << std::endl;
+      }
+#endif
+
+    std::cout << "v set" << std::endl;
+    /*
+      Form sigma \dot pi  &  sigma \dot pf
+    */
+    gsl_matrix_complex * sDotPi = gsl_matrix_complex_calloc(2,2);
+    gsl_matrix_complex * sDotPf = gsl_matrix_complex_calloc(2,2);
+    // px \dot sigma_x OVER (E+m)
+    gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,pc_i[0],sx.m,ID2d,zero,sDotPi);
+    gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,pc_f[0],sx.m,ID2d,zero,sDotPf);
+    // PLUS py \dot sigma_y OVER (E+m)
+    gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,pc_i[1],sy.m,ID2d,one,sDotPi);
+    gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,pc_f[1],sy.m,ID2d,one,sDotPf);
+    // PLUS pz \dot sigma_z OVER (E+m)
+    gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,pc_i[2],sz.m,ID2d,one,sDotPi);
+    gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,pc_f[2],sz.m,ID2d,one,sDotPf);
+    //------------------------------------------------------------------------
+#if 0
+    std::cout << "SDOTPF" << std::endl;
+    std::cout << gsl_matrix_complex_get(sDotPf,0,0).dat[0] << " " << gsl_matrix_complex_get(sDotPf,0,0).dat[1] << std::endl;
+    std::cout << gsl_matrix_complex_get(sDotPf,0,1).dat[0] << " " << gsl_matrix_complex_get(sDotPf,0,1).dat[1] << std::endl;
+    std::cout << gsl_matrix_complex_get(sDotPf,1,0).dat[0] << " " << gsl_matrix_complex_get(sDotPf,1,0).dat[1] << std::endl;
+    std::cout << gsl_matrix_complex_get(sDotPf,1,1).dat[0] << " " << gsl_matrix_complex_get(sDotPf,1,1).dat[1] << std::endl;
+#endif
+
+
+    // The basis vectors comprising 4-component spinor
+    gsl_vector_complex * basis_i = gsl_vector_complex_alloc(2);
+    gsl_vector_complex * lower_i = gsl_vector_complex_calloc(2);
+    gsl_vector_complex * basis_f = gsl_vector_complex_alloc(2);
+    gsl_vector_complex * lower_f = gsl_vector_complex_calloc(2);
+    switch(twoJz_i)
+      {
+      case 1:
+	gsl_vector_complex_memcpy(basis_i,spinUp); break;
+      case -1:
+	gsl_vector_complex_memcpy(basis_i,spinDown); break;
+      }
+    switch(twoJz_f)
+      {
+      case 1:
+	gsl_vector_complex_memcpy(basis_f,spinUp); break;
+      case -1:
+	gsl_vector_complex_memcpy(basis_f,spinDown); break;
+      }
+
+    /*
+      Build up ui/uf spinors
+    */
+    for ( int s = 0; s < 2; ++s )
+      {
+	gsl_vector_complex_set(ui,s,gsl_vector_complex_get(basis_i,s));
+	gsl_vector_complex_set(uf,s,gsl_vector_complex_get(basis_f,s));
+      }
+    // Mult 2-comp spinors by respective sDotP's
+    gsl_blas_zgemv(CblasNoTrans,one,sDotPi,basis_i,zero,lower_i);
+    gsl_blas_zgemv(CblasNoTrans,one,sDotPf,basis_f,zero,lower_f);
+    // Modified 2-comp spinors not become lower 2 comps of ui/uf spinors
+    for ( int s = 0; s < 2; ++s )
+      {
+	gsl_vector_complex_set(ui,2+s,gsl_vector_complex_get(lower_i,s));
+	gsl_vector_complex_set(uf,2+s,gsl_vector_complex_get(lower_f,s));
+      }
+    // Rescale each of ui/uf by \sqrt( (E+m)/(2m) )
+    gsl_blas_zdscal(sqrt((Ei+m)/(2*m)),ui);
+    gsl_blas_zdscal(sqrt((Ef+m)/(2*m)),uf);
+    //---------------- Now we have ui & uf spinors ------------------------------
+#if 0
+    for ( int s = 0; s < 4; ++s )
+      std::cout << "uf[" << s << "] = " << gsl_vector_complex_get(uf,s).dat[0] << " " << gsl_vector_complex_get(uf,s).dat[1] << std::endl;
+    for ( int s = 0; s < 4; ++s )
+      std::cout << "ui[" << s << "] = " << gsl_vector_complex_get(ui,s).dat[0] << " " << gsl_vector_complex_get(ui,s).dat[1] << std::endl;
+#endif
+
+    
+    // Multiply \gamma^4\gamma^\mu
+    gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,g4.gamma,d.gamma,zero,matProd);
+
+    // Matrix vector product (gamma^\mu on ui-spinor)
+    gsl_blas_zgemv(CblasNoTrans,one,matProd,ui,zero,matVec);
+    // Inner product of u_f^\dagger & (gamma^\mu \times ui)  --  result placed in 'zero'
+    gsl_blas_zdotc(uf,matVec,&zero);
+
+    
+    // Push real/imag components of result "zero" into final result 'val'
+    val.real(GSL_REAL(zero)); val.imag(GSL_IMAG(zero));
+    
+    zero = gsl_complex_rect(0.0,0.0); // reset
+
+    std::cout << val << std::endl;
+    
+    gsl_vector_complex_free(spinUp);
+    gsl_vector_complex_free(spinDown);
+    gsl_vector_complex_free(matVec);
+    gsl_vector_complex_free(ui);
+    gsl_vector_complex_free(uf);
+    gsl_matrix_complex_free(g4.gamma);
+    gsl_matrix_complex_free(matProd);
+    gsl_matrix_complex_free(sDotPi);
+    gsl_matrix_complex_free(sDotPf);
+    gsl_vector_complex_free(basis_i); gsl_vector_complex_free(basis_f);
+    gsl_vector_complex_free(lower_i); gsl_vector_complex_free(lower_f);
+    gsl_matrix_complex_free(ID2d);
+    gsl_matrix_complex_free(ID4d);
+
+    return val;
+  }
+
+  // Default
+  ugu_t(int mu, bool MINK)
+  {
+    spinUp = gsl_vector_complex_calloc(2); gsl_vector_complex_set(spinUp,0,one);
+    spinDown = gsl_vector_complex_calloc(2); gsl_vector_complex_set(spinDown,1,one);
+    matVec = gsl_vector_complex_calloc(4);
+    ID2d = gsl_matrix_complex_alloc(2,2); gsl_matrix_complex_set_identity(ID2d);
+    ID4d = gsl_matrix_complex_alloc(4,4); gsl_matrix_complex_set_identity(ID4d);
+    d = diracMat_t(mu,MINK);
+    g4 = diracMat_t(4,MINK);
+  };
+}; // ugu_t
+
+
+/*
+  Utilities to help manage three pt function traces
+*/
+void writePolVec(int npt, int mu, int cfgs, const XMLArray::Array<int> &mom,
+		 std::vector<std::complex<double> > &polVec);
+
+void writeSpinorContract(int npt, int mu, int cfgs, const XMLArray::Array<int>& pf,
+			 const XMLArray::Array<int>& pi, int twoJz_f, int twoJz_i,
+			 std::vector<std::complex<double> >& C);
 #endif
