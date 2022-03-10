@@ -30,6 +30,9 @@ using namespace H5;
 // Define operator to easily print contents of a gsl_vector
 std::ostream& operator<<(std::ostream& os, const gsl_vector *v);
 
+// Define operator to easily print contents of a gsl_vector_complex
+std::ostream& operator<<(std::ostream& os, const gsl_vector_complex *v);
+
 namespace NCOR {
 template<typename T>
 std::ostream& operator<<(std::ostream& os, std::vector<T>& v);

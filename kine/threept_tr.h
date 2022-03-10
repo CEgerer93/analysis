@@ -19,9 +19,42 @@
 #include<gsl/gsl_complex.h>
 #include<gsl/gsl_complex_math.h>
 
+#include "hadron/clebsch.h"
+#include "hadron/irreps_cubic_factory.h"
+#include "hadron/irreps_cubic_oct_factory.h"
+#include "hadron/irreps_cubic_helicity_factory.h"
+#include "hadron/subduce_tables_oct_factory.h"
+#include "hadron/subduce_tables_lg_factory.h"
+#include "hadron/subduce_tables.h"
+#include "hadron/subduce_tables_factory.h"
+#include "hadron/single_hadron_coeffs.h"
+
+#include "adat/handle.h"
+
 #include "cov_utils.h"
+#include "pseudo_utils.h"
 
 using namespace Pseudo;
+
+
+/*
+  Shortcuts
+*/
+typedef gsl_matrix_complex gmc;
+typedef gsl_vector_complex gvc;
+typedef gsl_complex        gc;
+
+/* /\* */
+/*   Common */
+/* *\/ */
+/* static gsl_complex zero = gsl_complex_rect(0.0,0.0); */
+/* static gsl_complex one  = gsl_complex_rect(1.0,0.0); */
+/* static gsl_complex mone = gsl_complex_rect(-1.0,0.0); */
+/* static gsl_complex I    = gsl_complex_rect(0.0,1.0); */
+/* static gsl_complex mI   = gsl_complex_rect(0.0,-1.0); */
+
+
+std::complex<double> zeroComplex(const std::complex<double>& w);
 
 namespace projections
 {
@@ -102,160 +135,181 @@ struct projector_t
 
 struct pauli_t
 {
-  gsl_matrix_complex * m = gsl_matrix_complex_calloc(2,2);
+  gmc * m = gsl_matrix_complex_calloc(2,2);
 
-  /* // Destructor */
-  /* ~pauli_t() */
-  /* { */
-  /*   gsl_matrix_complex_free(m); */
-  /* } */
-
-  pauli_t(int n)
-  {
-    gsl_complex c;
-
-    switch(n)
-      {
-      case 1:
-	c = gsl_complex_rect(1.0,0);
-	gsl_matrix_complex_set(m,0,1,c); gsl_matrix_complex_set(m,1,0,c); break;
-      case 2:
-	c = gsl_complex_rect(0,1.0);
-	gsl_matrix_complex_set(m,1,0,c);
-	c = gsl_complex_rect(0,-1.0);
-	gsl_matrix_complex_set(m,0,1,c); break;
-      case 3:
-	c = gsl_complex_rect(1.0,0);
-	gsl_matrix_complex_set(m,0,0,c);
-	c = gsl_complex_rect(-1.0,0);
-	gsl_matrix_complex_set(m,1,1,c); break;
-      // Return 2x2 null matrix otherwise
-      }	
-  }
+  // Constructor
+  pauli_t(int n);
 };
 
 
 struct diracMat_t
 {
-  gsl_matrix_complex * gamma = gsl_matrix_complex_calloc(4,4);
-  gsl_complex one  = gsl_complex_rect(1.0,0.0);
-  gsl_complex mone = gsl_complex_rect(-1.0,0.0);
-  gsl_complex I    = gsl_complex_rect(0.0,1.0);
-  gsl_complex mI   = gsl_complex_rect(0.0,-1.0);
-
-  /* // Destructor */
-  /* ~diracMat_t() */
-  /* { */
-  /*   gsl_matrix_complex_free(gamma); */
-  /* } */
+  gmc * gamma = gsl_matrix_complex_calloc(4,4);
 
   // Default
   diracMat_t() {}
 
   // Parameterized constructor
-  diracMat_t(int n, bool MINK) // MINK = True for Minkowski construction
-  {
-    pauli_t s(n);
-    switch(n)
-      {
-      case 1:
-	for ( size_t i = 0; i < s.m->size1; ++i )
-	  {
-	    for ( size_t j = 0; j < s.m->size2; ++j )
-	      {
-		if ( MINK )
-		  {
-		    gsl_matrix_complex_set(gamma,i,2+j,gsl_matrix_complex_get(s.m,i,j));
-		    gsl_matrix_complex_set(gamma,i+2,j,
-					   gsl_complex_mul(mone,gsl_matrix_complex_get(s.m,i,j)));
-		  }
-		else if ( !MINK )
-		  {
-		    gsl_matrix_complex_set(gamma,i,2+j,
-					   gsl_complex_mul(mI,gsl_matrix_complex_get(s.m,i,j)));
-		    gsl_matrix_complex_set(gamma,i+2,j,
-					   gsl_complex_mul(I,gsl_matrix_complex_get(s.m,i,j)));
-		  }
-	      }
-	  }
-	break;
-      case 2:
-	for ( size_t i = 0; i < s.m->size1; ++i )
-	  {
-	    for ( size_t j = 0; j < s.m->size2; ++j )
-	      {
-		if ( MINK )
-		  {
-		    gsl_matrix_complex_set(gamma,i,2+j,gsl_matrix_complex_get(s.m,i,j));
-		    gsl_matrix_complex_set(gamma,i+2,j,
-					   gsl_complex_mul(mone,gsl_matrix_complex_get(s.m,i,j)));
-		  }
-		else if ( !MINK )
-		  {
-		    gsl_matrix_complex_set(gamma,i,2+j,
-					   gsl_complex_mul(mI,gsl_matrix_complex_get(s.m,i,j)));
-		    gsl_matrix_complex_set(gamma,i+2,j,
-					   gsl_complex_mul(I,gsl_matrix_complex_get(s.m,i,j)));
-		  }
-	      }
-	  }
-	break;
-      case 3:
-	for ( size_t i = 0; i < s.m->size1; ++i )
-	  {
-	    for ( size_t j = 0; j < s.m->size2; ++j )
-	      {
-		if ( MINK )
-		  {
-		    gsl_matrix_complex_set(gamma,i,2+j,gsl_matrix_complex_get(s.m,i,j));
-		    gsl_matrix_complex_set(gamma,i+2,j,
-					   gsl_complex_mul(mone,gsl_matrix_complex_get(s.m,i,j)));
-		  }
-		else if ( !MINK )
-		  {
-		    gsl_matrix_complex_set(gamma,i,2+j,
-					   gsl_complex_mul(mI,gsl_matrix_complex_get(s.m,i,j)));
-		    gsl_matrix_complex_set(gamma,i+2,j,
-					   gsl_complex_mul(I,gsl_matrix_complex_get(s.m,i,j)));
-		  }
-	      }
-	  }
-	break;
-      case 4:
-	for ( size_t i = 0; i < 2; ++i )
-	  gsl_matrix_complex_set(gamma,i,i,one);
-	for ( size_t i = 2; i < 4; ++i )
-	  gsl_matrix_complex_set(gamma,i,i,mone);
-	break;
-      case 5:
-	for ( size_t i = 0; i < 4; ++i )
-	  {
-	    if ( MINK )
-	      gsl_matrix_complex_set(gamma,i,(i+2)%4,one);
-	    else if ( !MINK )
-	      gsl_matrix_complex_set(gamma,i,(i+2)%4,mone);
-	  }	
-	break;
-      default:
-	std::cout << "Not a valid Dirac matrix!" << std::endl;
-	std::cout << "You entered n = " << n << std::endl;
-	exit(3);
-      }
-  };
+  diracMat_t(int n, bool MINK); // MINK = True for Minkowski construction
 };
 
 
+
+struct spinor_t
+{
+  std::map<int, gsl_vector_complex> twoJz;
+
+  // Default
+  spinor_t() {}
+
+  template<typename T> void build(XMLArray::Array<T>& p, double E, double m, int L);
+};
+
+
+/*
+  Class to manage subduction info
+*/
+class subduceInfo
+{
+ public:
+  // Public members
+  std::string opHelIrrepLG, opIrrepLG, opIrrep, opIrrepNoP, opLG; // irrep info
+  int irrep_dim;                                                  // irrep dim  
+  std::string name;                                               // op name
+  std::string contLGLabel;                                        // operator name from which
+                                                                  // all other string members derived
+  
+  // Handle for how operator subduces
+  ADAT::Handle< Hadron::SubduceTable > H;
+
+  // Default
+  subduceInfo() { name = "None"; }
+  
+  // Parametrized constructor
+  subduceInfo(std::string s, XMLArray::Array<int> m)
+    {
+      name = s;
+    
+      opHelIrrepLG = Hadron::getSingleHadronOpIrrep(name);
+      opIrrepLG    = Hadron::removeHelicity(opHelIrrepLG);
+      opIrrep      = Hadron::removeIrrepLG(opIrrepLG);
+      opIrrepNoP   = Hadron::getCubicRepNoParity(opHelIrrepLG);
+      opLG         = Hadron::getIrrepLG(opIrrepLG);
+    
+      irrep_dim    = Hadron::getIrrepDim(opIrrepLG);
+
+      // Set handle based on momentum
+      if ( shortMom(m,"") == "000" )
+	{
+	  contLGLabel = "J1o2->" + opIrrepNoP + ",1";
+	  H = Hadron::TheSubduceTableFactory::Instance().createObject(contLGLabel);
+	}
+      else {
+	contLGLabel = "H1o2->H1o2" + opIrrepNoP + ",1";
+	H = Hadron::TheSubduceTableFactory::Instance().createObject(contLGLabel);
+      }
+    }
+
+  void printInfo()
+  {
+    std::cout << "  opHelIrrepLG = " << opHelIrrepLG << std::endl;
+    std::cout << "  opIrrepLG    = " << opIrrepLG << std::endl;
+    std::cout << "  opIrrep      = " << opIrrep << std::endl;
+    std::cout << "  opIrrepNoP   = " << opIrrepNoP << std::endl;
+    std::cout << "  opLG         = " << opLG << std::endl;
+    std::cout << "  irrep_dim    = " << irrep_dim << std::endl;
+    std::cout << "  contLGLabel  = " << contLGLabel << std::endl;
+    std::cout << "  subduction table = " << std::endl;
+    for ( int _i = 1; _i <= irrep_dim; ++_i )
+      {
+	std::cout << "                     ";
+        for ( int _j = 1; _j <= irrep_dim; ++_j )
+	  std::cout << (*H).operator()(_i,_j) << " ";
+	std::cout << "\n";
+      }
+  }
+};
+
+
+/*
+  Class to manage a spin-1/2 Spinor
+*/
+class Spinor
+{
+  const int            twoJ = 1;
+  int                  L;       // Spatial volume
+  double               E, m; // Energy and mass
+  XMLArray::Array<int> mom;
+
+  // Euler angles to rotate from |{p}|\hat{z} to \vec{p}
+  Hadron::CubicCanonicalRotation_t rot;
+
+  // Subduction information
+  subduceInfo subduce;
+
+  // Wigner-D
+  gmc * wig;
+  
+  // Subduction coefficients
+  gmc * coeffS;
+
+ public:
+  spinor_t canon, subduced, absolute;
+
+
+  /*
+    Accessors
+  */
+  int                        getL() { return L; }
+  double                     getE() { return E; }
+  double                     getM() { return m; }
+  XMLArray::Array<int>       getMom() { return mom; }
+  double                     absMom() { return sqrt(mom*mom); }
+
+  /*
+    Public Methods
+  */
+  void initSubduce(const std::string& s);
+  void buildSpinors();
+
+  /*
+    Constructors
+  */
+  // Default
+  Spinor() {}
+  // Parameterized
+ Spinor(const std::string& name, const XMLArray::Array<int>& _p,
+	double _E, double _m, int _L): L(_L), E(_E), m(_m), mom(_p)
+  {
+    // Determine the rotation angles outright
+    if ( shortMom(mom,"") != "000" )
+      rot = Hadron::cubicCanonicalRotation(mom);
+    else
+      {
+	rot.alpha=0; rot.beta=0; rot.gamma=0;
+      }
+
+    // Set the rank of Wigner-D matrix
+    wig = gsl_matrix_complex_calloc(twoJ+1,twoJ+1);
+    // Initialize subductions
+    initSubduce(name);
+  }
+};
+
+
+
+#if 0
 /*
   Polarization Vector - S^\mu = (1/2m)\bar{u}(p,s) \gamma^\mu \gamma^5 u(p,s)
 */
 struct polVec_t
 {
   // Common stuff
-  gsl_complex zero   = gsl_complex_rect(0.0,0.0);
-  gsl_complex one    = gsl_complex_rect(1.0,0.0);
+  /* gsl_complex zero   = gsl_complex_rect(0.0,0.0); */
+  /* gsl_complex one    = gsl_complex_rect(1.0,0.0); */
   
-  gsl_vector_complex * spinUp, * spinDown, * matVec;
-  gsl_matrix_complex * ID2d, *ID4d;
+  gvc * spinUp, * spinDown, * matVec;
+  gmc * ID2d, *ID4d;
 
 
   // Pauli matrices
@@ -273,10 +327,10 @@ struct polVec_t
   {
     std::complex<double> val(0.0,0.0);
     
-    gsl_vector_complex * u = gsl_vector_complex_calloc(4);
+    gvc * u = gsl_vector_complex_calloc(4);
 
-    gsl_matrix_complex * matProd1 = gsl_matrix_complex_calloc(4,4);
-    gsl_matrix_complex * matProd2 = gsl_matrix_complex_calloc(4,4);
+    gmc * matProd1 = gsl_matrix_complex_calloc(4,4);
+    gmc * matProd2 = gsl_matrix_complex_calloc(4,4);
 
 
     // Split 'p' into vec of gsl_complexes
@@ -289,7 +343,7 @@ struct polVec_t
     /*
       Form sigma \dot p
     */
-    gsl_matrix_complex * sDotP = gsl_matrix_complex_calloc(2,2);
+    gmc * sDotP = gsl_matrix_complex_calloc(2,2);
 
     // px \dot sigma_x OVER (E+m)
     gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,pc[0],sx.m,ID2d,zero,sDotP);
@@ -309,8 +363,8 @@ struct polVec_t
 #endif
 
     // Access either spinUp or spinDown basis vector
-    gsl_vector_complex * lower = gsl_vector_complex_calloc(2);
-    gsl_vector_complex * tmp = gsl_vector_complex_alloc(2);
+    gvc * lower = gsl_vector_complex_calloc(2);
+    gvc * tmp = gsl_vector_complex_alloc(2);
     switch(twoJz)
       {
       case 1:
@@ -399,6 +453,7 @@ struct polVec_t
     d = diracMat_t(mu,MINK);
   };
 };
+#endif
 
 
 /*
@@ -413,12 +468,30 @@ void writePolVec(int npt, int mu, int cfgs, const XMLArray::Array<int> &mom,
 */
 struct ugu_t
 {
-  // Common stuff
-  gsl_complex zero = gsl_complex_rect(0.0,0.0);
-  gsl_complex one  = gsl_complex_rect(1.0,0.0);
+  // Dirac matrix \gamma^4 needed for \bar{u}; Dirac matrix \gamma^\mu characterizing Lorentz vector
+  diracMat_t g4, d;
 
-  gsl_vector_complex * spinUp, * spinDown, *matVec;
-  gsl_matrix_complex * ID2d, * ID4d;
+  // Default
+  ugu_t(int mu, bool MINK)
+  {
+    d = diracMat_t(mu,MINK);
+    g4 = diracMat_t(4,MINK);
+  }
+
+  // Evaluate given two spinors - adjoint of left spinor handled internally
+  std::complex<double> eval(gsl_vector_complex * left, gsl_vector_complex * right);
+};
+
+
+#if 0
+struct ugu_t
+{
+  // Common stuff
+  /* gsl_complex zero = gsl_complex_rect(0.0,0.0); */
+  /* gsl_complex one  = gsl_complex_rect(1.0,0.0); */
+
+  gvc * spinUp, * spinDown, *matVec;
+  gmc * ID2d, * ID4d;
 
   // Local Pauli matrices
   pauli_t sx = pauli_t(1); pauli_t sy = pauli_t(2); pauli_t sz = pauli_t(3);
@@ -439,11 +512,11 @@ struct ugu_t
     std::complex<double> val(0.0,0.0);
 
     // Initial/final state spinors
-    gsl_vector_complex * ui = gsl_vector_complex_calloc(4);
-    gsl_vector_complex * uf = gsl_vector_complex_calloc(4);
+    gvc * ui = gsl_vector_complex_calloc(4);
+    gvc * uf = gsl_vector_complex_calloc(4);
 
     // To hold \gamma^4 \times \gamma^\mu
-    gsl_matrix_complex * matProd = gsl_matrix_complex_calloc(4,4);
+    gmc * matProd = gsl_matrix_complex_calloc(4,4);
 
     // Split 'pf' & 'pi' into vec of gsl_complexes
     std::vector<gsl_complex> pc_i(3), pc_f(3);
@@ -464,8 +537,8 @@ struct ugu_t
     /*
       Form sigma \dot pi  &  sigma \dot pf
     */
-    gsl_matrix_complex * sDotPi = gsl_matrix_complex_calloc(2,2);
-    gsl_matrix_complex * sDotPf = gsl_matrix_complex_calloc(2,2);
+    gmc * sDotPi = gsl_matrix_complex_calloc(2,2);
+    gmc * sDotPf = gsl_matrix_complex_calloc(2,2);
     // px \dot sigma_x OVER (E+m)
     gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,pc_i[0],sx.m,ID2d,zero,sDotPi);
     gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,pc_f[0],sx.m,ID2d,zero,sDotPf);
@@ -486,10 +559,10 @@ struct ugu_t
 
 
     // The basis vectors comprising 4-component spinor
-    gsl_vector_complex * basis_i = gsl_vector_complex_alloc(2);
-    gsl_vector_complex * lower_i = gsl_vector_complex_calloc(2);
-    gsl_vector_complex * basis_f = gsl_vector_complex_alloc(2);
-    gsl_vector_complex * lower_f = gsl_vector_complex_calloc(2);
+    gvc * basis_i = gsl_vector_complex_alloc(2);
+    gvc * lower_i = gsl_vector_complex_calloc(2);
+    gvc * basis_f = gsl_vector_complex_alloc(2);
+    gvc * lower_f = gsl_vector_complex_calloc(2);
     switch(twoJz_i)
       {
       case 1:
@@ -579,13 +652,13 @@ struct ugu_t
     g4 = diracMat_t(4,MINK);
   };
 }; // ugu_t
-
+#endif
 
 /*
   Utilities to help manage three pt function traces
 */
-void writePolVec(int npt, int mu, int cfgs, const XMLArray::Array<int> &mom,
-		 std::vector<std::complex<double> > &polVec);
+void writePrefactor(int npt, int mu, int cfgs, const XMLArray::Array<int> &mom,
+		    std::string strRoot, std::vector<std::complex<double> > &P);
 
 void writeSpinorContract(int npt, int mu, int cfgs, const XMLArray::Array<int>& pf,
 			 const XMLArray::Array<int>& pi, int twoJz_f, int twoJz_i,

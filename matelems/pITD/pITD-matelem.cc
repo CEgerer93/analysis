@@ -1292,10 +1292,23 @@ int main(int argc, char *argv[])
 	  a->keyCorrMap[align].ensemble *= (spinAvg * redFact);
 	  break;
 	case 11:
-	  a->keyCorrMap[align].ensemble -= a->keyCorrMap[antialign].ensemble;
-	  a->keyCorrMap[align].ensemble *= (spinAvg * redFact);
+#warning "SUPER HACKY WAY TO MANAGE HELICITY! - FIX ME!!!!!!!!!"
+	  if ( global.pf[2] >= 0 )
+	    {
+	      a->keyCorrMap[align].ensemble -= a->keyCorrMap[antialign].ensemble;
+	      a->keyCorrMap[align].ensemble *= (spinAvg * redFact);
+	    }
+	  else if ( global.pf[2] < 0 )
+	    {
+	      a->keyCorrMap[antialign].ensemble -= a->keyCorrMap[align].ensemble;
+	      a->keyCorrMap[align].ensemble = a->keyCorrMap[antialign].ensemble;
+	      a->keyCorrMap[align].ensemble *= (spinAvg * redFact);
+	    }
 	  break;
 	}
+
+      a->keyCorrMap[align].ensAvg(); a->keyCorrMap[antialign].ensAvg();
+      std::cout << "Align after spin-avg!" << a->keyCorrMap[align] << std::endl;
 
 
       // Unpol/pol combo now sits in the <-1,-1> row entry
@@ -1322,16 +1335,6 @@ int main(int argc, char *argv[])
   // exit(8);
 
 
-#if 0
-  /*
-    Jackknife each 3pt function, and compute jk ens average
-  */
-  std::vector<NCOR::correlator> ratio(funcs3pt.size());
-  for ( auto a = funcs3pt.begin(); a != funcs3pt.end(); ++a )
-    {
-      int idx = std::distance(funcs3pt.begin(), a);
-      ratio[idx] = 
-#endif  
 
 
   /*
@@ -1483,24 +1486,33 @@ int main(int argc, char *argv[])
 
 #ifndef AMPPREFACTORS
   std::cout << "Not applying kinematic prefactors of pseudo-ITDs" << std::endl;
-    if ( global.chromaGamma == 11 )
-      {
-	// Went through the trouble of allowing S^\mu evaluation,
-	// so if gamma = 11, then compute S^\mu and store it in corr3pt-FitRes.h5
-	std::vector<std::complex<double> > polVec(global.cfgs,std::complex<double> (0.0,0.0));
-	for ( int j = 0; j < global.cfgs; ++j )
-	  {
-	    // std::complex<double> polVec(0.0,0.0);
-	    polVec_t S(3,true);
-	    polVec[j] = S.eval(global.pf,twoPtFin.res.params["E0"][j],
-			       rest2pt.res.params["E0"][j],1,global.Lx);
-	  }
-
-	std::cout << "Writing polarization vector" << std::endl;
-	// Write the polarization vector for each jackknife bin to h5
-	writePolVec(3,3,global.cfgs,global.pf,polVec); // (3,3...) => npt=3 & mu=3
-	std::cout << "Wrote polVec" << std::endl;
-      }
+  if ( global.chromaGamma == 8 )
+    {
+      std::vector<std::complex<double> > pmu(global.cfgs,std::complex<double> (0.0,0.0));
+      for ( auto a = pmu.begin(); a != pmu.end(); ++a )
+	a->real(2*twoPtFin.res.params["E0"][std::distance(pmu.begin(),a)]);
+      std::cout << "Writing 2p_mu prefactor" << std::endl;
+      // Write 2p_mu prefactor for each jackknife bin to h5
+      writePrefactor(3,4,global.cfgs,global.pf,"/2p_mu",pmu); // (3,3...) => npt=3 & mu=4
+      std::cout << "Wrote 2p_mu prefactor" << std::endl;
+    }
+  if ( global.chromaGamma == 11 )
+    {
+      // Went through the trouble of allowing S^\mu evaluation,
+      // so if gamma = 11, then compute S^\mu and store it in corr3pt-FitRes.h5
+      std::vector<std::complex<double> > polVec(global.cfgs,std::complex<double> (0.0,0.0));
+      for ( int j = 0; j < global.cfgs; ++j )
+	{
+	  polVec_t S(3,true);
+	  polVec[j] = S.eval(global.pf,twoPtFin.res.params["E0"][j],
+			     rest2pt.res.params["E0"][j],1,global.Lx);
+	}
+      
+      std::cout << "Writing polarization vector" << std::endl;
+      // Write the polarization vector for each jackknife bin to h5
+      writePrefactor(3,3,global.cfgs,global.pf,"/polVec",polVec); // (3,3...) => npt=3 & mu=3
+      std::cout << "Wrote polVec" << std::endl;
+    }
 #endif
 
   

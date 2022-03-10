@@ -24,6 +24,23 @@ std::ostream& operator<<(std::ostream& os, const gsl_vector *v)
   return os;
 }
 
+// Define operator to easily print contents of a gsl_vector_complex
+std::ostream& operator<<(std::ostream& os, const gsl_vector_complex *v)
+{
+  if ( v->size > 0 )
+    {
+      for ( int i = 0; i < v->size; ++i )
+	{
+	  for ( int c = 0; c < 2; ++c )
+	    os << gsl_vector_complex_get(v,i).dat[c] << " ";
+	  if ( i != v->size-1 )
+	    os << ", ";
+	}
+    }
+  return os;
+}
+      
+
 namespace NCOR { 
 // template<class C, typename T>
 template<typename T>

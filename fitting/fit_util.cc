@@ -124,7 +124,11 @@ namespace NFIT
 	vp.makeY(dataVec, &(b->covInv), prior, width);
 	vp.makePhi(&(b->covInv), prior);
 	vp.getInvPhi();
-
+#if 0
+	std::cout << "Tmp solution from varpro" << std::endl;
+	vp.getSoln();
+	std::cout << vp.soln << std::endl;
+#endif
 	// Collect results of data vecs sandwiched btwn inv of data cov
 	// & result of varPro mat/vec ops
 	double dataSum(0.0), varProSum(0.0);
@@ -273,7 +277,6 @@ namespace NFIT
 	double chiSq = gsl_multimin_fminimizer_minimum(fmin);
 	chiSq /= ( c->fit.theFit.range.numT() - c->fit.num - c->fit.fitCov.svs[comp] );
 	std::cout << "Chi2 w/ finparams = " << chiSq << std::endl;
-
 
 	/*
 	  If varpro has been used in optimization, form a fresh varPro instance

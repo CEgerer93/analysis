@@ -9,7 +9,6 @@
 #include "adat/map_obj.h"
 #include "hadron/hadron_sun_npart_npt_corr.h"
 /* #include "/u/home/cegerer/src/personal_fns.h" */
-#include "threept_tr.h"
 
 namespace Pseudo
 {

@@ -9,10 +9,25 @@
 namespace Pseudo
 {
   template<typename T> std::ostream& operator<<(std::ostream& os, const std::vector<T>& d);
-  std::ostream& operator<<(std::ostream& os, const XMLArray::Array<int>& x);
-  /* template<typename T> std::ostream& operator<<(std::ostream& os, const XMLArray::Array<T>& x); */
+  /* std::ostream& operator<<(std::ostream& os, const XMLArray::Array<int>& x); */
+  template<typename T> std::ostream& operator<<(std::ostream& os, const XMLArray::Array<T>& x);
   int operator*(const XMLArray::Array<int>& p, const std::vector<int>& d);
   int operator*(const XMLArray::Array<int>& l, const XMLArray::Array<int>& r);
+
+
+  template<typename T> std::ostream& operator<<(std::ostream& os, const XMLArray::Array<T>& x)
+    {
+      if (x.size() > 0)
+	{
+	  os << x[0];
+
+	  for ( int i = 1; i < x.size(); ++i )
+	    {
+	      os << " " << x[i];
+	    }
+	}
+      return os;
+    }
 
 
   template<typename T> std::vector<T> operator*=(std::vector<T>& v, T i)

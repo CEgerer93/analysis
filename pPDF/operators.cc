@@ -19,19 +19,19 @@ namespace Pseudo
   }
 
   // template<typename T>
-  std::ostream& operator<<(std::ostream& os, const XMLArray::Array<int>& x)
-  {
-    if (x.size() > 0)
-      {
-	os << x[0];
+  // std::ostream& operator<<(std::ostream& os, const XMLArray::Array<T>& x)
+  // {
+  //   if (x.size() > 0)
+  //     {
+  // 	os << x[0];
 	
-	for ( int i = 1; i < x.size(); ++i )
-	  {
-	    os << " " << x[i];
-	  }
-      }
-    return os;
-  }
+  // 	for ( int i = 1; i < x.size(); ++i )
+  // 	  {
+  // 	    os << " " << x[i];
+  // 	  }
+  //     }
+  //   return os;
+  // }
 
   // template<typename p, typename d>
   int operator*(const XMLArray::Array<int>& p, const std::vector<int>& d)
@@ -53,10 +53,11 @@ namespace Pseudo
     else
       {
 	for ( int i = 0; i < l.size(); ++i )
-	  {
-	    for ( int j = 0; j < r.size(); ++j )
-	      inner += l[i]*r[j];
-	  }
+	  inner += l[i]*r[i];
+	  // {
+	  //   for ( int j = 0; j < r.size(); ++j )
+	  //     inner += l[i]*r[j];
+	  // }
       }
     return inner;
   }

@@ -7,7 +7,8 @@ if [ $# -ne 5 ]; then
     exit 1
 fi
 
-
+EXE=/w/scifs17/JLabLQCD/cegerer/pPDF/pITD-matelem
+XML=/work/JLabLQCD/cegerer/pPDF/sum-matelem.m0p2390.ini.xml
 
 PHASEDIR=unphased
 PHASESTUB=$PHASEDIR
@@ -99,12 +100,12 @@ for p in $1; do
 	    -e 's@2PTTmin@'"${tmin2ptFit}"'@g' -e 's@2PTTmax@'"${tmax2ptFit}"'@g' \
 	    -e 's@PHASEDIR@'"${PHASEDIR}"'@g' -e 's@PHASESTUB@'"${PHASESTUB}"'@g' \
 	    -e 's@GAMMA@'"${gamma}"'@' -e 's@PROJ@'"${PROJ}"'@' \
-	    sum-matelem.ini.xml > sum.${p}${z}.xml
+	    $XML > sum.${p}${z}.xml
 
 	    # -e 's@XPHASEX@'"${phaseStub}"'@g' -e 's@XOPX@'"${operator}"'@g' \
 	    # sum-matelem.ini.xml > sum.${p}${z}.xml
 
-	./pITD-matelem sum.${p}${z}.xml
+	$EXE sum.${p}${z}.xml
 	
 	
     done

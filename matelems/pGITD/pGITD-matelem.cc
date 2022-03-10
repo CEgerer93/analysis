@@ -76,82 +76,67 @@ info2pt db2ptInfo, db2ptRestInfo;
 const std::complex<double> redFact(sqrt(2),0);
 
 
-class subduceInfo
-{
-public:
-  // Public members
-  std::string opHelIrrepLG, opIrrepLG, opIrrep, opIrrepNoP, opLG; // irrep info
-  int irrep_dim;                                                  // irrep dim  
-  std::string name;                                               // op name
-  std::string contLGLabel;                                        // operator name from which
-                                                                  // all other string members derived
+// class subduceInfo
+// {
+// public:
+//   // Public members
+//   std::string opHelIrrepLG, opIrrepLG, opIrrep, opIrrepNoP, opLG; // irrep info
+//   int irrep_dim;                                                  // irrep dim  
+//   std::string name;                                               // op name
+//   std::string contLGLabel;                                        // operator name from which
+//                                                                   // all other string members derived
   
-  // Handle for how operator subduces
-  ADAT::Handle< Hadron::SubduceTable > H;
+//   // Handle for how operator subduces
+//   ADAT::Handle< Hadron::SubduceTable > H;
 
   
-  // Parametrized constructor
-  subduceInfo(std::string s, XMLArray::Array<int> m)
-  {
-    name = s;
+//   // Parametrized constructor
+//   subduceInfo(std::string s, XMLArray::Array<int> m)
+//   {
+//     name = s;
     
-    opHelIrrepLG = Hadron::getSingleHadronOpIrrep(name);
-    opIrrepLG    = Hadron::removeHelicity(opHelIrrepLG);
-    opIrrep      = Hadron::removeIrrepLG(opIrrepLG);
-    opIrrepNoP   = Hadron::getCubicRepNoParity(opHelIrrepLG);
-    opLG         = Hadron::getIrrepLG(opIrrepLG);
+//     opHelIrrepLG = Hadron::getSingleHadronOpIrrep(name);
+//     opIrrepLG    = Hadron::removeHelicity(opHelIrrepLG);
+//     opIrrep      = Hadron::removeIrrepLG(opIrrepLG);
+//     opIrrepNoP   = Hadron::getCubicRepNoParity(opHelIrrepLG);
+//     opLG         = Hadron::getIrrepLG(opIrrepLG);
     
-    irrep_dim    = Hadron::getIrrepDim(opIrrepLG);
+//     irrep_dim    = Hadron::getIrrepDim(opIrrepLG);
 
-    // Set handle based on momentum
-    if ( shortMom(m,"") == "000" )
-      {
-	contLGLabel = "J1o2->" + opIrrepNoP + ",1";
-	H = Hadron::TheSubduceTableFactory::Instance().createObject(contLGLabel);
-      }
-    else {
-      contLGLabel = "H1o2->H1o2" + opIrrepNoP + ",1";
-      H = Hadron::TheSubduceTableFactory::Instance().createObject(contLGLabel);
-    }
-  };
+//     // Set handle based on momentum
+//     if ( shortMom(m,"") == "000" )
+//       {
+// 	contLGLabel = "J1o2->" + opIrrepNoP + ",1";
+// 	H = Hadron::TheSubduceTableFactory::Instance().createObject(contLGLabel);
+//       }
+//     else {
+//       contLGLabel = "H1o2->H1o2" + opIrrepNoP + ",1";
+//       H = Hadron::TheSubduceTableFactory::Instance().createObject(contLGLabel);
+//     }
+//   };
 
-  void printInfo()
-  {
-    std::cout << "  opHelIrrepLG = " << opHelIrrepLG << std::endl;
-    std::cout << "  opIrrepLG    = " << opIrrepLG << std::endl;
-    std::cout << "  opIrrep      = " << opIrrep << std::endl;
-    std::cout << "  opIrrepNoP   = " << opIrrepNoP << std::endl;
-    std::cout << "  opLG         = " << opLG << std::endl;
-    std::cout << "  irrep_dim    = " << irrep_dim << std::endl;
-    std::cout << "  contLGLabel  = " << contLGLabel << std::endl;
-    std::cout << "  subduction table = " << std::endl;
-    for ( int _i = 1; _i <= irrep_dim; ++_i )
-      {
-	std::cout << "                     ";
-	for ( int _j = 1; _j <= irrep_dim; ++_j )
-	  std::cout << (*H).operator()(_i,_j) << " ";
-	std::cout << "\n";
-      }
-  }
+//   void printInfo()
+//   {
+//     std::cout << "  opHelIrrepLG = " << opHelIrrepLG << std::endl;
+//     std::cout << "  opIrrepLG    = " << opIrrepLG << std::endl;
+//     std::cout << "  opIrrep      = " << opIrrep << std::endl;
+//     std::cout << "  opIrrepNoP   = " << opIrrepNoP << std::endl;
+//     std::cout << "  opLG         = " << opLG << std::endl;
+//     std::cout << "  irrep_dim    = " << irrep_dim << std::endl;
+//     std::cout << "  contLGLabel  = " << contLGLabel << std::endl;
+//     std::cout << "  subduction table = " << std::endl;
+//     for ( int _i = 1; _i <= irrep_dim; ++_i )
+//       {
+// 	std::cout << "                     ";
+// 	for ( int _j = 1; _j <= irrep_dim; ++_j )
+// 	  std::cout << (*H).operator()(_i,_j) << " ";
+// 	std::cout << "\n";
+//       }
+//   }
   
 
-};
+// };
 
-
-//! Zero out bits of a complex number - n.b. not in an adat header
-std::complex<double> zeroComplex(const std::complex<double>& w)
-{
-  const double fuzz = 1.0e-11;
-  // Pretty print the complex number. Replace noise with 0.
-  double op_r = real(w);
-  double op_i = imag(w);
-  
-  if (fabs(op_r) < fuzz)
-    op_r = 0;
-  if (fabs(op_i) < fuzz)
-  
-  return std::complex<double>(op_r,op_i);
-}
 
 /*
   Convert between lattice LG rows and helicity amplitudes
@@ -916,11 +901,65 @@ int main(int argc, char *argv[])
   // dumpRowInfo(db3ptInfo.rows,db3ptInfo.signs,3);
   // dumpRowInfo(db2ptInfo.rows,db2ptInfo.signs,2);
 
-#if 0
-  ugu_t uGu(4,false);
-  std::cout << "RES = "
-	    << uGu.eval(global.pf,global.pi,0.56989309716099856,0.535,0.535,1,1,global.Lx)
-	    << " " << std::endl;
+#if 1
+
+  spinor_t uf, ui;
+  uf.build(global.pf,0.56989309716099856,0.535,global.Lx);
+  ui.build(global.pi,0.535,0.535,global.Lx);
+  // std::cout << &(uf.twoJz[1]) << std::endl;
+  // std::cout << &(uf.twoJz[-1]) << std::endl;
+  // std::cout << &(ui.twoJz[1]) << std::endl;
+  // std::cout << &(ui.twoJz[-1]) << std::endl;
+
+
+
+  Spinor dum("Nucleon_proj0_p100_H1o2D4E1",global.pf,0.56989309716099856,0.535,global.Lx);
+  Spinor dumR("Nucleon_proj0_p000_G1g",global.pi,0.535,0.535,global.Lx);
+  dum.buildSpinors();
+  dumR.buildSpinors();
+
+  std::cout << &(dum.absolute.twoJz[1]) << std::endl;
+  std::cout << &(dum.absolute.twoJz[-1]) << std::endl;
+  std::cout << &(dum.canon.twoJz[1]) << std::endl;
+  std::cout << &(dum.canon.twoJz[-1]) << std::endl;
+  std::cout << &(dum.subduced.twoJz[1]) << std::endl;
+  std::cout << &(dum.subduced.twoJz[-1]) << std::endl;
+
+
+
+  ugu_t foo(4,false);
+  std::cout << "[a1]Inner prod.= " << foo.eval(&(dum.absolute.twoJz[1]),&(dum.absolute.twoJz[1])) << std::endl;
+  std::cout << "[a-1]Inner prod.= " << foo.eval(&(dum.absolute.twoJz[-1]),&(dum.absolute.twoJz[-1])) << std::endl;
+  std::cout << "[c1]Inner prod.= " << foo.eval(&(dum.canon.twoJz[1]),&(dum.canon.twoJz[1])) << std::endl;
+  std::cout << "[c-1]Inner prod.= " << foo.eval(&(dum.canon.twoJz[-1]),&(dum.canon.twoJz[-1])) << std::endl;
+  std::cout << "[s11]Inner prod.= " << foo.eval(&(dum.subduced.twoJz[1]),&(dum.subduced.twoJz[1])) << std::endl;
+  std::cout << "[s1-1]Inner prod.= " << foo.eval(&(dum.subduced.twoJz[1]),&(dum.subduced.twoJz[-1])) << std::endl;
+  std::cout << "[s-11]Inner prod.= " << foo.eval(&(dum.subduced.twoJz[-1]),&(dum.subduced.twoJz[1])) << std::endl;
+  std::cout << "[s-1-1]Inner prod.= " << foo.eval(&(dum.subduced.twoJz[-1]),&(dum.subduced.twoJz[-1])) << std::endl;
+
+  std::cout << "vvvvvvvvvv Off-forward contractions vvvvvvvvv" << std::endl;
+  std::cout << "[a1]Inner prod.= " << foo.eval(&(dum.absolute.twoJz[1]),&(dumR.absolute.twoJz[1])) << std::endl;
+  std::cout << "[a-1]Inner prod.= " << foo.eval(&(dum.absolute.twoJz[-1]),&(dumR.absolute.twoJz[-1])) << std::endl;
+  std::cout << "[c1]Inner prod.= " << foo.eval(&(dum.canon.twoJz[1]),&(dumR.canon.twoJz[1])) << std::endl;
+  std::cout << "[c-1]Inner prod.= " << foo.eval(&(dum.canon.twoJz[-1]),&(dumR.canon.twoJz[-1])) << std::endl;
+  std::cout << "[s11]Inner prod.= " << foo.eval(&(dum.subduced.twoJz[1]),&(dumR.subduced.twoJz[1])) << std::endl;
+  std::cout << "[s1-1]Inner prod.= " << foo.eval(&(dum.subduced.twoJz[1]),&(dumR.subduced.twoJz[-1])) << std::endl;
+  std::cout << "[s-11]Inner prod.= " << foo.eval(&(dum.subduced.twoJz[-1]),&(dumR.subduced.twoJz[1])) << std::endl;
+  std::cout << "[s-1-1]Inner prod.= " << foo.eval(&(dum.subduced.twoJz[-1]),&(dumR.subduced.twoJz[-1])) << std::endl;
+
+
+  // gsl_matrix_complex * sum = gsl_matrix_complex_calloc(4,4);
+  // gsl_vector_complex * ufBar = gsl_vector_complex_calloc(4);
+
+  // diracMat_t g(4,false);
+  // gsl_blas_zgemv(CblasNoTrans,one,g.gamma,uf,zero,matVec);
+  
+  // gsl_blas_zher(CblasUpper,one,uf(1),ufBar(1),
+
+  // ugu_t uGu(4,false);
+  // std::cout << "RES = "
+  // 	    << uGu.eval(global.pf,global.pi,0.56989309716099856,0.535,0.535,1,1,global.Lx)
+  // 	    << " " << std::endl;
   exit(8);
 #endif
 
@@ -1360,7 +1399,7 @@ int main(int argc, char *argv[])
     }
   // exit(8);
 
-
+#if 0
 #ifndef AMPPREFACTORS
   std::cout << "Not applying kinematic prefactors of pseudo-GITDs" << std::endl;
   if ( global.chromaGamma == 8 )
@@ -1380,7 +1419,7 @@ int main(int argc, char *argv[])
       writeSpinorContract(3,4,global.cfgs,global.pf,global.pi,1,1,uBarGammaU);
     }
 #endif
-
+#endif
   
 
   /*
