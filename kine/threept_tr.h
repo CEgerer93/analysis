@@ -478,7 +478,28 @@ struct ugu_t
     g4 = diracMat_t(4,MINK);
   }
 
-  // Evaluate given two spinors - adjoint of left spinor handled internally
+  // Evaluate between given two spinors - adjoint of left spinor handled internally
+  std::complex<double> eval(gsl_vector_complex * left, gsl_vector_complex * right);
+};
+
+/*
+  Lorentz Tensor formed by \bar{u}\left(p_f,s_f\right) \sigma^{\mu\nu} u\left(p_i,s_i\right)
+*/
+struct utu_t
+{
+  // Dirac matrix \gamma^4 needed for \bar{u}; Dirac matrices \gamma^\mu, \gamma^\nu characterizing Lorentz tensor
+  diracMat_t g4, dl, dr; // dl == left Dirac matrix  &  dr == right Dirac matrix
+
+  int mu, nu; // Convenience
+
+  // Default
+utu_t(int mu, int nu, bool MINK) : mu(mu), nu(nu)
+  {
+    dl = diracMat_t(mu,MINK); dr = diracMat_t(nu,MINK);
+    g4 = diracMat_t(4,MINK);
+  }
+
+  // Evaluate between given two spinors - adjoint of left spinor handled internally
   std::complex<double> eval(gsl_vector_complex * left, gsl_vector_complex * right);
 };
 

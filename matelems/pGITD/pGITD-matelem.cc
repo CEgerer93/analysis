@@ -912,9 +912,8 @@ int main(int argc, char *argv[])
   // std::cout << &(ui.twoJz[-1]) << std::endl;
 
 
-
-  Spinor dum("Nucleon_proj0_p100_H1o2D4E1",global.pf,0.56989309716099856,0.535,global.Lx);
-  Spinor dumR("Nucleon_proj0_p000_G1g",global.pi,0.535,0.535,global.Lx);
+  Spinor dum(global.opMomXML[shortMom(global.pf,"")],global.pf,0.56989309716099856,0.535,global.Lx);
+  Spinor dumR(global.opMomXML[shortMom(global.pi,"")],global.pi,0.535,0.535,global.Lx);
   dum.buildSpinors();
   dumR.buildSpinors();
 
@@ -946,6 +945,19 @@ int main(int argc, char *argv[])
   std::cout << "[s1-1]Inner prod.= " << foo.eval(&(dum.subduced.twoJz[1]),&(dumR.subduced.twoJz[-1])) << std::endl;
   std::cout << "[s-11]Inner prod.= " << foo.eval(&(dum.subduced.twoJz[-1]),&(dumR.subduced.twoJz[1])) << std::endl;
   std::cout << "[s-1-1]Inner prod.= " << foo.eval(&(dum.subduced.twoJz[-1]),&(dumR.subduced.twoJz[-1])) << std::endl;
+
+
+
+  std::cout << "Contract w/ sigma" << std::endl;
+  for ( int i = 1; i < 4; ++i )
+    {
+      utu_t sig(4,i,false);
+      std::cout << "s[11] = " << sig.eval(&(dum.subduced.twoJz[1]),&(dumR.subduced.twoJz[1])) << std::endl;
+      std::cout << "s[1-1] = " << sig.eval(&(dum.subduced.twoJz[1]),&(dumR.subduced.twoJz[-1])) << std::endl;
+      std::cout << "s[-11] = " << sig.eval(&(dum.subduced.twoJz[-1]),&(dumR.subduced.twoJz[1])) << std::endl;
+      std::cout << "s[-1-1] = " << sig.eval(&(dum.subduced.twoJz[-1]),&(dumR.subduced.twoJz[-1])) << std::endl;
+      std::cout << "---------------------------" << std::endl;
+    }
 
 
   // gsl_matrix_complex * sum = gsl_matrix_complex_calloc(4,4);
