@@ -220,9 +220,13 @@ void spinor_t::build(XMLArray::Array<T>& p, double E, double m, int L)
 	  break;
 	}
       gsl_vector_complex_free(tmp);
-        
+#if 0   
       // Rescale spinor components by \sqrt( (E+m)/(2m) )
       gsl_blas_zdscal(sqrt((E+m)/(2*m)),components);
+#else
+      // Rescale spinor components by \sqrt( (E+m) )
+      gsl_blas_zdscal(sqrt(E+m),components);
+#endif
 
       // Insert into map
       std::pair<int, gvc> jzSpinor = std::make_pair(jz,*components);
@@ -235,6 +239,44 @@ void spinor_t::build(XMLArray::Array<T>& p, double E, double m, int L)
 //==============================================================================================
 
 
+//==============================================================================================
+/*
+  polVec_t methods
+*/
+std::complex<double> polVec_t::eval(gsl_vector_complex * left, gsl_vector_complex * right)
+{
+  std::complex<double> val(0.0,0.0);
+  
+  gc res = gc_rect(0.0,0.0); // to collect result from gsl
+  gvc * matVec = gsl_vector_complex_calloc(4);
+  gmc * matProd1 = gsl_matrix_complex_calloc(4,4);
+  gmc * matProd2 = gsl_matrix_complex_calloc(4,4);
+
+  // Multiply \gamma^4\gamma^\mu
+  gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,g4.gamma,d.gamma,zero,matProd1);
+  // Right multiply by \gamma^5
+  gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,matProd1,g5.gamma,zero,matProd2);
+  // Matrix vector product (gamma's right mult'd by right spinor)
+  gsl_blas_zgemv(CblasNoTrans,one,matProd2,right,zero,matVec);
+  // Inner product of left^\dagger & (gammas * right product)
+  gsl_blas_zdotc(left,matVec,&res);
+
+  // Push real/imag components of gsl result into std::complex val
+  val.real(GSL_REAL(res)); val.imag(GSL_IMAG(res));
+
+#if 0
+#warning "This won't compile because 'm' is no longer passed"
+  // Normalize val by 1/(2m)
+  val *= (1.0/(2*m));
+#endif
+
+  gsl_vector_complex_free(matVec);
+  gsl_matrix_complex_free(matProd1);
+  gsl_matrix_complex_free(matProd2);
+
+  return val;
+}
+//==============================================================================================
 
 //==============================================================================================
 /*
@@ -321,6 +363,68 @@ std::complex<double> utu_t::eval(gsl_vector_complex * left, gsl_vector_complex *
 }
 //==============================================================================================
 
+//==============================================================================================
+/*
+  kinMat_t methods
+*/
+void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini)
+{
+  if ( mu != 4 )
+    {
+      std::cout << "Sigma^{mu*} for mu = " << mu << " is unsupported" << std::endl;
+      exit(3);
+    }
+
+  if ( fin->getL() != ini->getL() )
+    {
+      std::cerr << "Big problem: initial/final state spinors have different L's!" << std::endl;
+      exit(4);
+    }
+
+  // The spinor contraction w/ \gamma_\mu
+  ugu_t ugu(mu,MINK);
+
+  // Map the fin/ini rows to rows of set gmc matrix
+  std::map<int, std::pair<int,int> > rowMap;
+  rowMap[0] = std::make_pair(fin->getTwoJ(),ini->getTwoJ());
+  rowMap[1] = std::make_pair(fin->getTwoJ(),-ini->getTwoJ());
+  rowMap[2] = std::make_pair(-fin->getTwoJ(),ini->getTwoJ());
+  rowMap[3] = std::make_pair(-fin->getTwoJ(),-ini->getTwoJ());
+
+  for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
+    {
+      // Use foo to collect spinor contractions w/ gamma and sigma
+      std::complex<double> foo = ugu.eval(&(fin->subduced.twoJz[r->second.first]),
+					  &(ini->subduced.twoJz[r->second.second]));
+
+      gsl_matrix_complex_set(mat,r->first,0,gc_rect(foo.real(),foo.imag()));
+
+
+      foo = 0.0;
+      // Loop over Lorentz indices != mu
+      for ( int nu = 1; nu <= 4; ++nu )
+	{
+	  if ( nu == mu )
+	    continue;
+	  else
+	    {
+	      utu_t sig(mu,nu,MINK); // get this sigma^{\mu\nu}
+	  
+	      foo += sig.eval(&(fin->subduced.twoJz[r->second.first]),
+			      &(ini->subduced.twoJz[r->second.second]))*
+		(2*M_PI/fin->getL())*( ini->getMom()[nu-1] - fin->getMom()[nu-1] );
+	    }
+	}
+      // Scale foo by (-I/(2m))
+      // foo *= (-1.0/(2*mass))*std::complex_literals::i;
+      foo *= std::complex<double>(0,-1.0/(2*mass));
+
+      
+      gsl_matrix_complex_set(mat,r->first,1,gc_rect(foo.real(),foo.imag()));
+    } // auto r
+}
+//==============================================================================================
+
 //**********************************************************************************************
 /*
   Spinor class methods
@@ -340,10 +444,11 @@ void Spinor::buildSpinors()
   LinAlg::printMat(coeffS);
 
   // Build subduced spinor from canonical spinor
-  gmc * prod = gsl_matrix_complex_calloc(subduce.irrep_dim,twoJ+1);
-  gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,coeffS,wig,zero,prod);
+  gmc * prod = gsl_matrix_complex_calloc(subductInfo.irrep_dim,twoJ+1);
+  // gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,coeffS,wig,zero,prod);
+  gsl_blas_zgemm(CblasConjTrans,CblasConjTrans,one,coeffS,wig,zero,prod);
   LinAlg::printMat(prod);
-  for ( int i = twoJ; i >= -twoJ; i -= subduce.irrep_dim )
+  for ( int i = twoJ; i >= -twoJ; i -= subductInfo.irrep_dim )
     {
 
       // Placeholder for up/down vector views to be operated on
@@ -412,16 +517,16 @@ void Spinor::buildSpinors()
 void Spinor::initSubduce(const std::string& opName)
 {
   // Gather subduction info for this operator
-  subduce = subduceInfo(opName,mom);
+  subductInfo = subduceInfo(opName,mom);
   // Set the ranks of subduction coefficient
-  coeffS = gsl_matrix_complex_calloc(subduce.irrep_dim,twoJ+1);
+  coeffS = gsl_matrix_complex_calloc(subductInfo.irrep_dim,twoJ+1);
   
 
   // Build the Wigner-D
-  for ( int i = 0; i < subduce.irrep_dim; ++i )
+  for ( int i = 0; i < subductInfo.irrep_dim; ++i )
     {
       int twoJz_i = pow((-1),i);
-      for ( int j = 0; j < subduce.irrep_dim; ++j )
+      for ( int j = 0; j < subductInfo.irrep_dim; ++j )
 	{
 	  int twoJz_j = pow((-1),j);
 	  gsl_matrix_complex_set(wig,i,j,gc_rect(Hadron::Wigner_D(twoJ,twoJz_i,twoJz_j,rot.alpha,rot.beta,rot.gamma).real(),
@@ -438,13 +543,13 @@ void Spinor::initSubduce(const std::string& opName)
   //   }
 
   // Build the subduction matrix
-  for ( int row = 1; row <= subduce.irrep_dim; ++row )
+  for ( int row = 1; row <= subductInfo.irrep_dim; ++row )
     {
       for ( int h = 1; h <= twoJ+1; ++h )
 	{
 	  gsl_matrix_complex_set(coeffS,row-1,h-1,
-				 gc_rect((*subduce.H).operator()(row,h).real(),
-					 (*subduce.H).operator()(row,h).imag()));
+				 gc_rect((*subductInfo.H).operator()(row,h).real(),
+					 (*subductInfo.H).operator()(row,h).imag()));
 	}
     }
 }
