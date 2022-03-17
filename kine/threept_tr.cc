@@ -6,8 +6,7 @@
 #include "H5Cpp.h"
 #include "cov_utils.h"
 
-// #include "pseudo_utils.h"
-// #include "operators.h"
+// #include "shortcuts_gsl.h"
 
 using namespace H5;
 using namespace Pseudo;
@@ -323,21 +322,23 @@ std::complex<double> utu_t::eval(gsl_vector_complex * left, gsl_vector_complex *
   gvc * matVec = gsl_vector_complex_calloc(4);
   gmc * matProd4Mu = gsl_matrix_complex_calloc(4,4); // To hold \gamma^4 \times \gamma^mu
   gmc * matProdFin = gsl_matrix_complex_calloc(4,4); // To hold (\gamma^4\gamma^\mu) \times\gamma^\nu
-  gmc * ID4d       = gsl_matrix_complex_alloc(4,4);
-  gsl_matrix_complex_set_identity(ID4d);
 
   // Multiply \gamma^4\gamma^\mu
   gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,g4.gamma,dl.gamma,zero,matProd4Mu);
   // Right multiply by \gamma^\nu
   gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,matProd4Mu,dr.gamma,zero,matProdFin);
 
-  // sigma^{\mu\nu} = 2*\gamma^\mu\gamma^\nu - 2*delta^{\mu\nu}
-  gsl_matrix_complex_scale(matProdFin,two); // rescale by 2
-  gsl_matrix_complex_scale(ID4d,two); // rescale by 2
+  // sigma^{\mu\nu} = (I/2) * [ \gamma^\mu, \gamma^\nu ]
+  //                = I * [ \gamma_\mu \gamma_\nu - delta_{\mu\nu} ]
 
-  // Possibly subtract rescale identity
+  // Possibly subtract \gamma_4 (coming from {\bar u})
   if ( mu == nu )
-    gsl_matrix_complex_sub(matProdFin,ID4d);
+    gsl_matrix_complex_sub(matProdFin,g4.gamma);
+  // rescale by I
+  gsl_matrix_complex_scale(matProdFin,I);
+
+  // Now we have formed \gamma_4 * \sigma_{\mu\nu}
+  // Proceed to form inner product with \left^\dagger & \right
   
 
   // Matrix vector product (on right-spinor)
@@ -345,11 +346,11 @@ std::complex<double> utu_t::eval(gsl_vector_complex * left, gsl_vector_complex *
   // Inner product of left^\dagger & (gamma^4\sigma^{\mu\nu} \times right)
   gsl_blas_zdotc(left,matVec,&res);
 
-  // And lastly, mult. result by (-1/2) if \mu\nu=4j or (-I/2) if \mu\nu=ij
-  if (( mu == 4 && nu != 4 ) || ( mu != 4 && nu == 4 ))
-    res = gsl_complex_mul(res,mhalf);
-  else
-    res = gsl_complex_mul(res,gsl_complex_mul(mhalf,I));
+  // // And lastly, mult. result by (-1/2) if \mu\nu=4j or (-I/2) if \mu\nu=ij
+  // if (( mu == 4 && nu != 4 ) || ( mu != 4 && nu == 4 ))
+  //   res = gsl_complex_mul(res,mhalf);
+  // else
+  //   res = gsl_complex_mul(res,gsl_complex_mul(mhalf,I));
 
   // Push real/imag components of gsl result into std::complex val
   val.real(GSL_REAL(res)); val.imag(GSL_IMAG(res));
@@ -357,7 +358,6 @@ std::complex<double> utu_t::eval(gsl_vector_complex * left, gsl_vector_complex *
   gsl_vector_complex_free(matVec);
   gsl_matrix_complex_free(matProd4Mu);
   gsl_matrix_complex_free(matProdFin);
-  gsl_matrix_complex_free(ID4d);
 
   return val;
 }
@@ -397,7 +397,8 @@ void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini
       std::complex<double> foo = ugu.eval(&(fin->subduced.twoJz[r->second.first]),
 					  &(ini->subduced.twoJz[r->second.second]));
 
-      gsl_matrix_complex_set(mat,r->first,0,gc_rect(foo.real(),foo.imag()));
+      // gsl_matrix_complex_set(mat,r->first,0,gc_rect(foo.real(),foo.imag()));
+      mat(r->first,0) = foo;
 
 
       foo = 0.0;
@@ -420,7 +421,8 @@ void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini
       foo *= std::complex<double>(0,-1.0/(2*mass));
 
       
-      gsl_matrix_complex_set(mat,r->first,1,gc_rect(foo.real(),foo.imag()));
+      // gsl_matrix_complex_set(mat,r->first,1,gc_rect(foo.real(),foo.imag()));
+      mat(r->first,1) = foo;
     } // auto r
 }
 //==============================================================================================

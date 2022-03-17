@@ -13,13 +13,12 @@
 #include<gsl/gsl_complex.h>
 #include<gsl/gsl_complex_math.h>
 
+/* #include "shortcuts_gsl.h" */
+
+#include <Eigen/Dense>
+
 namespace LinAlg
 {
-  // Define operator to easily print contents of a gsl_vector
-  /* std::ostream& operator<<(std::ostream& os, const gsl_vector *v); */
-  /* // Accessor gsl_vector */
-  /* double gsl_vector::operator[](const gsl_vector *v, int i ); */
-
   // Generic gsl_matrix viewer
   void printMat(gsl_matrix *g);
 
@@ -34,13 +33,18 @@ namespace LinAlg
     PERFORM INVERSION OF PASSED DOUBLE MATRIX - RETURN # OF SVs REMOVED
   */
   int matrixInv(gsl_matrix * M, gsl_matrix * MInv);
-#if 0
+
+
+  // TRY EIGEN SINCE IT HAS SUPPORT FOR SVD OF COMPLEX MATRICES
   /*
-    PERFORM INVERSION OF PASSED COMPLEX MATRIX - RETURN # OF SVs REMOVED
+    EXTRACT INVARIANT AMPLTUDES USING (IN GENERAL) AN SVD DECOMPOSITION
   */
-  int matrixInv(gsl_matrix_complex * M, gsl_matrix_complex * MInv);
+#if 1
+  void extAmplitudes(Eigen::Matrix<std::complex<double>, 4, 2> * K);
 #endif
 
-  
+#if 0
+  void extAmplitudes(gmc * K, gvc * corrVec, gvc * amplitudes);
+#endif
 }
 

@@ -357,14 +357,17 @@ utu_t(int mu, int nu, bool MINK) : mu(mu), nu(nu)
 */
 struct kinMat_t
 {
-  gmc * mat;
+  /* gmc * mat; */
+  /* Eigen::MatrixXcd mat; */
+  Eigen::Matrix<std::complex<double>, 4, 2> mat;
 
   void assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini);
 
   // Constructor
   kinMat_t(Spinor *fin, Spinor *ini)
   {
-    mat = gsl_matrix_complex_calloc(fin->getIrrepDim()*ini->getIrrepDim(),2);
+    /* /\* mat = gsl_matrix_complex_calloc(fin->getIrrepDim()*ini->getIrrepDim(),2); *\/ */
+    /* mat = Eigen::MatrixXcd(fin->getIrrepDim()*ini->getIrrepDim(),2); */
   }
 };
 

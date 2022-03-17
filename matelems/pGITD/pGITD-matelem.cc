@@ -948,6 +948,10 @@ int main(int argc, char *argv[])
 
 
 
+  // std::cout << "Canonical test sigma" << std::endl;
+  // utu_t sigTest(4,2,false);
+  // std::cout << sigTest.eval(&(dumF.absolute.twoJz[1]),&(dumI.absolute.twoJz[1])) << std::endl;
+
   std::cout << "Contract w/ sigma" << std::endl;
   for ( int i = 1; i < 4; ++i )
     {
@@ -962,21 +966,13 @@ int main(int argc, char *argv[])
   std::cout << "Kinematic matrix" << std::endl;
   kinMat_t K(&dumF,&dumI); // set dimensions
   K.assemble(4,false,0.535,&dumF,&dumI);
-  LinAlg::printMat(K.mat);
+  // LinAlg::printMat(K.mat);
 
+  // Easy printing from EIGEN!
+  std::cout << "K mat = " << K.mat << std::endl;
 
-  // gsl_matrix_complex * sum = gsl_matrix_complex_calloc(4,4);
-  // gsl_vector_complex * ufBar = gsl_vector_complex_calloc(4);
+  LinAlg::extAmplitudes(&K.mat);
 
-  // diracMat_t g(4,false);
-  // gsl_blas_zgemv(CblasNoTrans,one,g.gamma,uf,zero,matVec);
-  
-  // gsl_blas_zher(CblasUpper,one,uf(1),ufBar(1),
-
-  // ugu_t uGu(4,false);
-  // std::cout << "RES = "
-  // 	    << uGu.eval(global.pf,global.pi,0.56989309716099856,0.535,0.535,1,1,global.Lx)
-  // 	    << " " << std::endl;
   exit(8);
 #endif
 

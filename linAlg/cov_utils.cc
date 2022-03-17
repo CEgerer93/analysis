@@ -1,9 +1,6 @@
 /*
   Define classes/structs/methods needed to handle any linear algebra
 */
-//#include "fit_util.h"
-//#include "summation.h"
-
 #include<iostream>
 #include<gsl/gsl_permutation.h> // permutation header for matrix inversions
 #include<gsl/gsl_blas.h>
@@ -13,23 +10,6 @@
 
 namespace LinAlg
 {
-  // // Define operator to easily print contents of a gsl_vector
-  // std::ostream& operator<<(std::ostream& os, const gsl_vector *v)
-  // {
-  //   if ( v->size > 0 )
-  //     {
-  // 	os << gsl_vector_get(v,0);
-  // 	for ( int i = 1; i < v->size; ++i )
-  // 	  os << "," << gsl_vector_get(v,i);
-  //     }
-  //   return os;
-  // }
-
-  // double operator[](const gsl_vector *v, int i)
-  // {
-  //   return gsl_vector_get(v,i);
-  // }
-
   // Generic gsl_matrix viewer
   void printMat(gsl_matrix *g)
   {
@@ -175,82 +155,63 @@ namespace LinAlg
   }
 	       
 
+
+#if 1
+  void extAmplitudes(Eigen::Matrix<std::complex<double>, 4, 2> * K)
+  {
+    // Eigen::MatrixXcd M = Eigen::MatrixXcd::Random(4,4);
+    // Eigen::MatrixXcd M = Eigen::MatrixXcd::Zero(4,4);
+    // M(0,1) = std::complex<double>(2,1);
+    // std::cout << "RANDOM EIGEN MATRIX = " << std::endl << M << std::endl;
+
+    Eigen::JacobiSVD<Eigen::MatrixXcd> svd(*K, Eigen::ComputeFullU | Eigen::ComputeFullV);
+    std::cout << "Its singular values are:" << std::endl << svd.singularValues() << std::endl;
+    std::cout << "Its left singular vectors are the columns of the thin U matrix:" << std::endl << svd.matrixU() << std::endl;
+    std::cout << "Its right singular vectors are the columns of the thin V matrix:" << std::endl << svd.matrixV() << std::endl;
+    Eigen::VectorXcd rhs = Eigen::VectorXcd(4);
+    rhs(0) = 1; rhs(1) = 1; rhs(2) = 1; rhs(3) = -1;
+    std::cout << "Now consider this rhs vector:" << std::endl << rhs << std::endl;
+    std::cout << "A least-squares solution of m*x = rhs is:" << std::endl << svd.solve(rhs) << std::endl;
+
+  }
+#endif
+
+    
+
+
+
 #if 0
   /*
-    PERFORM INVERSION OF PASSED COMPLEX MATRIX - RETURN # OF SVs REMOVED
+    EXTRACT INVARIANT AMPLTUDES USING (IN GENERAL) AN SVD DECOMPOSITION
+       --> K = kinematic matrix
   */
-  int matrixInv(gsl_matrix_complex * M, gsl_matrix_complex * MInv)
+  void extAmplitudes(gmc * K, gvc * corrVec, gvc * amplitudes)
   {
-    size_t dataDim = M->size1;
-    gsl_matrix_complex * toInvert = gsl_matrix_complex_alloc(dataDim,dataDim);
-    gsl_matrix_complex_memcpy(toInvert,M); // make a copy of M, as toInvert is modified below
-    gsl_matrix_complex * V = gsl_matrix_complex_alloc(dataDim,dataDim);
-    gsl_vector_complex *S = gsl_vector_complex_alloc(dataDim);
-    gsl_vector_complex *work = gsl_vector_complex_alloc(dataDim);
+    size_t nRow = K->size1; size_t nCol = K->size2;
+    gsl_matrix_complex * U    = gsl_matrix_complex_alloc(nRow,nCol);
+    gsl_matrix_complex * V    = gsl_matrix_complex_alloc(nCol,nCol);
+    gsl_vector_complex * S    = gsl_vector_complex_alloc(nCol);
+    gsl_vector_complex * work = gsl_vector_complex_alloc(nCol);
+
+    gsl_matrix_complex_memcpy(U,K); // make a copy of K, as U is modified below
 
     /*
-      PERFORM THE SINGULAR VALUE DECOMPOSITION OF DATA COVARIANCE MATRIX (A)
+      PERFORM THE SINGULAR VALUE DECOMPOSITION OF KINEMATIC MATRIX 'K'
       
-      A = USV^T
-          ---> A is an MxN matrix
-          ---> S is the singular value matrix (diagonal w/ singular values along diag - descending)
-          ---> V is returned in an untransposed form
+      K = USV^T
+          ---> K an MxN matrix
+          ---> S an NxN singular value matrix (diagonal w/ singular values along diag - descending)
+          ---> V an NxN matrix (returned from 'gsl_linalg_SV_decomp' in an untransposed form)
     */
-    gsl_linalg_SV_decomp(toInvert,V,S,work); // SVD decomp;  'toInvert' replaced w/ U on return
-#if 0
-    // Define an svd cut
-    double svdCut = 1e-16;
-    // Initialize the inverse of the S diag
-    gsl_vector *pseudoSInv = gsl_vector_alloc(dataDim);
-    gsl_vector_set_all(pseudoSInv,0.0);
-
-    // Vector of singular values that are larger than specified cut
-    std::vector<double> aboveCutVals;
-    
-    std::cout << "The singular values above SVD Cut = " << svdCut << " are..." << std::endl;
-    for ( int s = 0; s < dataDim; s++ )
-      {
-        double dum = gsl_vector_get(S,s);
-        if ( dum >= svdCut ) { aboveCutVals.push_back(dum); std::cout << dum << " ";}
-	std::cout << "\n";
-      }
-    
-    // Assign the inverse of aboveCutVals to the pseudoSInv vector
-    for ( std::vector<double>::iterator it = aboveCutVals.begin(); it != aboveCutVals.end(); ++it )
-      {
-        gsl_vector_set(pseudoSInv,it-aboveCutVals.begin(),1.0/(*it));
-      }
-
-    // Promote this pseudoSInv vector to a matrix, where entries are placed along diagonal
-    gsl_matrix * pseudoSInvMat = gsl_matrix_alloc(dataDim,dataDim);
-    gsl_matrix_set_zero(pseudoSInvMat);
-    for ( int m = 0; m < dataDim; m++ )
-      {
-        gsl_matrix_set(pseudoSInvMat,m,m,gsl_vector_get(pseudoSInv,m));
-        // std::cout << gsl_vector_get(pseudoSInv,m) << std::endl;
-      }
+    gsl_linalg_complex_SV_decomp(U,V,S,work);
+    gsl_complex_linalg_SV_decomp(U,V,S,work);
+    gsl_linalg_SV_complex_decomp(U,V,S,work);
+    gsl_linalg_complex_SV_decomp_complex(U,V,S,work);
 
     /*
-      With singular values that are zero, best we can do is construct a pseudo-inverse
-
-      In general, the inverse we are after is
-                               VS^(-1)U^T
-                     with S the diagonal matrix of singular values
+      Solve the linear system using the SVD decomposition above
     */
-    // In place construct the transpose of U ('toInvert' was modified in place to U above)
-    gsl_matrix_transpose(toInvert);
-
-    gsl_matrix * SinvUT = gsl_matrix_alloc(dataDim,dataDim); gsl_matrix_set_zero(SinvUT);
-    gsl_blas_dgemm(CblasNoTrans,CblasNoTrans,1.0,pseudoSInvMat,toInvert,0.0,SinvUT);
-
-    // Now make the inverse of 'toInvert'
-    gsl_blas_dgemm(CblasNoTrans,CblasNoTrans,1.0,V,SinvUT,0.0,MInv);
-
-
-    std::cout << "Leaving LinAlg::matrixInv" << std::endl;
-    return pseudoSInv->size - aboveCutVals.size();
-#endif
-    return 0;
+    gsl_linalg_complex_SV_solve(U,V,S,corrVec,amplitudes);
   }
 #endif
 }
