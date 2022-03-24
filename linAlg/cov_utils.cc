@@ -151,12 +151,23 @@ namespace LinAlg
 #if VERBOSITY>2
     std::cout << "Leaving LinAlg::matrixInv" << std::endl;
 #endif
-    return pseudoSInv->size - aboveCutVals.size();
+
+    int pseudoSInvSize = pseudoSInv->size;
+    // Free memory
+    gsl_matrix_free(toInvert);
+    gsl_matrix_free(V);
+    gsl_vector_free(S);
+    gsl_vector_free(work);
+    gsl_vector_free(pseudoSInv);
+    gsl_matrix_free(pseudoSInvMat);
+    gsl_matrix_free(SinvUT);
+
+    return pseudoSInvSize - aboveCutVals.size();
   }
 	       
 
 
-#if 1
+#if 0
   void extAmplitudes(Eigen::Matrix<std::complex<double>, 4, 2> * K)
   {
     // Eigen::MatrixXcd M = Eigen::MatrixXcd::Random(4,4);
@@ -175,8 +186,6 @@ namespace LinAlg
 
   }
 #endif
-
-    
 
 
 

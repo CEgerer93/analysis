@@ -28,10 +28,22 @@ namespace NFIT
 
     bool VARPRO;
 
+    // Parameterized
     bundle_t(NCOR::dat_t _j, NCOR::fitFunc_t _f, std::string &_comp, gsl_matrix _cv, bool _vpBit)
     {
       jkDat = _j; fit = _f; comp = _comp; covInv = _cv; VARPRO = _vpBit;
     };
+
+    // // Destructor
+    // ~bundle_t()
+    // {
+    //   for ( auto a = fit.fitCov.dat.begin(); a != fit.fitCov.dat.end(); ++a )
+    // 	gsl_matrix_free(a->second);
+    //   for ( auto a = fit.fitCov.inv.begin(); a != fit.fitCov.inv.end(); ++a )
+    // 	gsl_matrix_free(a->second);
+
+    //   gsl_matrix_free(&covInv);
+    // }
   };
 
   /*
@@ -161,6 +173,12 @@ namespace NFIT
 
 	// Final Chi2 from VarPro
 	chi2 = dataSum + varProSum;
+
+	// Free memory
+	gsl_vector_free(dataRMult);
+	gsl_vector_free(rightMult);
+	gsl_matrix_free(product);
+	gsl_matrix_free(id);
       }
     else
       {
@@ -272,7 +290,7 @@ namespace NFIT
 	// gsl_vector_set(finParams,0,*&(gsl_vector_get(fminBest,0)));
 	// gsl_vector_set(finParams,finParams->size-1,gsl_vector_get(fminBest,fminBest->size-1));
 
-	fminBest = gsl_multimin_fminimizer_x(fmin);
+	gsl_vector_memcpy(fminBest,gsl_multimin_fminimizer_x(fmin));
 	// Return the associated reduced chi2	
 	double chiSq = gsl_multimin_fminimizer_minimum(fmin);
 	chiSq /= ( c->fit.theFit.range.numT() - c->fit.num - c->fit.fitCov.svs[comp] );
@@ -337,11 +355,11 @@ namespace NFIT
 	c->res.chi2.push_back(chiSq);
 
 
-	// gsl_vector_free(fminBest);
-	// gsl_vector_free(finParams);
+	gsl_vector_free(fminBest);
+	gsl_vector_free(finParams);
 	
 	// gsl_vector_free(best);
-	//delete jkFit;
+	delete jkFit;
       } // iterator it (jackknife)
 
     gsl_vector_free(ini);

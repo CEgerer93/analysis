@@ -73,69 +73,7 @@ info3pt db3ptInfo;
 info2pt db2ptInfo, db2ptRestInfo;
 
 // Constants
-const std::complex<double> redFact(sqrt(2),0);
-
-
-// class subduceInfo
-// {
-// public:
-//   // Public members
-//   std::string opHelIrrepLG, opIrrepLG, opIrrep, opIrrepNoP, opLG; // irrep info
-//   int irrep_dim;                                                  // irrep dim  
-//   std::string name;                                               // op name
-//   std::string contLGLabel;                                        // operator name from which
-//                                                                   // all other string members derived
-  
-//   // Handle for how operator subduces
-//   ADAT::Handle< Hadron::SubduceTable > H;
-
-  
-//   // Parametrized constructor
-//   subduceInfo(std::string s, XMLArray::Array<int> m)
-//   {
-//     name = s;
-    
-//     opHelIrrepLG = Hadron::getSingleHadronOpIrrep(name);
-//     opIrrepLG    = Hadron::removeHelicity(opHelIrrepLG);
-//     opIrrep      = Hadron::removeIrrepLG(opIrrepLG);
-//     opIrrepNoP   = Hadron::getCubicRepNoParity(opHelIrrepLG);
-//     opLG         = Hadron::getIrrepLG(opIrrepLG);
-    
-//     irrep_dim    = Hadron::getIrrepDim(opIrrepLG);
-
-//     // Set handle based on momentum
-//     if ( shortMom(m,"") == "000" )
-//       {
-// 	contLGLabel = "J1o2->" + opIrrepNoP + ",1";
-// 	H = Hadron::TheSubduceTableFactory::Instance().createObject(contLGLabel);
-//       }
-//     else {
-//       contLGLabel = "H1o2->H1o2" + opIrrepNoP + ",1";
-//       H = Hadron::TheSubduceTableFactory::Instance().createObject(contLGLabel);
-//     }
-//   };
-
-//   void printInfo()
-//   {
-//     std::cout << "  opHelIrrepLG = " << opHelIrrepLG << std::endl;
-//     std::cout << "  opIrrepLG    = " << opIrrepLG << std::endl;
-//     std::cout << "  opIrrep      = " << opIrrep << std::endl;
-//     std::cout << "  opIrrepNoP   = " << opIrrepNoP << std::endl;
-//     std::cout << "  opLG         = " << opLG << std::endl;
-//     std::cout << "  irrep_dim    = " << irrep_dim << std::endl;
-//     std::cout << "  contLGLabel  = " << contLGLabel << std::endl;
-//     std::cout << "  subduction table = " << std::endl;
-//     for ( int _i = 1; _i <= irrep_dim; ++_i )
-//       {
-// 	std::cout << "                     ";
-// 	for ( int _j = 1; _j <= irrep_dim; ++_j )
-// 	  std::cout << (*H).operator()(_i,_j) << " ";
-// 	std::cout << "\n";
-//       }
-//   }
-  
-
-// };
+const std::complex<double> redFact((1.0/sqrt(2)),0);
 
 
 /*
@@ -220,42 +158,6 @@ std::complex<double> lgToHelicityAmps(const Hadron::KeyHadronSUNNPartNPtCorr_t *
 }
 
 
-// /*
-//   Insertion is computed in Redstar from source interpolator (i.e. contact term) forward to
-//   tslice = Tsep - 1. So to neglect constant term in fits to summed ratio data, ignore the T=0 entry
-//  */
-// void summation(std::vector<corrFunc> &f)
-// {
-//   // #pragma omp parallel for
-// //   {
-// // #pragma omp for
-//   for ( std::vector<corrFunc>::iterator it = f.begin(); it != f.end(); ++it )
-//     {
-//       (*it).initializeSummedJkEnsAvgs();
-//       for ( int g = 0; g < (*it).dataJkEnsAvg.ncor.size(); ++g )
-// 	{
-// 	  it->dataSummedJkEnsAvg.ncor[g].real.resize(1);
-// 	  it->dataSummedJkEnsAvg.ncor[g].imag.resize(1);
-
-// 	  double dumR=0.0;
-// 	  double dumI=0.0;
-// 	  /*
-// 	    Do the actual summation in t here
-// 	    Start summation from T = 1 - neglecting contact term
-// 	  */
-// 	  for ( int t = 1; t < (*it).getT(); t++ )
-// 	    {
-// 	      dumR += (*it).dataJkEnsAvg.ncor[g].real[0][t];
-// 	      dumI += (*it).dataJkEnsAvg.ncor[g].imag[0][t];
-// 	    }
-// 	  // Assignment
-// 	  (*it).dataSummedJkEnsAvg.ncor[g].real[0].push_back(dumR);
-// 	  (*it).dataSummedJkEnsAvg.ncor[g].imag[0].push_back(dumI);
-// 	}
-//     }
-//   // } // #pragma omp parallel
-// }
-
 
 /*
   SOME CALLS TO HELP ADAT READ
@@ -272,7 +174,10 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
   // ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, correlators> retMap;
 
   // vector of corrEquivalences forall 3pt tseps to return
-  std::vector<NCOR::corrEquivalence> ret( temporal3pt.numT() );
+  // std::vector<NCOR::corrEquivalence> ret( temporal3pt.numT() );
+
+  // NEW
+  std::vector<NCOR::corrEquivalence> RET(4);
 
 
   // Make a vector large enough to hold just desired keys in fetch
@@ -357,12 +262,25 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
 	      // ensAdat.ncor[0].imag[g].push_back(i_);
 	    }
 	}
-      // Insert this key-correlator combo
-      ret[ (keyFetch[k].key().npoint[1].t_slice - temporal3pt.min)/temporal3pt.step ].
-	keyCorrMap.insert(keyFetch[k].key(),ensAdat);
+      // // Insert this key-correlator combo
+      // RET[ (keyFetch[k].key().npoint[1].t_slice - temporal3pt.min)/temporal3pt.step ].
+      // 	keyCorrMap.insert(keyFetch[k].key(),ensAdat);
+
+
+      // NEW - Something hacky
+      Hadron::KeyHadronSUNNPartNPtCorr_t tmp = keyFetch[k].key(); //convenience
+      if ( tmp.npoint[1].irrep.irrep_mom.row == 1 && tmp.npoint[3].irrep.irrep_mom.row == 1 )
+	RET[0].keyCorrMap.insert(keyFetch[k].key(),ensAdat);
+      if ( tmp.npoint[1].irrep.irrep_mom.row == 1 && tmp.npoint[3].irrep.irrep_mom.row == 2 )
+	RET[1].keyCorrMap.insert(keyFetch[k].key(),ensAdat);
+      if ( tmp.npoint[1].irrep.irrep_mom.row == 2 && tmp.npoint[3].irrep.irrep_mom.row == 1 )
+	RET[2].keyCorrMap.insert(keyFetch[k].key(),ensAdat);
+      if ( tmp.npoint[1].irrep.irrep_mom.row == 2 && tmp.npoint[3].irrep.irrep_mom.row == 2 )
+	RET[3].keyCorrMap.insert(keyFetch[k].key(),ensAdat);
+      
     }
 
-  return ret;
+  return RET;
 }
 
 
@@ -383,6 +301,7 @@ void read(XMLReader& xml, const std::string path, global_t& g)
     read(xml, path+"/rest", g.rest);
     read(xml, path+"/pi", g.pi);
     read(xml, path+"/pf", g.pf);
+    read(xml, path+"/dispNegate", g.dispNegate);
     read(xml, path+"/momNegate", g.momNegate);
     read(xml, path+"/OpMap", g.opMomXML);
   } catch ( std::string &e ) {
@@ -628,16 +547,19 @@ std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> makeKeyList(domain_t& t, Hadron:
       // Push this tmp key
       s.push_back(tmp_k);
 
-      // Make a key for opposing displacement, if disp_list != ''
-      if ( tmp_k.npoint[2].irrep.op.ops[1].disp_list.size() > 0 )
+      if ( global.dispNegate )
 	{
-	  for ( int d = 0; d < tmp_k.npoint[2].irrep.op.ops[1].disp_list.size(); ++d )
+	  // Make a key for opposing displacement, if disp_list != ''
+	  if ( tmp_k.npoint[2].irrep.op.ops[1].disp_list.size() > 0 )
 	    {
-	      tmp_k.npoint[2].irrep.op.ops[1].disp_list[d]*=-1;
+	      for ( int d = 0; d < tmp_k.npoint[2].irrep.op.ops[1].disp_list.size(); ++d )
+		{
+		  tmp_k.npoint[2].irrep.op.ops[1].disp_list[d]*=-1;
+		}
+	      // insert this key with opposite displacement
+	      s.push_back(tmp_k);
 	    }
-	  // insert this key with opposite displacement
-	  s.push_back(tmp_k);
-	}
+	} // global.dispNegate
     }
 
   // Potentially include negated momentum combination
@@ -901,15 +823,7 @@ int main(int argc, char *argv[])
   // dumpRowInfo(db3ptInfo.rows,db3ptInfo.signs,3);
   // dumpRowInfo(db2ptInfo.rows,db2ptInfo.signs,2);
 
-#if 1
-
-  spinor_t uf, ui;
-  uf.build(global.pf,0.56989309716099856,0.535,global.Lx);
-  ui.build(global.pi,0.535,0.535,global.Lx);
-  // std::cout << &(uf.twoJz[1]) << std::endl;
-  // std::cout << &(uf.twoJz[-1]) << std::endl;
-  // std::cout << &(ui.twoJz[1]) << std::endl;
-  // std::cout << &(ui.twoJz[-1]) << std::endl;
+#if 0
 
 
   Spinor dumF(global.opMomXML[shortMom(global.pf,"")],global.pf,0.66365470597820764,0.535,global.Lx); // (011)
@@ -963,17 +877,17 @@ int main(int argc, char *argv[])
       std::cout << "---------------------------" << std::endl;
     }
 
-  std::cout << "Kinematic matrix" << std::endl;
-  kinMat_t K(&dumF,&dumI); // set dimensions
-  K.assemble(4,false,0.535,&dumF,&dumI);
-  // LinAlg::printMat(K.mat);
+  // std::cout << "Kinematic matrix" << std::endl;
+  // kinMat_t K(&dumF,&dumI); // set dimensions
+  // K.assemble(4,false,0.535,&dumF,&dumI);
+  // // LinAlg::printMat(K.mat);
 
-  // Easy printing from EIGEN!
-  std::cout << "K mat = " << K.mat << std::endl;
+  // // Easy printing from EIGEN!
+  // std::cout << "K mat = " << K.mat << std::endl;
 
-  LinAlg::extAmplitudes(&K.mat);
+  // LinAlg::extAmplitudes(&K.mat);
 
-  exit(8);
+
 #endif
 
   // Set the number of tseps once and for all
@@ -1211,206 +1125,218 @@ int main(int argc, char *argv[])
 
 
 
-  
 
-  /*
-    Reweight the 3pt functions
-  */
-  for ( std::vector<NCOR::corrEquivalence>::iterator i = funcs3pt.begin(); i != funcs3pt.end(); ++i )
+
+  std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > MAT(global.cfgs);
+  std::vector<kinMat_t> KIN(global.cfgs);
+  for ( auto k = KIN.begin(); k != KIN.end(); ++k )
     {
-      // These const_iterators in adat are killing me
-      // So make a new map and fill it with modified values
-      ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, NCOR::correlator> rescaleMap;
-      NCOR::correlator rescale;
-
-      for ( auto k = i->keyCorrMap.begin(); k != i->keyCorrMap.end(); ++k )
-	{
-
-	  std::complex<double> reweight = lgToHelicityAmps(&(k->first));
-	  std::cout << "*******WEIGHT to Key = " << k->first << "\n    IS = " << reweight << std::endl;
-
-	  // Again because of const_iters in adat, pull out value associated with this key
-	  // and then reweight
-	  NCOR::correlator unscaled = i->keyCorrMap[k->first];
-#warning "Assuming subduction/Wigner-D reweights are strictly real!"
-
-
-	  // std::cout << "B4 WEIGHT APPLY" << std::endl;
-	  rescale.ensemble = unscaled.ensemble * (1.0/reweight);
-	  // std::cout << "AFTER WEIGHT APPLY" << std::endl;
-
-
-	  /*
-	    Apply redstar factor
-	  */
-	  rescale.ensemble *= redFact;
-
-	  // Pack the reweighted value
-	  rescaleMap.insert(k->first, rescale);
-
-	}
-
-      i->keyCorrMap.clear();
-      i->keyCorrMap = rescaleMap;
-
-    }
-
-
-
-
-
-  /*
-    3pt functions at this stage are reweighted
-    Now average all 4 row combinations for each p/z combination
-  */
-  rowAvg(funcs3pt);
- 
-
-
-
-  /*
-    For each 3pt function, divide by 2pt function at same tsep
-    Done per jackknife ensemble average
-    Bias corrected after making ratio
-  */
-  std::vector<NCOR::correlator> ratio(funcs3pt.size());
-  for ( auto it = funcs3pt.begin(); it != funcs3pt.end(); ++it )
-    {
-      int idx = std::distance(funcs3pt.begin(), it);
-      // Init this ratio
-      Pseudo::domain_t * d = new
-	Pseudo::domain_t(0,1,it->keyCorrMap.begin()->second.ensemble.T.back());
-      prop_t * props = new prop_t(global.cfgs, *d); //, it->keyCorrMap.begin()->first);
-      props->npt     = 3;
-      props->gamma   = global.chromaGamma;
-      props->key     = it->keyCorrMap.begin()->first;
-      // props->mom.fin = it->keyCorrMap.begin()->first.npoint[1].irrep.irrep_mom.mom;
-      // props->mom.ini = it->keyCorrMap.begin()->first.npoint[3].irrep.irrep_mom.mom;
-      // props->disp    = it->keyCorrMap.begin()->first.npoint[2].irrep.op.ops[1].disp_list;
-      // Lazy here - make sure the displacement being passed is positive
-      if ( props->key.npoint[2].irrep.op.ops[1].disp_list.size() != 0
-	   && props->key.npoint[2].irrep.op.ops[1].disp_list[0] < 0 )
-	props->key.npoint[2].irrep.op.ops[1].disp_list *= -1;
+      int j = std::distance(KIN.begin(),k);
       
-      // Now construct a new ratio
-      ratio[idx] = NCOR::correlator(*props);
-      delete d; delete props;
+      // Initialize the final/initial state spinors for this jackknife sample
+      Spinor finSpin(global.opMomXML[shortMom(global.pf,"")],
+		     global.pf,twoPtFin.res.params["E0"][j],rest2pt.res.params["E0"][j],global.Lx);
+      Spinor iniSpin(global.opMomXML[shortMom(global.pi,"")],
+		     global.pi,twoPtIni.res.params["E0"][j],rest2pt.res.params["E0"][j],global.Lx);
+      // Build the spinors
+      finSpin.buildSpinors();
+      iniSpin.buildSpinors();
+
+      // Construct the kinematic matrix
+      k->assemble(4,false,rest2pt.res.params["E0"][j],&finSpin,&iniSpin);
+    }
+  std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > AMP(global.cfgs);
 
 
-      // Should be only one correlator now...so the follow should be okay
-      NCOR::correlator this3pt = it->keyCorrMap.begin()->second;
+
+  /*
+    Loop over all equivalent 3pt functions --> diff. rows, but kinematically the same
+  */
+  for ( std::vector<NCOR::corrEquivalence>::iterator tsepItr = funcs3pt.begin();
+	tsepItr != funcs3pt.end(); ++tsepItr )
+    {
+      int matIDX = std::distance(funcs3pt.begin(), tsepItr);
+
+
+      // for ( auto aa = tsepItr->keyCorrMap.begin(); aa != tsepItr->keyCorrMap.end(); ++aa )
+      // 	{
+      // 	  std::cout << aa->first << std::endl;
+      // 	}
+      // continue;
+
+
+      /*
+	For each correlator stored in each corrEquivalence,
+	divide by 2pt function at same tsep
+	Done per jackknife ensemble average
+	Bias corrected after making ratio
 	
-
-      this3pt.jackknife();
-      this3pt.ensAvg();
-
-      // Local copy of this tsep
-      const int T = this3pt.ensemble.T.size();
-
-
-      // Loop over time for this 3pt
-      for ( auto tau = this3pt.ensemble.T.begin(); tau != this3pt.ensemble.T.end(); ++tau )
+	Sum up operator insertion time slice
+      */
+      std::vector<NCOR::correlator> ratio(nTSeps); // nTseps correlators of same rows/kinematics
+      for ( auto it = tsepItr->keyCorrMap.begin(); it != tsepItr->keyCorrMap.end(); ++it )
 	{
-	  // Loop over the jackknife ensemble averages
-	  // this3pt is for fixed T with tau varying
+	  // tsepItr->keyCorrMap is not ordered by tsep yet --> form an index to store in ascending order
+	  int idx = (it->first.npoint[1].t_slice - temporal3pt.min)/temporal3pt.step;
+	  // Local copy of this tsep
+	  const int TSEP = it->first.npoint[1].t_slice;
+
+
+	  // Init this ratio --> REMEMBER, 3PTS HAVE TSLICES\IN[0,TSEP)
+	  Pseudo::domain_t * d = new Pseudo::domain_t(0,1,it->first.npoint[1].t_slice-1);
+	  prop_t * props = new prop_t(global.cfgs, *d, it->first);
+	  props->npt     = 3;
+	  props->gamma   = global.chromaGamma;
+
 	  
+	  // Now construct a new ratio
+	  ratio[idx] = NCOR::correlator(*props, it->second.ensemble);
+
+	  // Jackknife this ratio so 3pt/2pt ratio can be formed
+	  ratio[idx].jackknife();
+	  // ratio[idx].ensAvg();
+	  
+
+
+	  // Loop over insertion times for this 3pt TSEP
+	  for ( auto tau = ratio[idx].ensemble.T.begin(); tau != ratio[idx].ensemble.T.end(); ++tau )
+	    {
+	      // Loop over the jackknife ensemble averages
+	      // ratio[idx] is for fixed T with tau varying
+	      for ( int j = 0; j < global.cfgs; ++j )
+		{
+		  ratio[idx].ensemble.ens[j][*tau] =
+		    ( ratio[idx].jack[j].avg[*tau] / twoPtFin.jack[j].avg[TSEP].real() )
+		    * sqrt(( twoPtIni.jack[j].avg[TSEP-*tau].real() * twoPtFin.jack[j].avg[*tau].real()
+			     * twoPtFin.jack[j].avg[TSEP].real() )/
+			   ( twoPtFin.jack[j].avg[TSEP-*tau].real() * twoPtIni.jack[j].avg[*tau].real()
+			     * twoPtIni.jack[j].avg[TSEP].real() ));
+		} // j
+	    } // tau
+	  
+
+
+	  // Include standard kinematic prefactors arising in forming optimized 3pt/2pt ratio
+	  // --> factors: 1/(4E_i * (E_f+m)) * \sqrt( (Ei*(Ef+m))/(Ef*(Ei+m)) )
 	  for ( int j = 0; j < global.cfgs; ++j )
 	    {
-	      ratio[idx].ensemble.ens[j][*tau] = 
-		( this3pt.jack[j].avg[*tau] / twoPtFin.jack[j].avg[T].real() ) 
-		* sqrt(( twoPtIni.jack[j].avg[T-*tau].real() * twoPtFin.jack[j].avg[*tau].real()
-			 * twoPtFin.jack[j].avg[T].real() )/
-		       ( twoPtFin.jack[j].avg[T-*tau].real() * twoPtIni.jack[j].avg[*tau].real()
-			 * twoPtIni.jack[j].avg[T].real() ));
-	    }
-	} //tau
+	      std::complex<double> commonKin(0.0,0.0);
+	      commonKin.real( ( 1 / ( 4*twoPtIni.res.params["E0"][j] *
+				      (twoPtFin.res.params["E0"][j] + rest2pt.res.params["E0"][j]) )) *
+			      sqrt( (twoPtIni.res.params["E0"][j]*
+				     (twoPtFin.res.params["E0"][j]+rest2pt.res.params["E0"][j]))
+				    / (twoPtFin.res.params["E0"][j]*(twoPtIni.res.params["E0"][j]+
+								     rest2pt.res.params["E0"][j])) ) );
 
-      // Get ensemble avg so bias removal can proceed
-      ratio[idx].ensAvg();
-      // std::cout << "Remove bias" << std::endl;
-      // Correct for bias in forming ratio - i.e. "anti-jackknife"
-      ratio[idx].removeBias();
-      // std::cout << "Summation" << std::endl;
-      ratio[idx].summation();
+	      // Remove common kinematic factor & 1/\sqrt(2) from isovector current normalization
+	      ratio[idx].ensemble.ens[j] *= (1.0/(redFact*commonKin));
+	    } // j
 
 
-      // std::cout << "Raw ratio" << std::endl;
-      // ratio[idx].jackknife(); ratio[idx].ensAvg();
-      // std::cout << ratio[idx] << std::endl;
-
-    } // it
-  // exit(8);
+	  // Get ensemble avg so bias removal can proceed
+	  ratio[idx].ensAvg();
+	  // Correct for bias in forming ratio
+	  ratio[idx].removeBias();
 
 
-  // Per jackknife sample, fold in standard kinematic factors
-  for ( auto it = ratio.begin(); it != ratio.end(); ++it )
-    {
-      for ( int j = 0; j < global.cfgs; ++j )
+	  // Summation of operator insertion
+	  ratio[idx].summation();
+
+	  delete d;
+	  delete props;
+	} // it
+      /*
+	Now have summed ratio for a particular src/snk row combination
+      */
+
+      
+      // Map the summed ratio data into correlator instance 'SR'
+      // --> so covariance/fitting members can be used
+      prop_t * xprops = new prop_t(global.cfgs, temporal3pt, ratio[0].key());
+      xprops->npt     = 3;
+      xprops->gamma   = global.chromaGamma;
+
+
+      // Construct the single correlator instance 'SR'
+      // ---> this will be fit
+      NCOR::correlator SR(*xprops);
+      
+      for ( auto rptr = ratio.begin(); rptr != ratio.end(); ++rptr )
 	{
-	  std::complex<double> kin(0.0,0.0);
-
-	  kin.real( ( 1 / ( 4*twoPtIni.res.params["E0"][j] *
-			    (twoPtFin.res.params["E0"][j] + rest2pt.res.params["E0"][j]) )) *
-		    sqrt( (twoPtIni.res.params["E0"][j]*
-			   (twoPtFin.res.params["E0"][j]+rest2pt.res.params["E0"][j]))
-			  / (twoPtFin.res.params["E0"][j]*(twoPtIni.res.params["E0"][j]+
-							   rest2pt.res.params["E0"][j])) ) );
-	  it->ensemble.ens[j] *= (1.0/kin);
-	}
-
-      // it->jackknife();
-      // it->ensAvg();
-      // std::cout << *it << "\n" << std::endl;
-    }
-  // exit(90);
-
-  // ratio now rescaled and basic kinefactor applied
-  /*
-    Remaining factor: kinematic factors from 3pt function trace
-    Initialize the trace
-  */
-  projections::projSelect pr = projections::projSelect::UNPOL;
-  projector_t proj(pr,global.chromaGamma);
-  std::cout << "Projector selected" << std::endl;
-
-  for ( auto it = ratio.begin(); it != ratio.end(); ++it )
-    {
-      for ( int j = 0; j < global.cfgs; ++j )
-	{
-	  std::complex<double> trace(0.0,0.0);
-	  trace = proj.eval(global.pf,global.pi,twoPtFin.res.params["E0"][j],
-			    twoPtIni.res.params["E0"][j],
-			    rest2pt.res.params["E0"][j],global.Lx);
-
-#ifdef AMPPREFACTORS
-	  /*
-	    Toss in the prefactor <<\gamma^\mu>> = \bar{u}(pf)\gamma^\mu u(pi)
-	  */
-	  std::cout << "Including amplitude prefactors in matrix element extractions!" << std::endl;
-	  if ( global.chromaGamma == 8 )
+	  int ridx = std::distance(ratio.begin(), rptr);
+	  for ( auto gg = rptr->ensemble.ens.begin(); gg != rptr->ensemble.ens.end(); ++gg )
 	    {
-	      ugu_t uGu(4,false);
-	      // Evaluate assuming twoJz_i=twoJz_f=1
-	      trace *= uGu.eval(global.pf,global.pi,twoPtFin.res.params["E0"][j],
-				twoPtIni.res.params["E0"][j],rest2pt.res.params["E0"][j],
-				1,1,global.Lx);
-	    }				
-	  else
-	    {
-	      std::cout << "Don't have a factor yet for gamma = " << global.chromaGamma << std::endl;
-	      exit(3);
-	    }
+	      int gdx = std::distance(rptr->ensemble.ens.begin(), gg);
+	      SR.ensemble.ens[gdx][ridx] = (*gg)[0];
+	    } // gg
+	} // rptr
+      /*
+	Now SR has been constructed
+      */
+
+      
+      
+      /*
+	Perform linear fit to this summed ratio 'SR'
+	--> exposes matrix element that will be fed into SVD to extract amplitudes
+      */
+      SR.jackknife();
+      SR.ensAvg();
+
+#if 1
+      std::cout << "With key = " << SR.key() << " ..." << std::endl;
+      std::cout << SR << std::endl;
 #endif
+#if 1
 
-	  it->ensemble.ens[j] *= (1.0/trace);
+      // Make data covariance and initialize fit
+      SR.Cov();
+      SR.fit = NCOR::fitFunc_t(threePtFitInfo,SR.cov.dat,temporal3pt);
+
+      writeCorr(&SR);
+      /*
+	Do the linear fits -- for both real/imag components
+      */
+      for ( auto f = components.begin(); f != components.end(); ++f )
+	{
+	  NFIT::driver(&SR, *f, false);
+	  // Write out the fit results
+	  fitResW(&SR, *f);
+
+
+	  // Pipe fit results foreach jackknife sample into appropriate entry of MAT
+	  for ( int g = 0; g < global.cfgs; ++g )
+	    {
+	      if ( *f == "real" )
+		MAT[g](matIDX).real(SR.res.params["b"][g]);
+	      if ( *f == "imag" )
+		MAT[g](matIDX).imag(SR.res.params["b"][g]);
+	    }
+
+	  // Destroy the stored fits values since they've been written
+	  SR.res.chi2.clear(); SR.res.params.clear();
 	}
+#endif
+      delete xprops;
 
-      // it->jackknife();
-      // it->ensAvg();
-      // std::cout << *it << std::endl;
-      // std::cout << "*********************" << std::endl;
-    }
-  // exit(8);
+    } // funcs3pt iterator
+
+  // With MAT populated per jackknife ensemble avg
+  // Do the SVD per jackknife ensemble avg to extract amplitudes
+  extAmplitudes(&MAT,&KIN,&AMP);
+  std::cout << "What do these solutions look like?\n";
+  
+  for ( auto itr = AMP.begin(); itr != AMP.end(); ++itr )
+    std::cout << "M = " << (*itr)(0) << "     L = " << (*itr)(1) << std::endl;
+
+  // Write the extracted amplitudes to h5
+  // -->clunky way to pass displacement
+  writeAmplitudes(&AMP,&global,&threePtFitInfo,
+		  &tempKey3pt.key.npoint[2].irrep.op.ops[1].disp_list);
+  
+
+
+
 
 #if 0
 #ifndef AMPPREFACTORS
@@ -1434,61 +1360,6 @@ int main(int argc, char *argv[])
 #endif
 #endif
   
-
-  /*
-    Concerning std::vector<NCOR::correlator> ratio:
-      -- ensemble.ens formed & kinematic factors applied
-      -- jackknifed & ens/jk ens avgs formed
-  */
-  // Now optionally sum up the operator insertion time slice for summation method
-  prop_t * xprops = new prop_t(global.cfgs, temporal3pt);
-  xprops->npt     = 3;
-  xprops->gamma   = global.chromaGamma;
-  xprops->key     = ratio[0].key();
-  // xprops->mom.fin = global.pf;
-  // xprops->mom.ini = global.pi;
-  // xprops->disp    = ratio[0].getDisp();
-  NCOR::correlator SR(*xprops);
-  
-  for ( auto it = ratio.begin(); it != ratio.end(); ++it )
-    {
-      int idx = std::distance(ratio.begin(), it);
-
-      // Map the summed ratio data into the SR instance so covariance/fitting members can be used
-      for ( auto gg = it->ensemble.ens.begin(); gg != it->ensemble.ens.end(); ++gg )
-	{
-	  int gdx = std::distance(it->ensemble.ens.begin(), gg);
-	  SR.ensemble.ens[gdx][idx] = (*gg)[0];
-	}
-    }
-  std::cout << "Summations done" << std::endl;
-
-  SR.jackknife();
-  SR.ensAvg();
-#if 0
-  std::cout << SR << std::endl;
-  exit(90);
-#endif
-  SR.Cov();
-
-  // Init a linear fit for SR
-  SR.fit = NCOR::fitFunc_t(threePtFitInfo,SR.cov.dat, temporal3pt);
-
-
-
-  /*
-    Do the linear fits
-  */
-  for ( auto f = components.begin(); f != components.end(); ++f )
-    {
-      NFIT::driver(&SR, *f, false);
-      // Write out the fit results
-      fitResW(&SR, *f);
-      // Destroy the stored fits values since they've been written
-      SR.res.chi2.clear(); SR.res.params.clear();
-    }
-  writeCorr(&SR);
-  delete xprops;
 
   return 0;
 }

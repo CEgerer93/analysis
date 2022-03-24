@@ -16,8 +16,7 @@
     <rest>0 0 0</rest> <!-- lazy me -->
     <pf>XPFX</pf>
     <pi>XPIX</pi>
-    <!-- <pf>0 0 1</pf> -->
-    <!-- <pi>0 0 0</pi> -->
+    <dispNegate>false</dispNegate>
     <momNegate>false</momNegate> <!-- When forming keys/dbs, include those w/ opposite parity momenta from {pf,pi} -->
     <OpMap>
       <elem>

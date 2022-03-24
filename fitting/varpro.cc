@@ -48,6 +48,9 @@ namespace VarPro
 
 	// Now set the l^th entry of Y
 	gsl_vector_set(Y, l, sum+priorsSum);
+
+	// Free memory
+	gsl_vector_free(rMult);
       }
   }
 
@@ -75,14 +78,19 @@ namespace VarPro
 
 
 	    // Include contributions from priors!!!!!! - only appear on diagonal of Phi matrix
-#warning "Priors off in Phi construction!"
-#if 0
+#if 1
+#warning "Priors ON in Phi construction!"
 	    if ( k == l )
 	      sum += 1.0/pow(prior[k],2);
+#else
+#warning "Priors OFF in Phi construction!"
 #endif
 
 	    // Insert this value into the Phi matrix
 	    gsl_matrix_set(Phi, k, l, sum);
+
+	    // Free memory
+	    gsl_vector_free(rMult);
 
 	  } // l
       } // k

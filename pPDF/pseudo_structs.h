@@ -27,7 +27,7 @@ namespace Pseudo
 
     int chromaGamma; // gamma matrix of insertion
 
-    bool momNegate;
+    bool dispNegate, momNegate;
 
     ADAT::MapObject<std::string,std::string> opMomXML;
   };
@@ -71,20 +71,6 @@ namespace Pseudo
     int npt;
     int Nt, gamma;
 
-    /* struct momenta_t */
-    /* { */
-    /*   XMLArray::Array<int> ini, fin; */
-    /* } mom; */
-
-    /* struct opt_t */
-    /* { */
-    /*   std::string name; */
-    /*   int row; */
-    /* } snk, src; */
-
-    /* // Potential displacement in correlator */
-    /* std::vector<int> disp;     */
-
     Hadron::KeyHadronSUNNPartNPtCorr_t key;
 
     domain_t domain;
@@ -97,7 +83,7 @@ namespace Pseudo
       cfgs = c_; domain = d_;
       Nt = domain.numT();
     };
-    prop_t(int c_, domain_t &d_, Hadron::KeyHadronSUNNPartNPtCorr_t& k)
+    prop_t(int c_, domain_t &d_, const Hadron::KeyHadronSUNNPartNPtCorr_t& k)
     {
       cfgs = c_; domain = d_; key = k;
       Nt = domain.numT();

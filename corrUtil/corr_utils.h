@@ -142,6 +142,15 @@ namespace NCOR
     std::map<std::string, gsl_matrix *> dat;
     std::map<std::string, gsl_matrix *> inv;
     std::map<std::string, int>          svs; // singular values removed in inverse
+
+    /* // Destructor */
+    /* ~cov_t() */
+    /* { */
+    /*   for ( auto m = dat.begin(); m != dat.end(); ++m ) */
+    /* 	gsl_matrix_free(m->second); */
+    /*   for ( auto m = inv.begin(); m != inv.end(); ++m ) */
+    /* 	gsl_matrix_free(m->second); */
+    /* } */
   };
     
 
@@ -217,6 +226,10 @@ namespace NCOR
 	  /* LinAlg::printMat(subCovInv); */
 	  /* std::cout << "End SubCov check" << std::endl; */
 
+
+	  // Freeing these gives aborts from varpro.cc @ line 42
+	  /* gsl_matrix_free(subCov); */
+	  /* gsl_matrix_free(subCovInv); */
 
 	} // it
     }
@@ -365,6 +378,13 @@ namespace NCOR
 	for ( int _t = aspects.domain.min; _t <= aspects.domain.max; _t+=aspects.domain.step )
 	  ensemble.T[ ( _t - aspects.domain.min ) / aspects.domain.step ]=_t;
       }
+
+    correlator(Pseudo::prop_t _p, dat_t _d)
+      {
+	aspects = _p; ensemble = _d;
+	ensemble.T = _p.domain.makeDomain();
+      }
+
     // Destructor
     virtual ~correlator() {};
 
@@ -379,21 +399,21 @@ namespace NCOR
     Hadron::KeyHadronSUNNPartNPtCorr_t key()      { return aspects.key; }
 
 
-    XMLArray::Array<int>    getPi()   { return aspects.key.npoint[aspects.npt].irrep.irrep_mom.mom; }
-    XMLArray::Array<int>    getPf()   { return aspects.key.npoint[1].irrep.irrep_mom.mom; }
-    std::vector<int>        getDisp() { return aspects.key.npoint[2].irrep.op.ops[1].disp_list; }
+    XMLArray::Array<int>    getPi()   { return key().npoint[aspects.npt].irrep.irrep_mom.mom; }
+    XMLArray::Array<int>    getPf()   { return key().npoint[1].irrep.irrep_mom.mom; }
+    std::vector<int>        getDisp() { return key().npoint[2].irrep.op.ops[1].disp_list; }
 
     std::pair<std::string, int> getSrc()
     {
-      std::pair<std::string, int> p(aspects.key.npoint[aspects.npt].irrep.op.ops[1].name,
-				    aspects.key.npoint[aspects.npt].irrep.irrep_mom.row);
+      std::pair<std::string, int> p(key().npoint[aspects.npt].irrep.op.ops[1].name,
+				    key().npoint[aspects.npt].irrep.irrep_mom.row);
       return p;
     }
 
     std::pair<std::string, int> getSnk()
     {
-      std::pair<std::string, int> p(aspects.key.npoint[1].irrep.op.ops[1].name,
-				    aspects.key.npoint[1].irrep.irrep_mom.row);
+      std::pair<std::string, int> p(key().npoint[1].irrep.op.ops[1].name,
+				    key().npoint[1].irrep.irrep_mom.row);
       return p;
     }
 
@@ -468,5 +488,8 @@ namespace NCOR
   void writeCorr(correlator *c);
 
   void fitResW(correlator *c, std::string& comp); /* const char *comp); */
+
+  void writeAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > *A,
+		       Pseudo::global_t *global, fitInfo_t *fitInfo, std::vector<int> *disp);
 }
 #endif

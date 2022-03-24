@@ -130,6 +130,12 @@ struct pauli_t
 
   // Constructor
   pauli_t(int n);
+
+  /* // Destructor */
+  /* ~pauli_t() */
+  /* { */
+  /*   gsl_matrix_complex_free(m); */
+  /* } */
 };
 
 
@@ -142,6 +148,12 @@ struct diracMat_t
 
   // Parameterized constructor
   diracMat_t(int n, bool MINK); // MINK = True for Minkowski construction
+
+  /* // Destructor */
+  /* ~diracMat_t() */
+  /* { */
+  /*   gsl_matrix_complex_free(gamma); */
+  /* } */
 };
 
 
@@ -266,6 +278,15 @@ class Spinor
   void buildSpinors();
 
   /*
+    Destructor
+  */
+  ~Spinor()
+    {
+      gsl_matrix_complex_free(wig);
+      gsl_matrix_complex_free(coeffS);
+    }
+
+  /*
     Constructors
   */
   // Default
@@ -311,6 +332,30 @@ struct polVec_t
 };
 
 /*
+  Lorentz Scalar formed by \bar{u}\left(p_f,s_f\right) 1 u\left(p_i,s_i\right)
+*/
+struct u1u_t
+{
+  // Dirac matrix \gamma^4 needed for \bar{u}
+  diracMat_t g4;
+
+  // Evaluate scalar product of final/initial spinors
+  std::complex<double> eval(gsl_vector_complex * left, gsl_vector_complex * right);
+
+  // Default
+  u1u_t(bool MINK)
+  {
+    g4 = diracMat_t(4,MINK);
+  }
+
+  // Destructor
+  ~u1u_t()
+  {
+    gsl_matrix_complex_free(g4.gamma);
+  }
+};
+
+/*
   Lorentz Vector formed by \bar{u}\left(p_f,s_f\right) \gamma^\mu u\left(p_i,s_i\right)
 */
 struct ugu_t
@@ -326,6 +371,13 @@ struct ugu_t
   {
     d = diracMat_t(mu,MINK);
     g4 = diracMat_t(4,MINK);
+  }
+
+  // Destructor
+  ~ugu_t()
+  {
+    gsl_matrix_complex_free(g4.gamma);
+    gsl_matrix_complex_free(d.gamma);
   }
 };
 
@@ -349,6 +401,14 @@ utu_t(int mu, int nu, bool MINK) : mu(mu), nu(nu)
     dl = diracMat_t(mu,MINK); dr = diracMat_t(nu,MINK);
     g4 = diracMat_t(4,MINK);
   }
+
+  // Destructor 
+  ~utu_t()
+  {
+    gsl_matrix_complex_free(g4.gamma);
+    gsl_matrix_complex_free(dl.gamma);
+    gsl_matrix_complex_free(dr.gamma);
+  }
 };
 
 
@@ -363,6 +423,9 @@ struct kinMat_t
 
   void assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini);
 
+  // Default
+  kinMat_t() {}
+
   // Constructor
   kinMat_t(Spinor *fin, Spinor *ini)
   {
@@ -371,6 +434,15 @@ struct kinMat_t
   }
 };
 
+
+
+
+/*
+  EXTRACT INVARIANT AMPLITUDES USING (IN GENERAL) AN SVD DECOMPOSITION
+*/
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
+		   std::vector<kinMat_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP);
 
 /*
   Utilities to help manage three pt function traces

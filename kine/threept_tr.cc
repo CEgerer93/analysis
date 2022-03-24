@@ -279,6 +279,31 @@ std::complex<double> polVec_t::eval(gsl_vector_complex * left, gsl_vector_comple
 
 //==============================================================================================
 /*
+  u1u_t methods
+*/
+std::complex<double> u1u_t::eval(gsl_vector_complex * left, gsl_vector_complex * right)
+{
+  std::complex<double> val(0.0,0.0);
+
+  gc res        = gc_rect(0.0,0.0);               // to collect result from gsl
+  gvc * matVec  = gsl_vector_complex_calloc(4);
+
+  // Matrix vector product (gamma^4 on right-spinor)
+  gsl_blas_zgemv(CblasNoTrans,one,g4.gamma,right,zero,matVec);
+  // Inner product of left^\dagger & (gamma^4 \times right)
+  gsl_blas_zdotc(left,matVec,&res);
+
+  // Push real/imag components of gsl result into std::complex val
+  val.real(GSL_REAL(res)); val.imag(GSL_IMAG(res));
+
+  gsl_vector_complex_free(matVec);
+
+  return val;
+}
+//==============================================================================================
+
+//==============================================================================================
+/*
   ugu_t methods
 */
 std::complex<double> ugu_t::eval(gsl_vector_complex * left, gsl_vector_complex * right)
@@ -384,6 +409,9 @@ void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini
   // The spinor contraction w/ \gamma_\mu
   ugu_t ugu(mu,MINK);
 
+  // // The spinor contraction w/ identity
+  // u1u_t u1u(MINK);
+
   // Map the fin/ini rows to rows of set gmc matrix
   std::map<int, std::pair<int,int> > rowMap;
   rowMap[0] = std::make_pair(fin->getTwoJ(),ini->getTwoJ());
@@ -395,9 +423,15 @@ void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini
     {
       // Use foo to collect spinor contractions w/ gamma and sigma
       std::complex<double> foo = ugu.eval(&(fin->subduced.twoJz[r->second.first]),
-					  &(ini->subduced.twoJz[r->second.second]));
+      					  &(ini->subduced.twoJz[r->second.second]));
 
-      // gsl_matrix_complex_set(mat,r->first,0,gc_rect(foo.real(),foo.imag()));
+      // // ...If we use scalar
+      // std::complex<double> foo = u1u.eval(&(fin->subduced.twoJz[r->second.first]),
+      // 					  &(ini->subduced.twoJz[r->second.second]));
+      // foo *= ( (1/(2*mass))*(fin->getE()+ini->getE()) );
+      // // ...if we use scalar
+
+
       mat(r->first,0) = foo;
 
 
@@ -557,6 +591,34 @@ void Spinor::initSubduce(const std::string& opName)
 }
 // End of Spinor class methods
 //************************************************************************************************
+
+
+
+/*
+  EXTRACT INVARIANT AMPLITUDES USING (IN GENERAL) AN SVD DECOMPOSITION
+*/
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
+		   std::vector<kinMat_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP)
+{
+  for ( auto a = AMP->begin(); a != AMP->end(); ++a )
+    {
+      int idx = std::distance(AMP->begin(),a);
+      Eigen::JacobiSVD<Eigen::MatrixXcd> SVD((*KIN)[idx].mat,
+					     Eigen::ComputeFullU | Eigen::ComputeFullV);
+      // SVD.singularValues();
+      // SVD.matrixU();
+      // SVD.matrixV();
+
+      // // Solve
+      // SVD.solve((*MAT)[idx]);
+
+      // Solution of SVD to AMP
+      *a = SVD.solve((*MAT)[idx]);
+    } // a
+}
+
+
 
 void writePrefactor(int npt, int mu, int cfgs, const XMLArray::Array<int> &mom, std::string strRoot,
 		    std::vector<std::complex<double> > &P)

@@ -49,7 +49,14 @@ namespace VarPro
       }
  
     // Destructor
-    virtual ~varPro() {};
+    ~varPro()
+      {
+	gsl_matrix_free(basis);
+	gsl_vector_free(Y);
+	gsl_matrix_free(Phi);
+	gsl_matrix_free(invPhi);
+	gsl_vector_free(soln);
+      }
 
     // Populate the non-linear basis of functions
     void makeBasis(const gsl_vector * nlParams, const std::vector<int> &T);

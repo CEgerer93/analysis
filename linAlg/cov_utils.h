@@ -39,7 +39,13 @@ namespace LinAlg
   /*
     EXTRACT INVARIANT AMPLTUDES USING (IN GENERAL) AN SVD DECOMPOSITION
   */
-#if 1
+#if 0
+  void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
+		     std::vector<kinMat_t> * KIN,
+		     std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP);
+#endif
+
+#if 0
   void extAmplitudes(Eigen::Matrix<std::complex<double>, 4, 2> * K);
 #endif
 
