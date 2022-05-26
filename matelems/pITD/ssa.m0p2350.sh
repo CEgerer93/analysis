@@ -85,10 +85,16 @@ for p in $1; do
 
 	# Remove old sum.pz.xml file
 	rm sum.${p}${z}.xml
-	
+
+	modz=`echo "sqrt($z*$z)" | bc `
+
 	disp_list=""
-	for n in `seq 1 1 $z`; do
-	    disp_list="${disp_list}3 "
+	for n in `seq 1 1 $modz`; do
+	    if [ $z -ge 0 ]; then
+		disp_list="${disp_list}3 "
+	    else
+		disp_list="${disp_list}-3 "
+	    fi
 	done
 
 	

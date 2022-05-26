@@ -33,19 +33,21 @@ namespace VarPro
 
     gsl_vector * soln; // The variable projection solution for linear constants
 
-    size_t rank;
+    size_t rank;       // dim(Y) - # of fitted constants c_i removed by VarPro
+    bool   bayesianFit;
 
     // Default
     varPro() {}
     // Parametrized
-    varPro(size_t _rank, size_t numData)
+    varPro(size_t _rank, size_t numData, bool _bayesianFit)
       {
-	rank = _rank;
-	basis   = gsl_matrix_calloc(rank,numData);
-	Y       = gsl_vector_alloc(rank);
-	soln    = gsl_vector_alloc(rank);
-	Phi     = gsl_matrix_calloc(rank,rank);
-	invPhi  = gsl_matrix_calloc(rank,rank);
+	bayesianFit = _bayesianFit;
+	rank        = _rank;
+	basis       = gsl_matrix_calloc(rank,numData);
+	Y           = gsl_vector_alloc(rank);
+	soln        = gsl_vector_alloc(rank);
+	Phi         = gsl_matrix_calloc(rank,rank);
+	invPhi      = gsl_matrix_calloc(rank,rank);
       }
  
     // Destructor
@@ -65,7 +67,7 @@ namespace VarPro
     void makeY(gsl_vector *data, gsl_matrix *invCov,
 	       std::vector<double> &prior, std::vector<double> &width);
     // Populate Phi matrix
-    void makePhi(gsl_matrix *invCov, std::vector<double> prior);
+    void makePhi(gsl_matrix *invCov, std::vector<double> &width);
     // Get the inverse of Phi matrix
     void getInvPhi();
     // Solution of VarPro

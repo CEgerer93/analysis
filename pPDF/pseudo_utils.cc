@@ -152,6 +152,20 @@ namespace Pseudo
     return dsmart;
   }
 
+  // Ioffe time evaluation
+  double ioffeTime(const XMLArray::Array<int>& mom, const std::vector<int>& disp, int L)
+  {
+    if ( mom.size() != disp.size() )
+      {
+	std::cerr << "Ioffe time Error: Displacement must be an intuitive 3-vector" << std::endl;
+	exit(2);
+      }
+
+    double ioffe(0.0);
+    for ( int i = 0; i < disp.size(); ++i )
+      ioffe += (2*M_PI/L)*mom[i]*disp[i];
+    return ioffe;
+  }
 
   /*
     Some debugging utilities

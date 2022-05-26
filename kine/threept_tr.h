@@ -196,18 +196,23 @@ class subduceInfo
       opHelIrrepLG = Hadron::getSingleHadronOpIrrep(name);
       opIrrepLG    = Hadron::removeHelicity(opHelIrrepLG);
       opIrrep      = Hadron::removeIrrepLG(opIrrepLG);
-      opIrrepNoP   = Hadron::getCubicRepNoParity(opHelIrrepLG);
       opLG         = Hadron::getIrrepLG(opIrrepLG);
-    
-      irrep_dim    = Hadron::getIrrepDim(opIrrepLG);
 
       // Set handle based on momentum
       if ( shortMom(m,"") == "000" )
 	{
+	  // Don't know why getIrrepDim/getCubicRepNoParity fails when given irrep G1g1
+	  // - so do a hard code here
+	  opIrrepNoP   = Hadron::getCubicRepNoParity("G1g");
+	  irrep_dim    = Hadron::getIrrepDim("G1g");
+
 	  contLGLabel = "J1o2->" + opIrrepNoP + ",1";
 	  H = Hadron::TheSubduceTableFactory::Instance().createObject(contLGLabel);
 	}
       else {
+	opIrrepNoP   = Hadron::getCubicRepNoParity(opHelIrrepLG);
+	irrep_dim    = Hadron::getIrrepDim(opIrrepLG);
+
 	contLGLabel = "H1o2->H1o2" + opIrrepNoP + ",1";
 	H = Hadron::TheSubduceTableFactory::Instance().createObject(contLGLabel);
       }
@@ -276,6 +281,8 @@ class Spinor
   */
   void initSubduce(const std::string& s);
   void buildSpinors();
+  // Evaluate \sum_s u(p,s)\bar{u}(p,s)
+  void projector(); 
 
   /*
     Destructor
@@ -320,7 +327,8 @@ struct polVec_t
   diracMat_t g4, g5, d;
 
   // Evaluate the polarization vector
-  std::complex<double> eval(gsl_vector_complex * left, gsl_vector_complex * right);
+  /* std::complex<double> eval(gsl_vector_complex * left, gsl_vector_complex * right); */
+  std::complex<double> eval(gsl_vector_complex * left, gsl_vector_complex * right, double mass);
   /* std::complex<double> eval(XMLArray::Array<int>& p, double E, double m, int twoJz, int L); */
 
   polVec_t(int mu, bool MINK)
@@ -328,6 +336,14 @@ struct polVec_t
     d  = diracMat_t(mu,MINK);
     g4 = diracMat_t(4,MINK);
     g5 = diracMat_t(5,MINK);
+  }
+
+  // Destructor
+  ~polVec_t()
+  {
+    gsl_matrix_complex_free(g4.gamma);
+    gsl_matrix_complex_free(g5.gamma);
+    gsl_matrix_complex_free(d.gamma);
   }
 };
 
@@ -434,6 +450,20 @@ struct kinMat_t
   }
 };
 
+/*
+  Complex kinematic matrix for helicity PDFs
+*/
+struct kinMat3_t
+{
+  /* Eigen::Matrix<std::complex<double>, 4, 3> mat; */
+  Eigen::Matrix<std::complex<double>, 2, 2> mat;
+
+  void assemble(int mu, bool MINK, double mass, Spinor *s, const std::vector<int> &disp);
+
+  // Default
+  kinMat3_t() {}
+};
+
 
 
 
@@ -443,6 +473,10 @@ struct kinMat_t
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
 		   std::vector<kinMat_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP);
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT,
+		   std::vector<kinMat3_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP);
+		   /* std::vector<Eigen::Matrix<std::complex<double>, 3, 1> > * AMP); */
 
 /*
   Utilities to help manage three pt function traces

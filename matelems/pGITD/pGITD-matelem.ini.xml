@@ -19,61 +19,153 @@
     <dispNegate>false</dispNegate>
     <momNegate>false</momNegate> <!-- When forming keys/dbs, include those w/ opposite parity momenta from {pf,pi} -->
     <OpMap>
-      <elem>
-	<Key>000</Key>
-	<Val>Nucleon_proj0_p000_G1g</Val> <!-- 7 Op GEVP -->
-      </elem>
-      <elem>
-	<Key>001</Key>
-	<Val>Nucleon_proj0_p100_H1o2D4E1</Val> <!-- 16 Op GEVP -->
-      </elem>
-      <elem>
-	<Key>00-1</Key>
-	<Val>Nucleon_proj1_p100_H1o2D4E1</Val> <!-- 16 Op GEVP -->
-      </elem>
-      <elem>
-	<Key>002</Key>
-	<Val>Nucleon_proj0_p200_H1o2D4E1</Val> <!-- 16 Op GEVP -->
-      </elem>
-      <elem>
-      	<Key>00-2</Key>
-      	<Val>Nucleon_proj1_p200_H1o2D4E1</Val> <!-- 16 Op GEVP -->
-      </elem>
-      <elem>
-	<Key>011</Key>
-	<Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D2E</Val>
-      </elem>
-      <elem>
-	<Key>01-2</Key>
-	<Val>NucleonMG1g1MxD0J0S_J1o2_H1o2C4nm0E</Val>
-      </elem>
+      <elem><Key>000</Key><Val>Nucleon_proj0_p000_G1g</Val></elem> <!-- 7 Op GEVP -->
+      <elem><Key>001</Key><Val>Nucleon_proj0_p100_H1o2D4E1</Val></elem> <!-- 16 Op GEVP -->
+      <elem><Key>00-1</Key><Val>Nucleon_proj1_p100_H1o2D4E1</Val></elem> <!-- 16 Op GEVP -->
+      <elem><Key>002</Key><Val>Nucleon_proj0_p200_H1o2D4E1</Val></elem> <!-- 16 Op GEVP -->
+      <elem><Key>00-2</Key><Val>Nucleon_proj1_p200_H1o2D4E1</Val></elem> <!-- 16 Op GEVP -->
+      <elem><Key>011</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D2E</Val></elem>
+      <elem><Key>01-1</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D2E</Val></elem>
+      <elem><Key>01-2</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2C4nm0E</Val></elem>
+      <elem><Key>111</Key><Val>NucleonMG1g1MxD0J0S_J1o2_H1o2D3E1</Val></elem>
     </OpMap>
   </global>
   <fitting>
-    <twoPt>
+    <!-- <Annotation>FITTING FOR C_2pt(PF)</Annotation> -->
+    <twoPtFin>
       <funcType>t</funcType>
-      <range>
-	<tmin>2</tmin>
-	<tstep>1</tstep>
-	<tmax>15</tmax>
-      </range>
-    </twoPt>
+      <range><tmin>2</tmin><tstep>1</tstep><tmax>FIN2PT_FIT_TMAX</tmax></range>
+      <bayes>true</bayes>
+      <priors>
+	<prior>
+          <elem><Key>E0</Key><Val>0.75</Val></elem>
+          <elem><Key>E1</Key><Val>1.6</Val></elem>
+          <elem><Key>a</Key><Val>0.5</Val></elem>
+          <elem><Key>b</Key><Val>0.5</Val></elem>
+        </prior>
+        <width>
+          <elem><Key>E0</Key><Val>0.7</Val></elem>
+          <elem><Key>E1</Key><Val>1.0</Val></elem>
+          <elem><Key>a</Key><Val>1.0</Val></elem>
+          <elem><Key>b</Key><Val>1.0</Val></elem>
+        </width>
+      </priors>
+      <minimizerProps>
+	<maxIters>10000</maxIters>
+	<tolerance>0.0000001</tolerance>
+	<start>
+          <elem><Key>E0</Key><Val>0.6</Val></elem>
+          <elem><Key>E1</Key><Val>1.5</Val></elem>
+          <elem><Key>a</Key><Val>0.5</Val></elem>
+          <elem><Key>b</Key><Val>0.5</Val></elem>
+        </start>
+        <step>
+          <elem><Key>E0</Key><Val>0.15</Val></elem>
+          <elem><Key>E1</Key><Val>0.15</Val></elem>
+          <elem><Key>a</Key><Val>0.15</Val></elem>
+          <elem><Key>b</Key><Val>0.15</Val></elem>
+        </step>
+      </minimizerProps>
+    </twoPtFin>
+    <!-- <Annotation>FITTING FOR C_2pt(PI)</Annotation> -->
+    <twoPtIni>
+      <funcType>t</funcType>
+      <range><tmin>2</tmin><tstep>1</tstep><tmax>INI2PT_FIT_TMAX</tmax></range> 
+      <bayes>true</bayes>
+      <priors>
+	<prior>
+          <elem><Key>E0</Key><Val>0.75</Val></elem>
+          <elem><Key>E1</Key><Val>1.6</Val></elem>
+          <elem><Key>a</Key><Val>0.5</Val></elem>
+          <elem><Key>b</Key><Val>0.5</Val></elem>
+        </prior>
+        <width>
+          <elem><Key>E0</Key><Val>0.7</Val></elem>
+          <elem><Key>E1</Key><Val>1.0</Val></elem>
+          <elem><Key>a</Key><Val>1.0</Val></elem>
+          <elem><Key>b</Key><Val>1.0</Val></elem>
+        </width>
+      </priors>
+      <minimizerProps>
+	<maxIters>10000</maxIters>
+	<tolerance>0.0000001</tolerance>
+	<start>
+          <elem><Key>E0</Key><Val>0.6</Val></elem>
+          <elem><Key>E1</Key><Val>1.5</Val></elem>
+          <elem><Key>a</Key><Val>0.5</Val></elem>
+          <elem><Key>b</Key><Val>0.5</Val></elem>
+        </start>
+        <step>
+          <elem><Key>E0</Key><Val>0.15</Val></elem>
+          <elem><Key>E1</Key><Val>0.15</Val></elem>
+          <elem><Key>a</Key><Val>0.15</Val></elem>
+          <elem><Key>b</Key><Val>0.15</Val></elem>
+        </step>
+      </minimizerProps>
+    </twoPtIni>
+    <!-- <Annotation>FITTING FOR C_2pt(REST)</Annotation> -->
     <twoPtRest>
       <funcType>t</funcType>
-      <range>
-	<tmin>2</tmin>
-	<tstep>1</tstep>
-	<tmax>20</tmax>
-      </range>
+      <range><tmin>2</tmin><tstep>1</tstep><tmax>18</tmax></range>
+      <bayes>true</bayes>
+      <priors>
+	<prior>
+	  <elem><Key>E0</Key><Val>0.535</Val></elem>
+	  <elem><Key>E1</Key><Val>1.6</Val></elem>
+	  <elem><Key>a</Key><Val>0.5</Val></elem>
+	  <elem><Key>b</Key><Val>0.5</Val></elem>
+	</prior>
+	<width>
+	  <elem><Key>E0</Key><Val>0.3</Val></elem>
+	  <elem><Key>E1</Key><Val>1.0</Val></elem>
+	  <elem><Key>a</Key><Val>1.0</Val></elem>
+	  <elem><Key>b</Key><Val>1.0</Val></elem>
+	</width>
+      </priors>
+      <minimizerProps>
+	<maxIters>10000</maxIters>
+	<tolerance>0.0000001</tolerance>
+	<start>
+	  <elem><Key>E0</Key><Val>0.6</Val></elem>
+	  <elem><Key>E1</Key><Val>1.5</Val></elem>
+	  <elem><Key>a</Key><Val>0.5</Val></elem>
+	  <elem><Key>b</Key><Val>0.5</Val></elem>
+	</start>
+	<step>
+	  <elem><Key>E0</Key><Val>0.15</Val></elem>
+	  <elem><Key>E1</Key><Val>0.15</Val></elem>
+	  <elem><Key>a</Key><Val>0.15</Val></elem>
+	  <elem><Key>b</Key><Val>0.15</Val></elem>
+	</step>
+      </minimizerProps>     
     </twoPtRest>
+    <!-- <Annotation>FITTING FOR C_3pt(PF,PI)</Annotation> -->
     <threePt>
       <funcType>l</funcType>
-      <range>
-	<tmin>TMIN</tmin>
-	<!-- <tmin>4</tmin> -->
-	<tstep>2</tstep>
-	<tmax>14</tmax>
-      </range>
+      <range><tmin>TMIN</tmin><tstep>2</tstep><tmax>14</tmax></range>
+      <bayes>false</bayes>
+      <priors>
+	<prior>
+	  <elem><Key>a</Key><Val>0.0</Val></elem>
+	  <elem><Key>b</Key><Val>0.5</Val></elem>
+	</prior>
+	<width>
+	  <elem><Key>a</Key><Val>1.0</Val></elem>
+	  <elem><Key>b</Key><Val>1.0</Val></elem>
+	</width>
+      </priors>
+      <minimizerProps>
+	<maxIters>10000</maxIters>
+	<tolerance>0.0000001</tolerance>
+	<start>
+	  <elem><Key>a</Key><Val>0.0</Val></elem>
+	  <elem><Key>b</Key><Val>1.0</Val></elem>
+	</start>
+	<step>
+	  <elem><Key>a</Key><Val>0.25</Val></elem>
+	  <elem><Key>b</Key><Val>0.25</Val></elem>
+	</step>
+      </minimizerProps>
     </threePt>
   </fitting>
   <dbInfo>
@@ -88,34 +180,33 @@
       <base>
       	<elem>/lustre/cache/lqcdpdf/isoClover/dist_pgitd</elem>
       	<elem>/unphased/t0_avg/tsnk</elem>
-	<!-- <elem>/unphased/t0_0/tsnk</elem> -->
       </base>
       <momTag>momXYZ</momTag>
       <tsnkTag>tsnk</tsnkTag>
       <t0Tag>t0_avg</t0Tag>
-      <!-- <t0Tag>t0_0</t0Tag> -->
-      <!-- <zTag>absZ-8-8</zTag>  -->
       <zTag>Z-8.Z8</zTag>  <!-- Individual t0's & phased abs(z) <= 8 -->
-      <!-- <zTag>absZ9-16</zTag> -->
       <rows>
 	<elem>1 1</elem><elem>1 2</elem><elem>2 1</elem><elem>2 2</elem>
       </rows>
     </threePt>
-    <twoPt>
+    <twoPtFin>
       <tseries>
-	<range>
-	  <tmin>0</tmin><tstep>1</tstep><tmax>20</tmax>
-	</range>
+	<range><tmin>0</tmin><tstep>1</tstep><tmax>FIN2PT_TMAX</tmax></range>
       </tseries>
-      <!-- <base>/work/JLabLQCD/cegerer/nucleon_2pt</base> -->
-      <!-- <base>/work/JLabLQCD/cegerer/nucleon_2pt/cl21_32_64_b6p3_m0p2350_m0p2050/t0_avg</base> -->
       <base>/cache/isoClover/b6p3/cl21_32_64_b6p3_m0p2350_m0p2050/2ptcorrs/unphased/t0_avg</base>
       <momTag>momXYZ</momTag>
       <t0Tag>t0_avg</t0Tag>
-      <rows>
-	<elem>1 1</elem><elem>2 2</elem>
-      </rows>
-    </twoPt>
+      <rows><elem>1 1</elem><elem>2 2</elem></rows>
+    </twoPtFin>
+    <twoPtIni>
+      <tseries>
+	<range><tmin>0</tmin><tstep>1</tstep><tmax>INI2PT_TMAX</tmax></range>
+      </tseries>
+      <base>/cache/isoClover/b6p3/cl21_32_64_b6p3_m0p2350_m0p2050/2ptcorrs/unphased/t0_avg</base>
+      <momTag>momXYZ</momTag>
+      <t0Tag>t0_avg</t0Tag>
+      <rows><elem>1 1</elem><elem>2 2</elem></rows>
+    </twoPtIni>
     <twoPtRest>
       <tseries>
 	<range>
@@ -182,7 +273,6 @@
 		  <elem>
 		    <name>b_b0xDA__J0_A1pP</name>
 		    <mom_type>1 0 0</mom_type>
-		    <!-- <disp_list></disp_list> -->
 		    <disp_list>DISP</disp_list>
 		  </elem>
 		</Operators>
@@ -192,8 +282,7 @@
 	    </Irrep>
 	  </elem>
 	  <elem>
-	    <t_slice>-3</t_slice>
-	    <!-- <t_slice>0</t_slice> -->
+	    <t_slice>REDSTAR_TSRC_3PT</t_slice>
 	    <Irrep>
 	      <creation_op>true</creation_op>
 	      <smearedP>true</smearedP>

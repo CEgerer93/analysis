@@ -101,6 +101,61 @@ namespace NCOR
     char type;
     Pseudo::domain_t range;
 
+    bool bayesianFit; // Whether this fit will have Bayesian priors or not
+
+    // MapObjects to associate variable string with priors & starting values in minimization
+    struct {
+      ADAT::MapObject<std::string,double> strPriorMap, strWidthMap, strStartMap, strStepMap;
+    } strParamValMaps;
+
+    // Hold the priors/widths
+    struct {
+      std::vector<double> prior, width;
+    } priors;
+
+    // Hold starting values & step sizes for each fitted parameter
+    struct {
+      int maxIters = 10000;
+      double tolerance = 0.0000001;
+      std::vector<double> start, step;
+    } initFitParams;
+
+
+    // Parse strParamValMaps for a single passed string
+    void parseParam(std::string s)
+    {
+      priors.prior.push_back(strParamValMaps.strPriorMap[s]);
+      priors.width.push_back(strParamValMaps.strWidthMap[s]);
+      initFitParams.start.push_back(strParamValMaps.strStartMap[s]);
+      initFitParams.step.push_back(strParamValMaps.strStepMap[s]);
+    }
+
+    // Map strings in strParamValMaps to correct elements of priors * initFitParams structs
+    bool parseParamMaps()
+    {
+      bool mapped = false;
+
+      switch(type)
+	{
+	case 'l':
+	  parseParam("a"); parseParam("b");
+	  mapped = true; break;
+	case 'L':
+	  parseParam("a"); parseParam("b"); parseParam("c"); parseParam("dE");
+	  mapped = true; break;
+	case 'o':
+	  parseParam("E0"); parseParam("a");
+	  mapped = true; break;
+	case 't':
+	  parseParam("E0"); parseParam("E1"); parseParam("a"); parseParam("b");
+	  mapped = true; break;
+	default:
+	  std::cerr << "Cannot parse param maps for type = " << type << std::endl;
+	}
+      return mapped;
+    }
+
+
     std::string verbose()
     {
       std::string s;
@@ -158,14 +213,10 @@ namespace NCOR
   struct fitFunc_t
   {
     int num           = 0; // total # fitted params
+
     fitInfo_t theFit;
     cov_t fitCov;          // covariance & inverse on domain of fit
 
-    /* // Try holding the priors/widths */
-    /* struct { */
-    /*   gsl_vector * mean; */
-    /*   gsl_vector * width; */
-    /* } priors; */
 
     // Some useful methods
     char getType() { return theFit.type; }
@@ -456,6 +507,9 @@ namespace NCOR
     /* XMLArray::Array<XMLArray:: */
     /* int num_tslices; */
 
+    
+    Hadron::KeyHadronSUNNPartNPtCorr_t getKey() { return key; }
+
     /* corrEquivalence() {}; */
   corrEquivalence(int _g = 1, int _t = 1) : cfgs(_g), Nt(_t) {};
   };
@@ -489,7 +543,7 @@ namespace NCOR
 
   void fitResW(correlator *c, std::string& comp); /* const char *comp); */
 
-  void writeAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > *A,
+  void writeAmplitudes(std::vector<Eigen::VectorXcd> *A,
 		       Pseudo::global_t *global, fitInfo_t *fitInfo, std::vector<int> *disp);
 }
 #endif

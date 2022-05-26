@@ -10,6 +10,7 @@
 
 using namespace H5;
 using namespace Pseudo;
+using namespace LinAlg;
 
 
 #define gc_rect(r,i) gsl_complex_rect(r,i)
@@ -23,6 +24,9 @@ gc one  = gsl_complex_rect(1.0,0.0);
 gc mone = gsl_complex_rect(-1.0,0.0);
 gc I    = gsl_complex_rect(0.0,1.0);
 gc mI   = gsl_complex_rect(0.0,-1.0);
+
+const double PI = 3.1415926535897931;
+const std::complex<double> _I_(0.0,1.0);
 
 //! Zero out bits of a complex number - n.b. not in an adat header
 std::complex<double> zeroComplex(const std::complex<double>& w)
@@ -157,6 +161,21 @@ diracMat_t::diracMat_t(int n, bool MINK)
       std::cerr << n << " is not a valid Dirac matrix!" << std::endl;
       exit(2);
     }
+
+  // Reset any "-0"'s to zero
+  for ( int row = 0; row < gamma->size1; ++row )
+    {
+      for ( int col = 0; col < gamma->size2; ++col )
+	{
+	  gc holder = gsl_matrix_complex_get(gamma,row,col);
+	  if ( holder.dat[0] == -0 )
+	    holder = gsl_complex_rect( 0, holder.dat[1] );
+	  if ( holder.dat[1] == -0 )
+	    holder = gsl_complex_rect( holder.dat[0], 0 );
+
+	  gsl_matrix_complex_set(gamma,row,col,holder);
+	}
+    }
 }
 
 
@@ -176,7 +195,7 @@ void spinor_t::build(XMLArray::Array<T>& p, double E, double m, int L)
   // Split \vec{p} into std::vector of gsl_complexes
   std::vector<gsl_complex> pc(3);
   for ( auto a = pc.begin(); a != pc.end(); ++a )
-    *a = gsl_complex_rect(((2*M_PI/L)*p[std::distance(pc.begin(),a)])/(E+m),0);
+    *a = gsl_complex_rect(((2*PI/L)*p[std::distance(pc.begin(),a)])/(E+m),0);
 
   //----------------------------------------------------------------------
   // Form \sigma\cdot\vec{p}
@@ -219,7 +238,7 @@ void spinor_t::build(XMLArray::Array<T>& p, double E, double m, int L)
 	  break;
 	}
       gsl_vector_complex_free(tmp);
-#if 0   
+#if 0
       // Rescale spinor components by \sqrt( (E+m)/(2m) )
       gsl_blas_zdscal(sqrt((E+m)/(2*m)),components);
 #else
@@ -242,7 +261,8 @@ void spinor_t::build(XMLArray::Array<T>& p, double E, double m, int L)
 /*
   polVec_t methods
 */
-std::complex<double> polVec_t::eval(gsl_vector_complex * left, gsl_vector_complex * right)
+std::complex<double> polVec_t::eval(gsl_vector_complex * left, gsl_vector_complex * right, double mass)
+// std::complex<double> polVec_t::eval(gsl_vector_complex * left, gsl_vector_complex * right)
 {
   std::complex<double> val(0.0,0.0);
   
@@ -263,10 +283,10 @@ std::complex<double> polVec_t::eval(gsl_vector_complex * left, gsl_vector_comple
   // Push real/imag components of gsl result into std::complex val
   val.real(GSL_REAL(res)); val.imag(GSL_IMAG(res));
 
-#if 0
-#warning "This won't compile because 'm' is no longer passed"
+#if 1
+// #warning "This won't compile because 'm' is no longer passed"
   // Normalize val by 1/(2m)
-  val *= (1.0/(2*m));
+  val *= (1.0/(2*mass));
 #endif
 
   gsl_vector_complex_free(matVec);
@@ -342,34 +362,76 @@ std::complex<double> utu_t::eval(gsl_vector_complex * left, gsl_vector_complex *
 
   gc res = gc_rect(0.0,0.0); // to collect result from gsl
   gc two = gc_rect(2.0,0.0); // for rescaling
-  gc mhalf = gc_rect(-0.5,0.0);
+  gc Ihalf = gc_rect(0.0,0.5);
 
   gvc * matVec = gsl_vector_complex_calloc(4);
-  gmc * matProd4Mu = gsl_matrix_complex_calloc(4,4); // To hold \gamma^4 \times \gamma^mu
-  gmc * matProdFin = gsl_matrix_complex_calloc(4,4); // To hold (\gamma^4\gamma^\mu) \times\gamma^\nu
+  gmc * matMuNu = gsl_matrix_complex_calloc(4,4); // To hold \gamma^\mu x \gamma^\nu
+  gmc * matNuMu = gsl_matrix_complex_calloc(4,4); // To hold \gamma^\nu x \gamma^\nu
+  // gmc * matProd4Mu = gsl_matrix_complex_calloc(4,4); // To hold \gamma^4 \times \gamma^mu
+  gmc * matProd = gsl_matrix_complex_calloc(4,4); // To hold (\gamma^4\gamma^\mu) \times\gamma^\nu
 
-  // Multiply \gamma^4\gamma^\mu
-  gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,g4.gamma,dl.gamma,zero,matProd4Mu);
-  // Right multiply by \gamma^\nu
-  gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,matProd4Mu,dr.gamma,zero,matProdFin);
 
-  // sigma^{\mu\nu} = (I/2) * [ \gamma^\mu, \gamma^\nu ]
-  //                = I * [ \gamma_\mu \gamma_\nu - delta_{\mu\nu} ]
+  // Multiply \gamma^\mu\gamma^\nu & \gamma^\nu\gamma^\mu
+  gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,dl.gamma,dr.gamma,zero,matMuNu);
+  gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,dr.gamma,dl.gamma,zero,matNuMu);
 
-  // Possibly subtract \gamma_4 (coming from {\bar u})
-  if ( mu == nu )
-    gsl_matrix_complex_sub(matProdFin,g4.gamma);
-  // rescale by I
-  gsl_matrix_complex_scale(matProdFin,I);
+#if 0
+  LinAlg::printMat(matMuNu);
+  LinAlg::printMat(matNuMu);
+#endif
+  // Subtract \gamma^\nu\gamma^\mu from \gamma^\mu\gamma^\nu ( result stored in matMuNu )
+  gsl_matrix_complex_sub(matMuNu,matNuMu);
+
+#if 0
+  std::cout << "Commutator" << std::endl;
+  LinAlg::printMat(matMuNu);
+#endif
+  
+  // Left multiply resulting commutator of gamma matrices by \gamma^4 from \bar{u}
+  gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,g4.gamma,matMuNu,zero,matProd);
+
+  // // sigma^{\mu\nu} = (I/2) * [ \gamma^\mu, \gamma^\nu ]
+  // //                = I * [ \gamma_\mu \gamma_\nu - delta_{\mu\nu} ]
+
+  // // Possibly subtract \gamma_4 (coming from {\bar u})
+  // if ( mu == nu )
+  //   gsl_matrix_complex_sub(matProdFin,g4.gamma);
+
+
+  // rescale by I/2
+  gsl_matrix_complex_scale(matProd,Ihalf);
+
+#if 0
+  std::cout << "After L-mult gamma_4 & mult by I/2" << std::endl;
+  LinAlg::printMat(matProd);
+#endif
 
   // Now we have formed \gamma_4 * \sigma_{\mu\nu}
   // Proceed to form inner product with \left^\dagger & \right
   
 
   // Matrix vector product (on right-spinor)
-  gsl_blas_zgemv(CblasNoTrans,one,matProdFin,right,zero,matVec);
+  gsl_blas_zgemv(CblasNoTrans,one,matProd,right,zero,matVec);
+
+#if 0
+  for ( int i = 0; i < matVec->size; ++i )
+    std::cout << gsl_vector_complex_get(matVec,i).dat[0] << " " << gsl_vector_complex_get(matVec,i).dat[1] << std::endl;
+#endif
+
+#if 0
+  std::cout << "Res before: " << GSL_REAL(res) << " " << GSL_IMAG(res) << std::endl;
+  std::cout << "Left spinor:" << std::endl;
+  for ( int i = 0; i < left->size; ++i )
+    std::cout << gsl_vector_complex_get(left,i).dat[0] << " " << gsl_vector_complex_get(left,i).dat[1] << std::endl;
+#endif
+
   // Inner product of left^\dagger & (gamma^4\sigma^{\mu\nu} \times right)
   gsl_blas_zdotc(left,matVec,&res);
+
+#if 0
+  std::cout << "In sigma eval, we have res = ";
+  std::cout << GSL_REAL(res) << " " << GSL_IMAG(res) << std::endl;
+#endif
 
   // // And lastly, mult. result by (-1/2) if \mu\nu=4j or (-I/2) if \mu\nu=ij
   // if (( mu == 4 && nu != 4 ) || ( mu != 4 && nu == 4 ))
@@ -381,8 +443,9 @@ std::complex<double> utu_t::eval(gsl_vector_complex * left, gsl_vector_complex *
   val.real(GSL_REAL(res)); val.imag(GSL_IMAG(res));
 
   gsl_vector_complex_free(matVec);
-  gsl_matrix_complex_free(matProd4Mu);
-  gsl_matrix_complex_free(matProdFin);
+  gsl_matrix_complex_free(matMuNu);
+  gsl_matrix_complex_free(matNuMu);
+  gsl_matrix_complex_free(matProd);
 
   return val;
 }
@@ -447,7 +510,7 @@ void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini
 	  
 	      foo += sig.eval(&(fin->subduced.twoJz[r->second.first]),
 			      &(ini->subduced.twoJz[r->second.second]))*
-		(2*M_PI/fin->getL())*( ini->getMom()[nu-1] - fin->getMom()[nu-1] );
+		(2*PI/fin->getL())*( ini->getMom()[nu-1] - fin->getMom()[nu-1] );
 	    }
 	}
       // Scale foo by (-I/(2m))
@@ -461,10 +524,109 @@ void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini
 }
 //==============================================================================================
 
+/*
+  kinMat3_t methods
+*/
+void kinMat3_t::assemble(int mu, bool MINK, double mass, Spinor *s, const std::vector<int> &disp)
+{
+  // The polarization vector associated with mu
+  polVec_t S(mu,MINK);
+
+  // Map the rows of spinor at snk/src to rows of gmc matrix
+  std::map<int, std::pair<int,int> > rowMap;
+  // rowMap[0] = std::make_pair(s->getTwoJ(),s->getTwoJ());
+  // rowMap[1] = std::make_pair(s->getTwoJ(),-s->getTwoJ());
+  // rowMap[2] = std::make_pair(-s->getTwoJ(),s->getTwoJ());
+  // rowMap[3] = std::make_pair(-s->getTwoJ(),-s->getTwoJ());
+
+#if 0
+  // For vector insertions
+  rowMap[0] = std::make_pair(s->getTwoJ(),s->getTwoJ());
+  rowMap[1] = std::make_pair(-s->getTwoJ(),-s->getTwoJ());
+#endif
+#if 1
+  // For axial insertions
+  if ( shortMom(s->getMom(),"") == "000" )
+    {
+      rowMap[0] = std::make_pair(s->getTwoJ(),s->getTwoJ());
+      rowMap[1] = std::make_pair(-s->getTwoJ(),-s->getTwoJ());
+    }
+  else
+    {
+      rowMap[0] = std::make_pair(s->getTwoJ(),-s->getTwoJ());
+      rowMap[1] = std::make_pair(-s->getTwoJ(),s->getTwoJ());
+    }
+#endif
+
+
+  double pref = 0.5; // 2
+
+#if 0
+  ugu_t ugu(4,true);
+#endif
+
+  for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
+    {
+      
+#if 0
+      std::complex<double> foo(pref*ugu.eval(&(s->subduced.twoJz[r->second.first]),
+					     &(s->subduced.twoJz[r->second.second])));
+      mat(r->first,0) = foo;
+
+      foo = 0.0;
+      mat(r->first,1) = foo;
+#endif
+#if 1
+      // Use foo to collect spinor contractions
+      std::complex<double> foo(-pref*mass*S.eval(&(s->subduced.twoJz[r->second.first]),
+      						 &(s->subduced.twoJz[r->second.second]),mass));
+
+      // Mat[*,0] = -1*<<gamma^mu gamma^5>>
+      mat(r->first,0) = foo*_I_;
+
+      foo = 0.0;
+      // Loop over Lorentz indices to compute z_nu \cdot <<gamma^nu\gamma^5>>
+      // Skip 4th component, since \vec{z}^4 is always zero
+      for ( int nu = 1; nu < 4; ++nu )
+	{
+	  polVec_t tmpS(nu,MINK);
+
+	  foo -= tmpS.eval(&(s->subduced.twoJz[r->second.first]),
+			   &(s->subduced.twoJz[r->second.second]),mass)*disp[nu-1]*_I_;
+	}
+
+      // Mat[*,1] = 2 m^3 z^mu (z_nu \cdot <<gamma^nu\gamma^5>>)
+      mat(r->first,1) = pref*pow(mass,3)*disp[mu-1]*foo;
+#endif
+    } // auto r
+}
+//=========
+
 //**********************************************************************************************
 /*
   Spinor class methods
 */
+void Spinor::projector()
+{
+  gmc * extProd = gsl_matrix_complex_calloc(4,4);
+  gmc * projector = gsl_matrix_complex_calloc(4,4);
+  diracMat_t g4 = diracMat_t(4,false);
+  
+  // Compute u(p,s1)u^\dagger(p,s1) + u(p,s2)u^\dagger(p,s2)
+  for ( int s = 1; s > -2; s-=2 )
+    gsl_blas_zgeru(one,&canon.twoJz[s],&canon.twoJz[s],extProd);
+
+  // Right multiply by \gamma_4 to complete \sum_s u(p,s)\bar{u}(p,s)
+  gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,extProd,g4.gamma,one,projector);
+
+  std::cout << "PROJ!" << std::endl;
+  std::cout << projector << std::endl;
+
+  gsl_matrix_complex_free(extProd);
+  gsl_matrix_complex_free(projector);
+  gsl_matrix_complex_free(g4.gamma);
+}
+
 void Spinor::buildSpinors()
 {
   // Canonical momentum is |\vec{p}| in +z-direction
@@ -618,7 +780,23 @@ void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT
     } // a
 }
 
+// void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
+// 		   std::vector<kinMat3_t> * KIN,
+// 		   std::vector<Eigen::Matrix<std::complex<double>, 3, 1> > * AMP)
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT,
+		   std::vector<kinMat3_t> * KIN,
+		   std::vector<Eigen::Vector2cd> * AMP)
+{
+  for ( auto a = AMP->begin(); a != AMP->end(); ++a )
+    {
+      int idx = std::distance(AMP->begin(),a);
+      Eigen::JacobiSVD<Eigen::MatrixXcd> SVD((*KIN)[idx].mat,
+					     Eigen::ComputeFullU | Eigen::ComputeFullV);
 
+      // Solution of SVD to AMP
+      *a = SVD.solve((*MAT)[idx]);
+    } // a
+}
 
 void writePrefactor(int npt, int mu, int cfgs, const XMLArray::Array<int> &mom, std::string strRoot,
 		    std::vector<std::complex<double> > &P)

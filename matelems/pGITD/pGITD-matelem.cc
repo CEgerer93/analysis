@@ -68,12 +68,12 @@ typedef XMLArray::Array<XMLArray::Array<int> > XML2D;
 global_t global;
 
 // Define some structs to help determine what edbs to read
-domain_t temporal3pt, temporal2pt, temporal2ptRest;
+domain_t temporal3pt, temporal2ptFin, temporal2ptIni, temporal2ptRest;
 info3pt db3ptInfo;
-info2pt db2ptInfo, db2ptRestInfo;
+info2pt db2ptFinInfo, db2ptIniInfo, db2ptRestInfo;
 
 // Constants
-const std::complex<double> redFact((1.0/sqrt(2)),0);
+const std::complex<double> redFact(sqrt(2),0);
 
 
 /*
@@ -327,6 +327,17 @@ void read(XMLReader& xml, const std::string path, NCOR::fitInfo_t& I)
   try {
     read(xml, path+"/funcType", I.type);
     read(xml, path+"/range", I.range);
+    read(xml, path+"/bayes", I.bayesianFit);
+    read(xml, path+"/priors/prior", I.strParamValMaps.strPriorMap);
+    read(xml, path+"/priors/width", I.strParamValMaps.strWidthMap);
+    // read(xml, path+"/priors/width", I.priors.width);
+    // read(xml, path+"/priors/prior", I.priors.prior);
+    read(xml, path+"/minimizerProps/maxIters", I.initFitParams.maxIters);
+    read(xml, path+"/minimizerProps/tolerance", I.initFitParams.tolerance);
+    read(xml, path+"/minimizerProps/start", I.strParamValMaps.strStartMap);
+    read(xml, path+"/minimizerProps/step", I.strParamValMaps.strStepMap);
+    // read(xml, path+"/minimizerProps/start", I.initFitParams.start);
+    // read(xml, path+"/minimizerProps/step", I.initFitParams.step);
   } catch ( std::string &e ) {
     std::cerr << "Unable to parse fitInfo_t from ini xml " << e << std::endl;
   }
@@ -816,8 +827,10 @@ int main(int argc, char *argv[])
   */
   read(xmlSR, "/PGITD/dbInfo/threePt/tseries/range", temporal3pt);
   read(xmlSR, "/PGITD/dbInfo/threePt", db3ptInfo);
-  read(xmlSR, "/PGITD/dbInfo/twoPt/tseries/range", temporal2pt);
-  read(xmlSR, "/PGITD/dbInfo/twoPt", db2ptInfo);
+  read(xmlSR, "/PGITD/dbInfo/twoPtFin/tseries/range", temporal2ptFin);
+  read(xmlSR, "/PGITD/dbInfo/twoPtFin", db2ptFinInfo);
+  read(xmlSR, "/PGITD/dbInfo/twoPtIni/tseries/range", temporal2ptIni);
+  read(xmlSR, "/PGITD/dbInfo/twoPtIni", db2ptIniInfo);
   read(xmlSR, "/PGITD/dbInfo/twoPtRest/tseries/range", temporal2ptRest);
   read(xmlSR, "/PGITD/dbInfo/twoPtRest", db2ptRestInfo);
   // dumpRowInfo(db3ptInfo.rows,db3ptInfo.signs,3);
@@ -838,6 +851,13 @@ int main(int argc, char *argv[])
   std::cout << &(dumF.subduced.twoJz[1]) << std::endl;
   std::cout << &(dumF.subduced.twoJz[-1]) << std::endl;
 
+  
+  // polVec_t P(3,true);
+  // std::cout << "PolVec[11] = " << P.eval(&(dumI.subduced.twoJz[1]),&(dumI.subduced.twoJz[1])) << std::endl;
+  // std::cout << "PolVec[12] = " << P.eval(&(dumI.subduced.twoJz[1]),&(dumI.subduced.twoJz[-1])) << std::endl;
+  // std::cout << "PolVec[21] = " << P.eval(&(dumI.subduced.twoJz[-1]),&(dumI.subduced.twoJz[1])) << std::endl;
+  // std::cout << "PolVec[22] = " << P.eval(&(dumI.subduced.twoJz[-1]),&(dumI.subduced.twoJz[-1])) << std::endl;
+  // exit(80);
 
 
   ugu_t foo(4,false);
@@ -877,15 +897,6 @@ int main(int argc, char *argv[])
       std::cout << "---------------------------" << std::endl;
     }
 
-  // std::cout << "Kinematic matrix" << std::endl;
-  // kinMat_t K(&dumF,&dumI); // set dimensions
-  // K.assemble(4,false,0.535,&dumF,&dumI);
-  // // LinAlg::printMat(K.mat);
-
-  // // Easy printing from EIGEN!
-  // std::cout << "K mat = " << K.mat << std::endl;
-
-  // LinAlg::extAmplitudes(&K.mat);
 
 
 #endif
@@ -982,9 +993,9 @@ int main(int argc, char *argv[])
   /*
     NOW LOAD THE 2PT FUNCTIONS
   */
-  twoPi.keydbs.dbs      = makeDBList(global, db2ptInfo, &tempKey2Pi.key);
+  twoPi.keydbs.dbs      = makeDBList(global, db2ptIniInfo, &tempKey2Pi.key);
   twoPi.keydbs.keys     = makeKeyList(tempKey2Pi.key);
-  twoPf.keydbs.dbs      = makeDBList(global, db2ptInfo, &tempKey2Pf.key);
+  twoPf.keydbs.dbs      = makeDBList(global, db2ptFinInfo, &tempKey2Pf.key);
   twoPf.keydbs.keys     = makeKeyList(tempKey2Pf.key);
   twoPtRest.keydbs.dbs  = makeDBList(global, db2ptRestInfo, &tempKeyRest.key);
   twoPtRest.keydbs.keys = makeKeyList(tempKeyRest.key);
@@ -994,12 +1005,17 @@ int main(int argc, char *argv[])
     Access and store all 2pt functions
   */
   // std::vector<NCOR::corrEquivalence> twoPtIni(1), twoPtFin(1);
-  prop_t * props = new prop_t(global.cfgs,temporal2pt, tempKey2Pi.key);
-  props->npt = 2;
-  NCOR::correlator twoPtIni(*props); props->key = tempKey2Pf.key;
-  NCOR::correlator twoPtFin(*props);
+  prop_t * propsIni = new prop_t(global.cfgs,temporal2ptIni,tempKey2Pi.key);
+  propsIni->npt = 2;
+  NCOR::correlator twoPtIni(*propsIni);
+  delete propsIni;
 
-  props = new prop_t(global.cfgs,temporal2ptRest, tempKeyRest.key);
+  prop_t * propsFin = new prop_t(global.cfgs,temporal2ptFin,tempKey2Pf.key);
+  propsFin->npt = 2;
+  NCOR::correlator twoPtFin(*propsFin);
+  delete propsFin;
+
+  prop_t * props = new prop_t(global.cfgs,temporal2ptRest,tempKeyRest.key);
   props->npt = 2;
   NCOR::correlator rest2pt(*props);
   delete props;
@@ -1014,19 +1030,11 @@ int main(int argc, char *argv[])
   std::ifstream inFile;
   
   for ( auto k = twoPi.keydbs.keys.begin(); k != twoPi.keydbs.keys.end(); ++k )
-    {
-      Reads2pt(inFile, twoPtIni, db2ptInfo, &(*k) ); // &twoPt.keydbs.keys[0]);
-      // twoPtIni[0].keyCorrMap.insert(*k,dumCorr);
-    }
+    Reads2pt(inFile, twoPtIni, db2ptIniInfo, &(*k) );
   for ( auto k = twoPf.keydbs.keys.begin(); k != twoPf.keydbs.keys.end(); ++k )
-    {
-      Reads2pt(inFile, twoPtFin, db2ptInfo, &(*k) );
-      // twoPtFin[0].keyCorrMap.insert(*k,dumCorr);
-    }
+    Reads2pt(inFile, twoPtFin, db2ptFinInfo, &(*k) );
   for ( auto k = twoPtRest.keydbs.keys.begin(); k != twoPtRest.keydbs.keys.end(); ++k )
-    {
       Reads2pt(inFile, rest2pt, db2ptRestInfo, &(*k) );
-    }
 #endif
 
 
@@ -1036,33 +1044,38 @@ int main(int argc, char *argv[])
   twoPtIni.ensAvg();    twoPtFin.ensAvg();    rest2pt.ensAvg();
   twoPtIni.Cov();       twoPtFin.Cov();       rest2pt.Cov();
 
+
   // LinAlg::printMat(twoPtFin.cov.dat["real"]);
   // LinAlg::printMat(twoPtFin.cov.inv["real"]);
 
 
   // Get the fit info for ini/fin 2pts & 3pt
-  NCOR::fitInfo_t twoPtFitInfo, threePtFitInfo;
-  read(xmlSR, "/PGITD/fitting/twoPt", twoPtFitInfo);
+  NCOR::fitInfo_t twoPtRestFitInfo, twoPtFinFitInfo, twoPtIniFitInfo, threePtFitInfo;
+  read(xmlSR, "/PGITD/fitting/twoPtFin", twoPtFinFitInfo);
+  read(xmlSR, "/PGITD/fitting/twoPtIni", twoPtIniFitInfo);
+  read(xmlSR, "/PGITD/fitting/twoPtRest", twoPtRestFitInfo);
   read(xmlSR, "/PGITD/fitting/threePt", threePtFitInfo);
+
+  // Parse the strParamValMaps
+  twoPtFinFitInfo.parseParamMaps();
+  twoPtIniFitInfo.parseParamMaps();
+  twoPtRestFitInfo.parseParamMaps();
+  threePtFitInfo.parseParamMaps();
 
   // To set up fit properly, pass the correlator's data covariance
   // Submatrix of covariance is internally grabbed, and its inverse computed
-  twoPtFin.fit = NCOR::fitFunc_t(twoPtFitInfo,twoPtFin.cov.dat,temporal2pt);
-  twoPtIni.fit = NCOR::fitFunc_t(twoPtFitInfo,twoPtIni.cov.dat,temporal2pt);
-
-  // Get the fit info for rest 2pt
-  read(xmlSR, "/PGITD/fitting/twoPtRest", twoPtFitInfo);
-  rest2pt.fit = NCOR::fitFunc_t(twoPtFitInfo,rest2pt.cov.dat,temporal2pt);
-
-
+  twoPtFin.fit = NCOR::fitFunc_t(twoPtFinFitInfo,twoPtFin.cov.dat,temporal2ptFin);
+  twoPtIni.fit = NCOR::fitFunc_t(twoPtIniFitInfo,twoPtIni.cov.dat,temporal2ptIni);
+  rest2pt.fit = NCOR::fitFunc_t(twoPtRestFitInfo,rest2pt.cov.dat,temporal2ptRest);
 
   // Fire up the fits
   std::vector<std::string> components(2);
   components[0] = "real"; components[1] = "imag";
   NFIT::driver(&twoPtFin, components[0], true); fitResW(&twoPtFin, components[0]);
   NFIT::driver(&twoPtIni, components[0], true); fitResW(&twoPtIni, components[0]);
-  NFIT::driver(&rest2pt, components[0], true);  fitResW(&rest2pt, components[0]);
+  NFIT::driver(&rest2pt, components[0], false);  fitResW(&rest2pt, components[0]);
 
+  exit(800);
 
   writeCorr(&twoPtFin);
   writeCorr(&twoPtIni);
@@ -1125,6 +1138,110 @@ int main(int argc, char *argv[])
 
 
 
+#if 1
+#warning "Establishing Gordan ID Check"
+
+
+  double M(0.535);
+  double Ef(0.63394355156848614);
+  double Ei(0.66365470597820764);
+  u1u_t id(true);
+  ugu_t gam(4,true);
+
+  std::complex<double> rhs(0.0,0.0);
+
+  Spinor fin(global.opMomXML[shortMom(global.pf,"")],
+	     global.pf,Ef,M,global.Lx);
+  Spinor ini(global.opMomXML[shortMom(global.pi,"")],
+	     global.pi,Ei,M,global.Lx);
+  ini.buildSpinors();
+  fin.buildSpinors();
+
+
+  /*
+    \bar{u}(p,s')\gamma^\mu u(p,s) = \bar{u}(p,s')(p^\mu/M) u(p,s)
+
+    std::cout << "<<gamma_mu>> = " << gam.eval(&fin.absolute.twoJz[1],&fin.absolute.twoJz[1]) << std::endl;
+    std::cout << "rhs = " << ((Ef/M)*id.eval(&fin.absolute.twoJz[1],&fin.absolute.twoJz[1])) << std::endl;
+    
+    PASSED
+  */
+
+  /*
+    <<\sigma_{43}>> = 0.18897240910531166
+    w/ Ef(1,1,1)=0.63394355156848614, Ei(0,0,2)=0.66365470597820764, M=0.535
+
+    utu_t sig(4,3,true);
+    std::cout << sig.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1]) << std::endl;
+
+    PASSED
+  */
+#if 0
+  utu_t sig_x(4,1,true); utu_t sig_y(4,2,true); utu_t sig_z(4,3,true);
+  std::cout << sig_x.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1]) << std::endl;
+  std::cout << sig_y.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1]) << std::endl;
+  std::cout << sig_z.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1]) << std::endl;
+  exit(100);
+#endif
+
+  /*
+    \bar{u}(p,s')u(p,s) = 2m\delta_{s's}
+
+    std::cout << "2m = " << 2*M << std::endl;
+    for ( int i = 1; i < 3; ++i )
+    {
+    for ( int j = 1; j < 3; ++j )
+    {
+    std::cout << "ID CHECK[ij] = " << id.eval(&fin.absolute.twoJz[pow(-1,i+1)],&fin.absolute.twoJz[pow(-1,j+1)])
+    << std::endl;
+    
+    PASSED
+  */
+  
+  for ( int i = 1; i <=4; ++i )
+    {
+      diracMat_t D(i,true);
+      LinAlg::printMat(D.gamma);
+    }
+  
+
+  std::cout << "2m*<<gamma_mu>> = "
+  	    << (2*M*gam.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1]))
+  	    << std::endl;
+
+  rhs += (id.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1])*(Ef+Ei));
+  // std::cout << "RHS b4 sigma = " << rhs << std::endl;
+
+  std::complex<double> sigTot(0.0,0.0);
+
+  for ( int j = 1; j < 4; ++j )
+    {
+      utu_t sig(4,j,true);
+
+      // std::cout << "This sigma eval = " << sig.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1])
+      // 		<< std::endl;
+     
+      // Minus from metric tensor!
+      sigTot -= (sig.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1])*(2*M_PIl/fin.getL())*( fin.getMom()[j-1] - ini.getMom()[j-1] ));
+
+    }
+
+  // std::cout << "sigTot = " << sigTot << std::endl;
+
+
+  sigTot *= std::complex<double>(0,1.0);
+
+  // std::cout << "sigTot = " << sigTot << std::endl;
+
+  rhs += sigTot;
+
+  std::cout << "RHS = " << rhs << std::endl;
+
+  /*
+    GORDAN IDENTITY IS SATISFIED! JUST DONT FORGET THE METRIC IN THE SIGMA * (PF-PI) PIECE
+  */
+#endif
+
 
 
   std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > MAT(global.cfgs);
@@ -1145,7 +1262,8 @@ int main(int argc, char *argv[])
       // Construct the kinematic matrix
       k->assemble(4,false,rest2pt.res.params["E0"][j],&finSpin,&iniSpin);
     }
-  std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > AMP(global.cfgs);
+  // std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > AMP(global.cfgs);
+  std::vector<Eigen::Vector2cd> AMP(global.cfgs);
 
 
 
@@ -1220,16 +1338,23 @@ int main(int argc, char *argv[])
 	  // --> factors: 1/(4E_i * (E_f+m)) * \sqrt( (Ei*(Ef+m))/(Ef*(Ei+m)) )
 	  for ( int j = 0; j < global.cfgs; ++j )
 	    {
-	      std::complex<double> commonKin(0.0,0.0);
-	      commonKin.real( ( 1 / ( 4*twoPtIni.res.params["E0"][j] *
-				      (twoPtFin.res.params["E0"][j] + rest2pt.res.params["E0"][j]) )) *
-			      sqrt( (twoPtIni.res.params["E0"][j]*
-				     (twoPtFin.res.params["E0"][j]+rest2pt.res.params["E0"][j]))
-				    / (twoPtFin.res.params["E0"][j]*(twoPtIni.res.params["E0"][j]+
-								     rest2pt.res.params["E0"][j])) ) );
+	      // std::complex<double> commonKin(0.0,0.0);
+	      // commonKin.real( ( 1 / ( 4*twoPtIni.res.params["E0"][j] *
+	      // 			      (twoPtFin.res.params["E0"][j] + rest2pt.res.params["E0"][j]) )) *
+	      // 		      sqrt( (twoPtIni.res.params["E0"][j]*
+	      // 			     (twoPtFin.res.params["E0"][j]+rest2pt.res.params["E0"][j]))
+	      // 			    / (twoPtFin.res.params["E0"][j]*(twoPtIni.res.params["E0"][j]+
+	      // 							     rest2pt.res.params["E0"][j])) ) );
+
+	      // std::complex<double> commonKin( sqrt( (twoPtIni.res.params["E0"][j]*(twoPtFin.res.params["E0"][j]+rest2pt.res.params["E0"][j]))/
+	      // 					    (twoPtFin.res.params["E0"][j]*(twoPtIni.res.params["E0"][j]+rest2pt.res.params["E0"][j])) ) /
+	      // 				      (4*twoPtIni.res.params["E0"][j]*(twoPtFin.res.params["E0"][j] + rest2pt.res.params["E0"][j])), 0.0);
+
+
+	      std::complex<double> commonKin( sqrt(4*twoPtFin.res.params["E0"][j]*twoPtIni.res.params["E0"][j]), 0.0);
 
 	      // Remove common kinematic factor & 1/\sqrt(2) from isovector current normalization
-	      ratio[idx].ensemble.ens[j] *= (1.0/(redFact*commonKin));
+	      ratio[idx].ensemble.ens[j] *= (redFact*commonKin); // (1.0/(redFact*commonKin));
 	    } // j
 
 
@@ -1329,9 +1454,20 @@ int main(int argc, char *argv[])
   for ( auto itr = AMP.begin(); itr != AMP.end(); ++itr )
     std::cout << "M = " << (*itr)(0) << "     L = " << (*itr)(1) << std::endl;
 
+
+  // Put AMP results into a VectorXcd so writeAmplitudes can be reused
+  std::vector<Eigen::VectorXcd> finalAMP(global.cfgs,Eigen::VectorXcd(2));
+  for ( auto itr = AMP.begin(); itr != AMP.end(); ++itr )
+    {
+      int idx = std::distance(AMP.begin(),itr);
+
+      finalAMP[idx](0) = (*itr)(0);
+      finalAMP[idx](1) = (*itr)(1);
+    }
+
   // Write the extracted amplitudes to h5
   // -->clunky way to pass displacement
-  writeAmplitudes(&AMP,&global,&threePtFitInfo,
+  writeAmplitudes(&finalAMP,&global,&threePtFitInfo,
 		  &tempKey3pt.key.npoint[2].irrep.op.ops[1].disp_list);
   
 

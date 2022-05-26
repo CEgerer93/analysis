@@ -18,6 +18,7 @@
     <rest>0 0 0</rest> <!-- lazy me -->
     <pf>0 0 PZ</pf>
     <pi>0 0 PZ</pi>
+    <dispNegate>false</dispNegate>
     <momNegate>false</momNegate> <!-- When forming keys/dbs, include those w/ opposite parity momenta from {pf,pi} -->
     <OpMap>
       <elem><Key>000</Key><Val>NucleonMG1g1MxD0J0S_J1o2_G1g1</Val></elem>

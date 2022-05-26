@@ -40,6 +40,23 @@ namespace LinAlg
     }
   }
 
+  std::ostream& operator<<(std::ostream& os, const gsl_matrix_complex *g)
+  {
+    os << "{";
+    for ( size_t i = 0; i < g->size1; i++ ) {
+      os << "{";
+      for ( size_t j = 0; j < g->size2; j++ )
+	{
+	  std::complex<double> dum(0.0,0.0);
+	  gsl_complex gc = gsl_matrix_complex_get(g,i,j);
+	  dum.real(gc.dat[0]); dum.imag(gc.dat[1]);
+	  os << dum << ", ";
+	}
+      os << "},\n";
+    }
+    return os;
+  }
+
 
   // Form tensor product of two matrices
   gsl_matrix_complex* tensorProd(gsl_matrix_complex *g, gsl_matrix_complex *h)

@@ -11,7 +11,10 @@ namespace Pseudo
   template<typename T> std::ostream& operator<<(std::ostream& os, const std::vector<T>& d);
   /* std::ostream& operator<<(std::ostream& os, const XMLArray::Array<int>& x); */
   template<typename T> std::ostream& operator<<(std::ostream& os, const XMLArray::Array<T>& x);
-  int operator*(const XMLArray::Array<int>& p, const std::vector<int>& d);
+
+  template<typename T1, typename T2>
+    double operator*(const XMLArray::Array<T1>& p, const std::vector<T2>& d);
+
   int operator*(const XMLArray::Array<int>& l, const XMLArray::Array<int>& r);
 
 

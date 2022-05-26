@@ -28,6 +28,7 @@ namespace VarPro
   void varPro::makeY(gsl_vector *data, gsl_matrix *invCov,
 		     std::vector<double> &prior, std::vector<double> &width)
   {
+    int offset = prior.size() - rank; // index in 'prior' at which priors of linear params begin
     for ( int l = 0; l < rank; ++l )
       {
 	double sum(0.0), priorsSum(0.0);
@@ -43,8 +44,11 @@ namespace VarPro
 	// Perform (data)^T \cdot (rMult)
 	gsl_blas_ddot(data,rMult,&sum);
 
-	// Collect the contributions from any priors
-	priorsSum += prior[l]/pow(width[l],2);
+
+	// If doing a Bayesian fit, collect contributions from priors/widths of LINEAR PARAMS!
+	// ...prior/width ignored otherwise
+	if ( bayesianFit )
+	  priorsSum += prior[offset+l]/pow(width[offset+l],2);
 
 	// Now set the l^th entry of Y
 	gsl_vector_set(Y, l, sum+priorsSum);
@@ -57,8 +61,9 @@ namespace VarPro
   /*
     Populate Phi matrix
   */
-  void varPro::makePhi(gsl_matrix *invCov, std::vector<double> prior)
+  void varPro::makePhi(gsl_matrix *invCov, std::vector<double> &width)
   {
+    int offset = width.size() - rank; // index in 'width' at which widths of linear params begin
     for ( int k = 0; k < rank; ++k )
       {
 	// Pull out k^th row of basis function matrix
@@ -77,14 +82,12 @@ namespace VarPro
 	    gsl_blas_ddot(&k_slice.vector,rMult,&sum);
 
 
-	    // Include contributions from priors!!!!!! - only appear on diagonal of Phi matrix
-#if 1
-#warning "Priors ON in Phi construction!"
-	    if ( k == l )
-	      sum += 1.0/pow(prior[k],2);
-#else
-#warning "Priors OFF in Phi construction!"
-#endif
+	    // If doing a Bayesian Fit, include contributions from priors/widths of LINEAR PARAMS!
+	    // ...only appear on diagonal of Phi matrix
+	    // ...prior ignored otherwise
+	    if ( bayesianFit )
+	      if ( k == l )
+		sum += 1.0/pow(width[offset+k],2);
 
 	    // Insert this value into the Phi matrix
 	    gsl_matrix_set(Phi, k, l, sum);

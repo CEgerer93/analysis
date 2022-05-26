@@ -1,6 +1,6 @@
 /*
   Define classes/structs/methods needed to handle matrix element extraction
- 65;6003;1c From adat based correlators; fitting with gsl
+  From adat based correlators; fitting with gsl
 */
 #include "fit_util.h"
 #include "cov_utils.h"
@@ -121,26 +121,13 @@ namespace NFIT
     */
     if ( b->VARPRO )
       {
-	// // Grab all the fitted parameters
-	// std::vector<double> nonLinParam = b->fit.getNonLinParam(x);
-
-#warning "FIX ME! - Priors and widths set to zero in VarPro"
-	// Priors/Widths
-	std::vector<double> prior(x->size,0.0), width(x->size,0.4);
-	prior[0] = 0.5; prior[1] = 1.5;
-	// std::vector<double> prior(nonLinParam.size(),0.0), width(nonLinParam.size(),1.0);
-
 	// Create a VarPro instance
-	VarPro::varPro vp(x->size, subDomain.size());
+	VarPro::varPro vp(x->size, subDomain.size(), b->fit.theFit.bayesianFit);
 	vp.makeBasis(x, subDomain);
-	vp.makeY(dataVec, &(b->covInv), prior, width);
-	vp.makePhi(&(b->covInv), prior);
+	vp.makeY(dataVec, &(b->covInv), b->fit.theFit.priors.prior, b->fit.theFit.priors.width);
+	vp.makePhi(&(b->covInv), b->fit.theFit.priors.width);
 	vp.getInvPhi();
-#if 0
-	std::cout << "Tmp solution from varpro" << std::endl;
-	vp.getSoln();
-	std::cout << vp.soln << std::endl;
-#endif
+
 	// Collect results of data vecs sandwiched btwn inv of data cov
 	// & result of varPro mat/vec ops
 	double dataSum(0.0), varProSum(0.0);
@@ -161,8 +148,25 @@ namespace NFIT
 	gsl_blas_ddot(vp.Y,rightMult,&varProSum);
 	varProSum *= -1;
 
-	for ( int l = 0; l < vp.rank; ++l )
-	  varProSum += pow(prior[l]/width[l],2);
+	// If doing a Bayesian fit, don't forget to include constant contributions
+	// ...coming from priors/widths of LINEAR PARAMS!
+	// ...as well as standard priors/widths of NON-LINEAR PARAMS!
+	if ( b->fit.theFit.bayesianFit )
+	  {
+	    for ( auto it = b->fit.theFit.priors.prior.begin();
+		  it != b->fit.theFit.priors.prior.end(); ++it )
+	      {
+		int idx = std::distance(b->fit.theFit.priors.prior.begin(),it);
+		
+		// Standard priors of non-linear params...
+		if ( idx < x->size )
+		  varProSum += pow(gsl_vector_get(x,idx)-(*it),2)/pow(b->fit.theFit.priors.width[idx],2);
+		// constant contributions of linear params...
+		else
+		  varProSum += pow( (*it)/b->fit.theFit.priors.width[idx],2 );
+	      }
+	  }
+
     
 	/*
 	  Now compute (data)^T x Cov^-1 x (data)
@@ -199,6 +203,19 @@ namespace NFIT
 	// Form the scalar dot product of iDiffVec & result of invCov x jDiffVec
 	gsl_blas_ddot(iDiffVec,invCovRightMult,&chi2);
 
+	// Since VarPro wasn't used, add Gaussian priors if they exist
+	if ( b->fit.theFit.bayesianFit )
+	  {
+	    for ( auto it = b->fit.theFit.priors.prior.begin();
+		  it != b->fit.theFit.priors.prior.end(); ++it )
+	      {
+		int idx = std::distance(b->fit.theFit.priors.prior.begin(), it);
+		
+		chi2 += pow( (gsl_vector_get(x,idx)-(*it))/b->fit.theFit.priors.width[idx], 2);
+	      }
+	  }
+	      
+
 	// Free some memory
 	gsl_vector_free(iDiffVec);
 	gsl_vector_free(jDiffVec);
@@ -223,29 +240,18 @@ namespace NFIT
       numP = c->fit.num;
     //-------------------------------------------------------------------------
 
-
-    // Collect priors & widths
-#warning "FIX ME! - Priors & Widths hard coded"
-    std::vector<double> prior(numP,0.0), width(numP,0.4);
-    prior[0] = 0.5; prior[1] = 1.5;
-
+    // Set starting values & step sizes of each fitted parameter
     gsl_vector *ini = gsl_vector_calloc(numP);
     gsl_vector *step = gsl_vector_alloc(numP);
     for ( int i = 0; i < step->size; ++i )
       {
-	// gsl_vector_set(ini, i, 0.3*(i+1));
-	gsl_vector_set(ini, i, prior[i]);
-	gsl_vector_set(step,i,0.15);
+	gsl_vector_set(ini, i, c->fit.theFit.initFitParams.start[i]); 
+	gsl_vector_set(step,i, c->fit.theFit.initFitParams.step[i]);
       }
-    // gsl_vector_set(ini,0,0.5);
-    // gsl_vector_set(ini,3,2);
-
 
     // Initialize solver
     const gsl_multimin_fminimizer_type *mini = gsl_multimin_fminimizer_nmsimplex2rand;
     gsl_multimin_fminimizer *fmin = gsl_multimin_fminimizer_alloc(mini,numP);
-
-
     
     // Fit each jackknife sample
     for ( std::vector<NCOR::dat_t>::iterator it = c->jack.begin(); it != c->jack.end(); ++it )
@@ -257,11 +263,10 @@ namespace NFIT
 	
 	// Define the gsl_multimin_function
 	gsl_multimin_function F;
-	// Dimension
-	F.n = numP; // num fitted params
-	// Function to minimize
-	F.f = &chi2;
-	F.params = jkFit; // this is a dat_t reference
+	// Set properties of gsl_multimin_function
+	F.n = numP;       // Dimension - num fitted params
+	F.f = &chi2;      // Function to minimize
+	F.params = jkFit; // The data - this is a dat_t reference
 	
 	// Establish initial state for minimizer
 	int stat = gsl_multimin_fminimizer_set(fmin,&F,ini,step);
@@ -269,16 +274,15 @@ namespace NFIT
 	
 	// Tolerance, etc
 	int k = 1;
-	double tolerance = 0.0000001;
-	int maxIters = 10000;
+	double tolerance = c->fit.theFit.initFitParams.tolerance;
+	int maxIters     = c->fit.theFit.initFitParams.maxIters;
 	
 	// Iterate
 	while ( gsl_multimin_test_size( gsl_multimin_fminimizer_size(fmin), tolerance) == GSL_CONTINUE )
 	  {
 	    // End after maxIters
 	    if ( k > maxIters ) { break; }
-	    
-	    // Iterate
+
 	    gsl_multimin_fminimizer_iterate(fmin);
 	    k++;
 	  }
@@ -287,14 +291,9 @@ namespace NFIT
 	gsl_vector *fminBest = gsl_vector_alloc(numP);
 	// Vector to contain non-linear params & constants determined by varpro
 	gsl_vector *finParams = gsl_vector_calloc(c->fit.num);
-	// gsl_vector_set(finParams,0,*&(gsl_vector_get(fminBest,0)));
-	// gsl_vector_set(finParams,finParams->size-1,gsl_vector_get(fminBest,fminBest->size-1));
 
 	gsl_vector_memcpy(fminBest,gsl_multimin_fminimizer_x(fmin));
-	// Return the associated reduced chi2	
-	double chiSq = gsl_multimin_fminimizer_minimum(fmin);
-	chiSq /= ( c->fit.theFit.range.numT() - c->fit.num - c->fit.fitCov.svs[comp] );
-	std::cout << "Chi2 w/ finparams = " << chiSq << std::endl;
+
 
 	/*
 	  If varpro has been used in optimization, form a fresh varPro instance
@@ -322,10 +321,10 @@ namespace NFIT
 	      }
 
 	    // Here is the varPro instance - to get solution vec of constants
-	    VarPro::varPro soln(numP,c->fit.theFit.range.numT());
+	    VarPro::varPro soln(numP,c->fit.theFit.range.numT(),c->fit.theFit.bayesianFit);
 	    soln.makeBasis(fminBest, c->fit.theFit.range.makeDomain());
-	    soln.makeY(dataVec, c->fit.fitCov.inv[comp], prior, width);
-	    soln.makePhi(c->fit.fitCov.inv[comp], prior);
+	    soln.makeY(dataVec, c->fit.fitCov.inv[comp], c->fit.theFit.priors.prior, c->fit.theFit.priors.width);
+	    soln.makePhi(c->fit.fitCov.inv[comp], c->fit.theFit.priors.width);
 	    soln.getInvPhi();
 	    soln.getSoln();
 
@@ -345,6 +344,40 @@ namespace NFIT
 	    gsl_vector_memcpy(finParams, fminBest);
 	  }
 
+
+
+	// Access the cost
+	double cost = gsl_multimin_fminimizer_minimum(fmin);
+	int ndof    = c->fit.theFit.range.numT() - c->fit.num - c->fit.fitCov.svs[comp];
+
+	double ellSq = cost;
+	double chiSq = cost;
+
+	
+	if ( c->fit.theFit.bayesianFit )
+	  {
+	    // Compute the L^2 value
+	    ellSq -= 2*log(1.0/sqrt(2*M_PI));
+	    for ( auto w = c->fit.theFit.priors.width.begin(); w != c->fit.theFit.priors.width.end(); ++w )
+	      ellSq -= 2*log(1.0/(sqrt(2*M_PI)*(*w)));
+	    
+	    // Compute the true Chi^2 value (absent any potential priors)
+	    for ( auto w = c->fit.theFit.priors.width.begin(); w != c->fit.theFit.priors.width.end(); ++w )
+	      {
+		int idx = std::distance(c->fit.theFit.priors.width.begin(),w);
+		chiSq -= pow( (gsl_vector_get(finParams, idx) - c->fit.theFit.priors.prior[idx])/(*w), 2);
+	      }
+	  }
+
+
+	// Return the associated reduced L^2, Chi^2
+	ellSq /= ndof; chiSq /= ndof;
+
+	std::cout << "(L2,Chi2,ndof) w/ finparams = "
+		  << "(" << ellSq << "," << chiSq << "," << ndof << ")" << std::endl;
+
+
+
 	
 	// Print the results of this fit - map each value to correct char param
 	std::map<std::string, double> aFitMap = jkFit->fit.printFit(finParams);
@@ -352,7 +385,12 @@ namespace NFIT
 	
 	for ( auto it = aFitMap.begin(); it != aFitMap.end(); ++it )
 	  c->res.params[it->first].push_back(it->second);
-	c->res.chi2.push_back(chiSq);
+
+	// Whether Chi2 or L^2 are reported
+	if ( c->fit.theFit.bayesianFit )
+	  c->res.chi2.push_back(ellSq);
+	else
+	  c->res.chi2.push_back(chiSq);
 
 
 	gsl_vector_free(fminBest);

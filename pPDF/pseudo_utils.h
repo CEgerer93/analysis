@@ -31,6 +31,8 @@ namespace Pseudo
   // Build an intuitive displacement
   std::vector<int> shortZ(const std::vector<int>& d);
 
+  // Ioffe time evaluation
+  double ioffeTime(const XMLArray::Array<int>& mom, const std::vector<int>& disp, int L);
 
   /*
     Some debugging utilities

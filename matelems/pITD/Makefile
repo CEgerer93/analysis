@@ -1,7 +1,10 @@
 CXX=icpc
 
+EIGEN=/u/home/cegerer/src/eigen
+
 # -DAMPPREFACTORS
-CXXFLAGS=-g -qopenmp -DVERBOSITY=1 -fma -falias -std=c++14 -xAVX -I/dist/gmp-6.0.0/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/adat/include -I/usr/include/libxml2 -I/home/cegerer/analysis/pPDF -I/home/cegerer/analysis/fitting -I/home/cegerer/analysis/linAlg -I/home/cegerer/analysis/kine -I/home/cegerer/analysis/corrUtil -I/u/home/cegerer/gsl-2.6/include -I/u/home/cegerer/hdf5-1.12.1/include
+# NB AVX instructions will cause alignment issues w/ EIGEN objects!
+CXXFLAGS=-g -qopenmp -DVERBOSITY=1 -fma -falias -std=c++14 -I/dist/gmp-6.0.0/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/adat/include -I/usr/include/libxml2 -I/home/cegerer/analysis/pPDF -I/home/cegerer/analysis/fitting -I/home/cegerer/analysis/linAlg -I/home/cegerer/analysis/kine -I/home/cegerer/analysis/corrUtil -I/u/home/cegerer/gsl-2.6/include -I/u/home/cegerer/hdf5-1.12.1/include -I$(EIGEN)
 
 LDFLAGS=-L/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/adat/lib -L/u/home/cegerer/gsl-2.6/lib -L/home/cegerer/analysis/pPDF -L/u/home/cegerer/hdf5-1.12.1/lib
 

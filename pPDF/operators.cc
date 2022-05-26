@@ -33,11 +33,12 @@ namespace Pseudo
   //   return os;
   // }
 
-  // template<typename p, typename d>
-  int operator*(const XMLArray::Array<int>& p, const std::vector<int>& d)
+#warning "FIX ME TEMPLATE!"
+  template<typename T1, typename T2>
+  double operator*(const XMLArray::Array<T1>& p, const std::vector<T2>& d)
   {
 #warning "No elegant check for ioffe time! Only capturing the sign of ioffe time!"
-    int ioffe = p[2]*d[0];
+    double ioffe = p[2]*d[0];
     return ioffe;
   }
 

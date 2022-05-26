@@ -558,6 +558,12 @@ namespace NCOR
 	  } // ti
       } // j
 
+    // for ( int i = 0; i < c->getCfgs(); ++i )
+    //   {
+    // 	for ( int j = 0; j < c->getNt(); ++j )
+    // 	  std::cout << "[" << i << "," << j << "] = " << realDATA[i][j] << std::endl;
+    //   }
+    // exit(800);
 
 
     //--------------------------
@@ -767,7 +773,7 @@ namespace NCOR
   /*
     Writer for extracted amplitudes
   */
-  void writeAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > *A,
+  void writeAmplitudes(std::vector<Eigen::VectorXcd> *A,
 		       Pseudo::global_t *global, fitInfo_t *fitInfo, std::vector<int> *disp)
   {
     Exception::dontPrint(); // silence auto-printing of failures - try/catch to manage them
@@ -810,9 +816,20 @@ namespace NCOR
 
     std::map<std::string, std::vector<std::complex<double> > > amps;
     std::map<int,std::string> ampNames;
-    ampNames[0] = "M"; ampNames[1] = "L";
 
-    for ( int r = 0; r < (*A)[0].rows(); ++r )
+    // Set the amplitude strings from the momenta passed
+    if ( global->pf == global->pi )
+      {
+	// ampNames[0] = "M"; ampNames[1] = "N"; ampNames[2] = "R"; ampNames[3] = "Y";
+	ampNames[0] = "Y"; ampNames[1] = "R";
+      }
+    else
+      {
+	ampNames[0] = "M"; ampNames[1] = "L";
+      }
+    //-----------------------------------------------------------------------------
+
+    for ( int r = 0; r < (*A)[0].size(); ++r )
       {
 	std::vector<std::complex<double> > thisAmp;
 	for ( auto a = A->begin(); a != A->end(); ++a )
