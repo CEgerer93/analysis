@@ -37,29 +37,116 @@
     </OpMap>
   </global>
   <fitting>
+    <!-- <Annotation>FITTING FOR C_2pt(P)</Annotation> -->
     <twoPt>
-      <funcType>t</funcType>
-      <range>
-        <tmin>2PTTmin</tmin>
-        <tstep>1</tstep>
-        <tmax>2PTTmax</tmax>
-      </range>
+      <funcType>TWOSTATE_EXP</funcType>
+      <range><tmin>2PTTmin</tmin><tstep>1</tstep><tmax>2PTTmax</tmax></range>
+      <bayes>true</bayes>
+      <imposeNonLinParamHierarchy>true</imposeNonLinParamHierarchy>
+      <priors>
+	<prior>
+	  <elem><Key>E0</Key><Val>1.1</Val></elem> <!-- 0.75 -->
+	  <elem><Key>E1</Key><Val>1.8</Val></elem>
+	  <elem><Key>a</Key><Val>0.005</Val></elem>
+	  <elem><Key>b</Key><Val>0.005</Val></elem>
+	</prior>
+	<width>
+	  <elem><Key>E0</Key><Val>0.1</Val></elem>
+	  <elem><Key>E1</Key><Val>0.5</Val></elem>
+	  <elem><Key>a</Key><Val>0.25</Val></elem>
+	  <elem><Key>b</Key><Val>0.25</Val></elem>
+	</width>
+      </priors>
+      <minimizerProps>
+        <maxIters>10000</maxIters>
+        <tolerance>0.0000001</tolerance>
+        <start>
+          <elem><Key>E0</Key><Val>0.6</Val></elem>
+          <elem><Key>E1</Key><Val>1.5</Val></elem>
+          <elem><Key>a</Key><Val>0.5</Val></elem>
+          <elem><Key>b</Key><Val>0.5</Val></elem>
+        </start>
+        <step>
+          <elem><Key>E0</Key><Val>0.15</Val></elem>
+          <elem><Key>E1</Key><Val>0.15</Val></elem>
+          <elem><Key>a</Key><Val>0.15</Val></elem>
+          <elem><Key>b</Key><Val>0.15</Val></elem>
+        </step>
+      </minimizerProps>
     </twoPt>
+    <!-- <Annotation>FITTING FOR C_2pt(REST)</Annotation> -->
     <twoPtRest>
-      <funcType>t</funcType>
-      <range>
-        <tmin>2</tmin>
-        <tstep>1</tstep>
-        <tmax>18</tmax>
-      </range>
+      <funcType>TWOSTATE_EXP</funcType>
+      <range><tmin>2PTRESTTmin</tmin><tstep>1</tstep><tmax>18</tmax></range>
+      <bayes>true</bayes>
+      <imposeNonLinParamHierarchy>false</imposeNonLinParamHierarchy>
+      <priors>
+        <prior>
+          <elem><Key>E0</Key><Val>0.535</Val></elem>
+          <elem><Key>E1</Key><Val>1.6</Val></elem>
+          <elem><Key>a</Key><Val>0.5</Val></elem>
+          <elem><Key>b</Key><Val>0.5</Val></elem>
+        </prior>
+        <width>
+          <elem><Key>E0</Key><Val>0.3</Val></elem>
+          <elem><Key>E1</Key><Val>1.0</Val></elem>
+          <elem><Key>a</Key><Val>1.0</Val></elem>
+          <elem><Key>b</Key><Val>1.0</Val></elem>
+        </width>
+      </priors>
+      <minimizerProps>
+        <maxIters>10000</maxIters>
+        <tolerance>0.0000001</tolerance>
+        <start>
+          <elem><Key>E0</Key><Val>0.6</Val></elem>
+          <elem><Key>E1</Key><Val>1.5</Val></elem>
+          <elem><Key>a</Key><Val>0.5</Val></elem>
+          <elem><Key>b</Key><Val>0.5</Val></elem>
+        </start>
+        <step>
+          <elem><Key>E0</Key><Val>0.15</Val></elem>
+          <elem><Key>E1</Key><Val>0.15</Val></elem>
+          <elem><Key>a</Key><Val>0.15</Val></elem>
+          <elem><Key>b</Key><Val>0.15</Val></elem>
+        </step>
+      </minimizerProps>
     </twoPtRest>
+    <!-- <Annotation>FITTING FOR C_3pt(P,P)</Annotation> -->
     <threePt>
-      <funcType>l</funcType>
-      <range>
-        <tmin>3PTTmin</tmin>
-        <tstep>2</tstep>
-        <tmax>3PTTmax</tmax>
-      </range>
+      <funcType>LIN</funcType>
+      <range><tmin>3PTTmin</tmin><tstep>2</tstep><tmax>3PTTmax</tmax></range>
+      <bayes>true</bayes>
+      <imposeNonLinParamHierarchy>false</imposeNonLinParamHierarchy>
+      <priors>
+        <prior>
+          <elem><Key>a</Key><Val>0.0</Val></elem>
+          <elem><Key>b</Key><Val>0.5</Val></elem>
+	  <elem><Key>c</Key><Val>0.0</Val></elem>
+	  <elem><Key>dE</Key><Val>0.5</Val></elem>
+        </prior>
+        <width>
+          <elem><Key>a</Key><Val>2.0</Val></elem>
+          <elem><Key>b</Key><Val>2.0</Val></elem>
+	  <elem><Key>c</Key><Val>5.0</Val></elem>
+	  <elem><Key>dE</Key><Val>2.0</Val></elem>
+        </width>
+      </priors>
+      <minimizerProps>
+        <maxIters>10000</maxIters>
+        <tolerance>0.0000001</tolerance>
+        <start>
+          <elem><Key>a</Key><Val>0.0</Val></elem>
+          <elem><Key>b</Key><Val>1.0</Val></elem>
+	  <elem><Key>c</Key><Val>0.0</Val></elem>
+	  <elem><Key>dE</Key><Val>0.0</Val></elem>
+        </start>
+        <step>
+          <elem><Key>a</Key><Val>0.25</Val></elem>
+          <elem><Key>b</Key><Val>0.25</Val></elem>
+	  <elem><Key>c</Key><Val>0.5</Val></elem>
+	  <elem><Key>dE</Key><Val>0.5</Val></elem>
+        </step>
+      </minimizerProps>
     </threePt>
   </fitting>
   <dbInfo>
