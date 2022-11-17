@@ -12,21 +12,62 @@ using namespace H5;
 using namespace Pseudo;
 using namespace LinAlg;
 
+// Print elements of real-valued gsl_vector
+std::ostream& operator<<(std::ostream& os, const gsl_vector *v)
+{
+  if ( v->size > 0 )
+    {
+      os << gsl_vector_get(v,0);
+      for ( int i = 1; i < v->size; ++i )
+        os << "," << gsl_vector_get(v,i);
+    }
+  return os;
+}
 
-#define gc_rect(r,i) gsl_complex_rect(r,i)
-#define gc_div(n,d) 
+// Print elements of complex-valued gsl_vector
+std::ostream& operator<<(std::ostream& os, const gsl_vector_complex *v)
+{
+  if ( v->size > 0 )
+    {
+      for ( int i = 0; i < v->size; ++i )
+        {
+          for ( int c = 0; c < 2; ++c )
+            os << gsl_vector_complex_get(v,i).dat[c] << " ";
+          if ( i != v->size-1 )
+            os << ", ";
+        }
+    }
+  return os;
+}
 
-/*
-  Common
-*/
-gc zero = gsl_complex_rect(0.0,0.0);
-gc one  = gsl_complex_rect(1.0,0.0);
-gc mone = gsl_complex_rect(-1.0,0.0);
-gc I    = gsl_complex_rect(0.0,1.0);
-gc mI   = gsl_complex_rect(0.0,-1.0);
 
-const double PI = 3.1415926535897931;
-const std::complex<double> _I_(0.0,1.0);
+// Print elements of real-valued gsl_matrix
+std::ostream& operator<<(std::ostream& os, const gsl_matrix * m)
+{
+  int r, c;
+  for ( r = 0; r < m->size1; ++r )
+    {
+      os << "\n";
+      for ( c = 0; c < m->size2; ++c )
+	os << gsl_matrix_get(m,r,c) << ", ";
+    }
+  return os;
+}
+
+// Print elements of complex-valued gsl_matrix
+std::ostream& operator<<(std::ostream& os, const gsl_matrix_complex * m)
+{
+  int r, c;
+  for ( r = 0; r < m->size1; ++r )
+    {
+      os << "\n";
+      for ( c = 0; c < m->size2; ++c )
+	os << "[" << GSL_REAL(gsl_matrix_complex_get(m,r,c)) << ", "
+	   << GSL_IMAG(gsl_matrix_complex_get(m,r,c)) << "] ";
+    }
+	
+  return os;
+}
 
 //! Zero out bits of a complex number - n.b. not in an adat header
 std::complex<double> zeroComplex(const std::complex<double>& w)
@@ -273,8 +314,10 @@ std::complex<double> polVec_t::eval(gsl_vector_complex * left, gsl_vector_comple
 
   // Multiply \gamma^4\gamma^\mu
   gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,g4.gamma,d.gamma,zero,matProd1);
+  // gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,g4.gamma,g5.gamma,zero,matProd1);
   // Right multiply by \gamma^5
   gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,matProd1,g5.gamma,zero,matProd2);
+  // gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,matProd1,d.gamma,zero,matProd2);
   // Matrix vector product (gamma's right mult'd by right spinor)
   gsl_blas_zgemv(CblasNoTrans,one,matProd2,right,zero,matVec);
   // Inner product of left^\dagger & (gammas * right product)
@@ -453,9 +496,81 @@ std::complex<double> utu_t::eval(gsl_vector_complex * left, gsl_vector_complex *
 
 //==============================================================================================
 /*
+  kinMatPDF_t methods
+*/
+void kinMatPDF_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini)
+{
+  if ( mu != 4 )
+    {
+      std::cout << "Sigma^{mu*} for mu = " << mu << " is unsupported" << std::endl;
+      exit(3);
+    }
+
+  if ( fin->getL() != ini->getL() )
+    {
+      std::cerr << "Big problem: initial/final state spinors have different L's!" << std::endl;
+      exit(4);
+    }
+
+  if ( fin->getMom() != ini->getMom() )
+    {
+      std::cerr << "kinMatPDF_t expects initial/final state spinors of equal momenta!" << std::endl;
+      exit(4);
+    }
+
+  // The spinor contraction w/ \gamma_\mu
+  ugu_t ugu(mu,MINK);
+
+  // Map the rows of spinor at snk/src to rows of gmc matrix
+  std::map<int, std::pair<int,int> > rowMap;
+
+  // Forward case we only need two row combinations - diagonals!
+  rowMap[0] = std::make_pair(fin->getTwoJ(),ini->getTwoJ());
+  rowMap[1] = std::make_pair(-fin->getTwoJ(),-ini->getTwoJ());
+  
+  for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
+    {
+      std::complex<double> foo(0.0,0.0);
+      foo = ugu.eval(&(fin->subduced.twoJz[r->second.first]),
+		     &(ini->subduced.twoJz[r->second.second]));
+
+      mat(r->first,0) = zeroComplex(foo);
+      foo = std::complex<double>(0.0,0.0);
+
+      // Sigma is in fact not needed. Should evaluate to zero from qrho = 0 below
+      for ( int nu = 1; nu <= 4; ++nu )
+	{
+	  utu_t sig(mu,nu,MINK);
+
+	  for ( int rho = 1; rho <= 4; ++rho )
+	    {
+	      double qrho(0.0);
+
+	      if ( rho == 4 )
+		qrho = ( fin->getE() - ini->getE() );
+	      else
+		qrho = ( (2*PI/fin->getL())*( fin->getMom()[rho-1] - ini->getMom()[rho-1] ) );
+
+	      foo += sig.eval(&(fin->subduced.twoJz[r->second.first]),
+			      &(ini->subduced.twoJz[r->second.second]))*metric(nu%4,rho%4)*qrho;
+	    } // rho
+	} // nu
+
+      // Scale by (I/2m)
+      foo *= std::complex<double>(0.0,1.0/(2*mass));
+
+      mat(r->first,1) = zeroComplex(foo);      
+    } // auto r
+}
+//==============================================================================================
+
+
+//==============================================================================================
+/*
   kinMat_t methods
 */
-void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini)
+void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
+			const std::vector<int> &disp)
 {
   if ( mu != 4 )
     {
@@ -472,11 +587,10 @@ void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini
   // The spinor contraction w/ \gamma_\mu
   ugu_t ugu(mu,MINK);
 
-  // // The spinor contraction w/ identity
-  // u1u_t u1u(MINK);
-
-  // Map the fin/ini rows to rows of set gmc matrix
+  // Map the rows of spinor at snk/src to rows of gmc matrix
   std::map<int, std::pair<int,int> > rowMap;
+
+  // Off-forward case we need all four row combinations
   rowMap[0] = std::make_pair(fin->getTwoJ(),ini->getTwoJ());
   rowMap[1] = std::make_pair(fin->getTwoJ(),-ini->getTwoJ());
   rowMap[2] = std::make_pair(-fin->getTwoJ(),ini->getTwoJ());
@@ -484,42 +598,85 @@ void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini
 
   for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
     {
-      // Use foo to collect spinor contractions w/ gamma and sigma
-      std::complex<double> foo = ugu.eval(&(fin->subduced.twoJz[r->second.first]),
-      					  &(ini->subduced.twoJz[r->second.second]));
+      std::complex<double> foo(0.0,0.0);
+      foo = ugu.eval(&(fin->subduced.twoJz[r->second.first]),
+		     &(ini->subduced.twoJz[r->second.second]));
 
-      // // ...If we use scalar
-      // std::complex<double> foo = u1u.eval(&(fin->subduced.twoJz[r->second.first]),
-      // 					  &(ini->subduced.twoJz[r->second.second]));
-      // foo *= ( (1/(2*mass))*(fin->getE()+ini->getE()) );
-      // // ...if we use scalar
+      mat(r->first,0) = zeroComplex(foo);
+      foo = std::complex<double>(0.0,0.0);
 
-
-      mat(r->first,0) = foo;
-
-
-      foo = 0.0;
-      // Loop over Lorentz indices != mu
       for ( int nu = 1; nu <= 4; ++nu )
 	{
-	  if ( nu == mu )
-	    continue;
-	  else
-	    {
-	      utu_t sig(mu,nu,MINK); // get this sigma^{\mu\nu}
-	  
-	      foo += sig.eval(&(fin->subduced.twoJz[r->second.first]),
-			      &(ini->subduced.twoJz[r->second.second]))*
-		(2*PI/fin->getL())*( ini->getMom()[nu-1] - fin->getMom()[nu-1] );
-	    }
-	}
-      // Scale foo by (-I/(2m))
-      // foo *= (-1.0/(2*mass))*std::complex_literals::i;
-      foo *= std::complex<double>(0,-1.0/(2*mass));
+	  utu_t sig(mu,nu,MINK);
 
+	  for ( int rho = 1; rho <= 4; ++rho )
+	    {
+	      double qrho(0.0);
+
+	      if ( rho == 4 )
+		qrho = ( fin->getE() - ini->getE() );
+	      else
+		qrho = ( (2*PI/fin->getL())*( fin->getMom()[rho-1] - ini->getMom()[rho-1] ) );
+
+	      foo += sig.eval(&(fin->subduced.twoJz[r->second.first]),
+			      &(ini->subduced.twoJz[r->second.second]))*metric(nu%4,rho%4)*qrho;
+	    } // rho
+	} // nu
+
+      // Scale by (I/2m)
+      foo *= std::complex<double>(0.0,1.0/(2*mass));
+
+      mat(r->first,1) = zeroComplex(foo);
+
+
+      /*
+	Mon. Oct. 24, 2022 - Explore adding in a q^\mu term
+      */
+      foo = std::complex<double>(0.0,0.0);
+
+      // The spinor contraction w/ identity
+      u1u_t u1u(MINK);
+
+      foo = u1u.eval(&(fin->subduced.twoJz[r->second.first]),
+		     &(ini->subduced.twoJz[r->second.second]));
       
-      // gsl_matrix_complex_set(mat,r->first,1,gc_rect(foo.real(),foo.imag()));
-      mat(r->first,1) = foo;
+      if ( mu == 4 )
+	foo *= ( fin->getE() - ini->getE() );
+      else
+	foo *= ( (2*PI/fin->getL())*( fin->getMom()[mu] - ini->getMom()[mu] ) );
+      // Rescale by 1/2m so energy dimensions agree
+      foo *= std::complex<double>(-1.0/mass,0.0); // "-" so we have (p1 - p2)
+
+      mat(r->first,2) = zeroComplex(foo);
+
+
+      /*
+	Tues. Oct. 25, 2022 - Explore adding in a im\sigma^{\mu\nu}z_\nu term
+      */
+      // Dead in the water --> Need eight matrix elements to constrain!
+      foo = std::complex<double>(0.0,0.0);
+
+      for ( int nu = 1; nu <= 4; ++nu )
+	{
+	  utu_t sig(mu,nu,MINK);
+	  for ( int rho = 1; rho <= 4; ++rho )
+	    {
+	      double zrho(0.0);
+
+	      if ( rho == 4 )
+		zrho = 0.0;
+	      else
+		zrho = disp[rho-1];
+
+	      foo += sig.eval(&(fin->subduced.twoJz[r->second.first]),
+			      &(ini->subduced.twoJz[r->second.second]))*metric(rho%4,nu%4)*zrho;
+	    } // rho
+	} //nu
+      
+      // Scale by (I*m)
+      foo *= std::complex<double>(0.0,1.0*mass);
+
+      mat(r->first,3) = zeroComplex(foo);
     } // auto r
 }
 //==============================================================================================
@@ -534,17 +691,17 @@ void kinMat3_t::assemble(int mu, bool MINK, double mass, Spinor *s, const std::v
 
   // Map the rows of spinor at snk/src to rows of gmc matrix
   std::map<int, std::pair<int,int> > rowMap;
-  // rowMap[0] = std::make_pair(s->getTwoJ(),s->getTwoJ());
-  // rowMap[1] = std::make_pair(s->getTwoJ(),-s->getTwoJ());
-  // rowMap[2] = std::make_pair(-s->getTwoJ(),s->getTwoJ());
-  // rowMap[3] = std::make_pair(-s->getTwoJ(),-s->getTwoJ());
+  rowMap[0] = std::make_pair(s->getTwoJ(),s->getTwoJ());
+  rowMap[1] = std::make_pair(s->getTwoJ(),-s->getTwoJ());
+  rowMap[2] = std::make_pair(-s->getTwoJ(),s->getTwoJ());
+  rowMap[3] = std::make_pair(-s->getTwoJ(),-s->getTwoJ());
 
 #if 0
   // For vector insertions
   rowMap[0] = std::make_pair(s->getTwoJ(),s->getTwoJ());
   rowMap[1] = std::make_pair(-s->getTwoJ(),-s->getTwoJ());
 #endif
-#if 1
+#if 0
   // For axial insertions
   if ( shortMom(s->getMom(),"") == "000" )
     {
@@ -559,30 +716,18 @@ void kinMat3_t::assemble(int mu, bool MINK, double mass, Spinor *s, const std::v
 #endif
 
 
-  double pref = 0.5; // 2
-
-#if 0
-  ugu_t ugu(4,true);
-#endif
+  double pref = 1.0;
 
   for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
     {
-      
-#if 0
-      std::complex<double> foo(pref*ugu.eval(&(s->subduced.twoJz[r->second.first]),
-					     &(s->subduced.twoJz[r->second.second])));
-      mat(r->first,0) = foo;
-
-      foo = 0.0;
-      mat(r->first,1) = foo;
-#endif
 #if 1
       // Use foo to collect spinor contractions
-      std::complex<double> foo(-pref*mass*S.eval(&(s->subduced.twoJz[r->second.first]),
-      						 &(s->subduced.twoJz[r->second.second]),mass));
+      std::complex<double> foo(pref*mass*S.eval(&(s->subduced.twoJz[r->second.first]),
+						&(s->subduced.twoJz[r->second.second]),mass));
 
       // Mat[*,0] = -1*<<gamma^mu gamma^5>>
-      mat(r->first,0) = foo*_I_;
+      mat(r->first,0) = foo*std::complex<double>(0.0,-1.0); // _I_;
+      // mat(r->first,0) = foo;
 
       foo = 0.0;
       // Loop over Lorentz indices to compute z_nu \cdot <<gamma^nu\gamma^5>>
@@ -591,16 +736,133 @@ void kinMat3_t::assemble(int mu, bool MINK, double mass, Spinor *s, const std::v
 	{
 	  polVec_t tmpS(nu,MINK);
 
-	  foo -= tmpS.eval(&(s->subduced.twoJz[r->second.first]),
-			   &(s->subduced.twoJz[r->second.second]),mass)*disp[nu-1]*_I_;
+	  foo += tmpS.eval(&(s->subduced.twoJz[r->second.first]),
+			   &(s->subduced.twoJz[r->second.second]),mass)*disp[nu-1]; //*_I_;
 	}
 
       // Mat[*,1] = 2 m^3 z^mu (z_nu \cdot <<gamma^nu\gamma^5>>)
-      mat(r->first,1) = pref*pow(mass,3)*disp[mu-1]*foo;
+      // mat(r->first,1) = pref*pow(mass,3)*disp[mu-1]*foo;
+      mat(r->first,1) = pref*pow(mass,3)*disp[mu-1]*foo*std::complex<double>(0.0,-1.0);
 #endif
     } // auto r
 }
 //=========
+
+
+void kinMat3_t::assembleBig(int mu, bool MINK, double mass, Spinor *s, const std::vector<int> &disp)
+{
+  // The polarization vector associated with mu
+  polVec_t S(mu,MINK);
+
+  // Map the rows of spinor at snk/src to rows of gmc matrix
+  std::map<int, std::pair<int,int> > rowMap;
+  rowMap[0] = std::make_pair(s->getTwoJ(),s->getTwoJ());
+  rowMap[1] = std::make_pair(s->getTwoJ(),-s->getTwoJ());
+  rowMap[2] = std::make_pair(-s->getTwoJ(),s->getTwoJ());
+  rowMap[3] = std::make_pair(-s->getTwoJ(),-s->getTwoJ());
+
+  std::complex<double> prefactor(0.0,0.0);
+  std::complex<double> polVecEval(0.0,0.0);
+
+  for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
+    {
+      polVecEval = S.eval(&(s->subduced.twoJz[r->second.first]),
+			  &(s->subduced.twoJz[r->second.second]),mass);
+      
+      mat(r->first,0) = zeroComplex(polVecEval*std::complex<double>(-2*mass,0.0));
+      
+
+      // Reset
+      polVecEval = std::complex<double>(0.0,0.0);
+      // Loop over Lorentz indices to compute z_\nu \cdot <<gamma^nu\gamma^5>>
+      for ( int nu = 1; nu < 4; ++nu )
+	{
+	  std::complex<double> foo;
+	  polVec_t tmpS(nu,MINK);
+	  
+	  foo = tmpS.eval(&(s->subduced.twoJz[r->second.first]),
+			  &(s->subduced.twoJz[r->second.second]),mass);
+
+	  for ( int rho = 1; rho <= 4; ++rho )
+	    polVecEval += metric(nu%4,rho%4)*disp[rho-1]*foo;
+	}
+
+      double pMu = ( mu < 4 ) ? s->getMom()[mu-1] : s->getE();
+
+      mat(r->first,1) = zeroComplex(polVecEval*std::complex<double>(0.0,-2*mass*pMu));
+      mat(r->first,2) = zeroComplex(polVecEval*std::complex<double>(2*pow(mass,3)*disp[mu-1]));
+    } // auto r
+}
+
+
+/*
+  ffMat_t methods
+*/
+void ffMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini)
+{
+  // Prefactor
+  double pref = 1.0;
+  // Generic
+  ugu_t ff1 = ugu_t(mu,MINK);
+
+  // // Scalar current selected
+  // if ( gamma == 0 )
+  //   ff1 = u1u_t(MINK);
+  // // Vector current selected
+  // else if ( gamma == 1 || gamma == 2 || gamma == 4 || gamma == 8 )
+  //   ff1 = ugu_t(mu,MINK);
+  // // Axial current selected
+  // else if ( gamma == 7 || gamma == 11 || gamma == 13 || gamma == 14 )
+  //   ff1 = polVec_t(mu,MINK);
+
+
+  // Map the rows of spinor at snk/src to rows of gmc matrix
+  std::map<int, std::pair<int,int> > rowMap;
+  rowMap[0] = std::make_pair(fin->getTwoJ(),ini->getTwoJ());
+  rowMap[1] = std::make_pair(fin->getTwoJ(),-ini->getTwoJ());
+  rowMap[2] = std::make_pair(-fin->getTwoJ(),ini->getTwoJ());
+  rowMap[3] = std::make_pair(-fin->getTwoJ(),-ini->getTwoJ());
+
+  // Iterate over rowMap pairs and assemble the kinematic matrix
+  for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
+    {
+      std::complex<double> foo(0.0,0.0);
+      foo = pref*ff1.eval(&(fin->subduced.twoJz[r->second.first]),
+			  &(ini->subduced.twoJz[r->second.second]));
+
+      mat(r->first,0) = zeroComplex(foo);
+      foo = std::complex<double>(0.0,0.0);
+
+      for ( int nu = 1; nu <= 4; ++nu )
+	{
+	  utu_t ff2(mu,nu,MINK);
+
+	  for ( int rho = 1; rho <= 4; ++rho )
+	    {
+	      double qrho(0.0);
+	      
+	      if ( rho == 4 )
+		qrho = ( fin->getE() - ini->getE() );
+	      else
+		qrho = ( (2*PI/fin->getL())*( fin->getMom()[rho-1] - ini->getMom()[rho-1] ) );
+
+
+	      foo += ff2.eval(&(fin->subduced.twoJz[r->second.first]),
+			      &(ini->subduced.twoJz[r->second.second]))*metric(nu%4,rho%4)*qrho;
+	    } // rho
+	} //nu
+
+      // Scale by (I/2m)
+      foo *= std::complex<double>(0.0,1.0/(2*mass));
+
+      mat(r->first,1) = zeroComplex(foo);
+    } // auto r	  
+}
+
+// void ffMat_t::assemble(int mu, int nu, bool MINK, double mass, Spinor *s)
+// {
+//   auto ff1 = utu_t(mu,nu,MINK);
+// }
 
 //**********************************************************************************************
 /*
@@ -631,20 +893,106 @@ void Spinor::buildSpinors()
 {
   // Canonical momentum is |\vec{p}| in +z-direction
   XMLArray::Array<double> canonMom(3);
-  canonMom[0]=0; canonMom[1]=0; canonMom[2]=absMom();
+  canonMom[0]=0.0; canonMom[1]=0.0; canonMom[2]=absMom();
 
   // Start by building absolute & canonical spinors: u(\vec{p},s) u(|\vec{p}|\hat{z},s)
   absolute.build(mom,E,m,L);
   canon.build(canonMom,E,m,L);
 
+  // // Build helicity spinors by applying Euler rotations to upper/lower comps. of canon spinors
+  // helicity = canon;
+
+
+  std::cout << "Canonical spinors(1): " << &canon.twoJz[1] << std::endl;
+  std::cout << "Canonical spinors(2): " << &canon.twoJz[-1] << std::endl;
+  // Interate over both twoJz components of helicity spinor
+  for ( int i = twoJ; i >= -twoJ; i -= subductInfo.irrep_dim )
+    {
+      gsl_vector_complex_view sliceUp   = gsl_vector_complex_subvector(&canon.twoJz[i],0,2);
+      gsl_vector_complex_view sliceDown = gsl_vector_complex_subvector(&canon.twoJz[i],2,2);
+      gvc * up   = gsl_vector_complex_calloc(2);
+      gvc * down = gsl_vector_complex_calloc(2);
+      // gsl_vector_complex_memcpy(up,&sliceUp.vector);
+      // gsl_vector_complex_memcpy(down,&sliceDown.vector);
+      
+      // Left-mult upper/lower components of this twoJz spinor by Euler rotation matrix
+      gsl_blas_zgemv(CblasNoTrans,one,eulerRot,&sliceUp.vector,one,up);
+      gsl_blas_zgemv(CblasNoTrans,one,eulerRot,&sliceDown.vector,one,down);
+
+      // Concatenate up/down pieces to form 4-component helicity spinor
+      gvc * hel = gsl_vector_complex_calloc(4);
+      gsl_vector_complex_set(hel,0,gsl_vector_complex_get(up,0));
+      gsl_vector_complex_set(hel,1,gsl_vector_complex_get(up,1));
+      gsl_vector_complex_set(hel,2,gsl_vector_complex_get(down,0));
+      gsl_vector_complex_set(hel,3,gsl_vector_complex_get(down,1));
+
+      // Pack and insert
+      // helicity.twoJz[i] = *hel;
+      std::pair<int, gvc> helSpinor(i,*hel);
+      helicity.twoJz.insert(helSpinor);
+    } // i
+  // Now have helicity spinors
+
+
+  std::cout << "Helicity spinors(1): " << &helicity.twoJz[1] << std::endl;
+  std::cout << "Helicity spinors(2): " << &helicity.twoJz[-1] << std::endl;
+
 #if 1
-  LinAlg::printMat(wig);
+#warning "Packing full spinor"
+#else
+#warning "Packing non-relativistic spinor"
+
+  gsl_vector_complex * goo = gsl_vector_complex_calloc(4);
+  // gsl_vector_complex * toIns = gsl_vector_complex_alloc(4);
+  // gsl_vector_complex_memcpy(toIns,&helicity.twoJz[1]);
+  gsl_vector_complex_memcpy(goo,&helicity.twoJz[1]);
+
+  gmc * ID4d = gsl_matrix_complex_calloc(4,4); gsl_matrix_complex_set_identity(ID4d);
+  gmc * nrelProj = gsl_matrix_complex_calloc(4,4);
+  gsl_matrix_complex_set_identity(nrelProj);
+
+  diracMat_t dd(4,true);
+
+  gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,half,dd.gamma,ID4d,half,nrelProj);
+
+  // Now left-mult the non-relativistic projector onto spinor
+  gsl_blas_zgemv(CblasNoTrans,one,nrelProj,goo,zero,&helicity.twoJz[1]);
+
+  
+  gsl_vector_complex_memcpy(goo,&helicity.twoJz[-1]);
+  gsl_blas_zgemv(CblasNoTrans,one,nrelProj,goo,zero,&helicity.twoJz[-1]);
+#endif
+
+
+
+
+  gvc * subSpinor = gsl_vector_complex_calloc(4);
+  gsl_blas_zaxpy(gsl_matrix_complex_get(coeffS,0,1),&helicity.twoJz[-1],subSpinor);
+  gsl_blas_zaxpy(gsl_matrix_complex_get(coeffS,0,0),&helicity.twoJz[1],subSpinor);
+
+  std::pair<int, gvc> subIns(1,*subSpinor);
+  subduced.twoJz.insert(subIns);
+
+
+  gvc * subSpinor2 = gsl_vector_complex_calloc(4);
+  gsl_blas_zaxpy(gsl_matrix_complex_get(coeffS,1,1),&helicity.twoJz[-1],subSpinor2);
+  gsl_blas_zaxpy(gsl_matrix_complex_get(coeffS,1,0),&helicity.twoJz[1],subSpinor2);
+  subIns = std::make_pair(-1,*subSpinor2);
+  subduced.twoJz.insert(subIns);
+
+  std::cout << "Subduced spinors(1): " << &subduced.twoJz[1] << std::endl;
+  std::cout << "Subduced spinors(2): " << &subduced.twoJz[-1] << std::endl;
+
+  // gsl_vector_complex_free(subSpinor);
+  // gsl_vector_complex_free(subSpinor2);
+
+
+#if 0
   LinAlg::printMat(coeffS);
 
   // Build subduced spinor from canonical spinor
   gmc * prod = gsl_matrix_complex_calloc(subductInfo.irrep_dim,twoJ+1);
-  // gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,coeffS,wig,zero,prod);
-  gsl_blas_zgemm(CblasConjTrans,CblasConjTrans,one,coeffS,wig,zero,prod);
+  gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,coeffS,eulerRot,zero,prod);
   LinAlg::printMat(prod);
   for ( int i = twoJ; i >= -twoJ; i -= subductInfo.irrep_dim )
     {
@@ -667,26 +1015,16 @@ void Spinor::buildSpinors()
       gsl_vector_complex_memcpy(fooDown,tmpDown);
 
 
+      // Left mult. product of Subduction/spin=1/2 Euler rotation matrix onto upper/lower components
       gsl_blas_zgemv(CblasNoTrans,one,prod,fooUp,zero,tmpUp);
       gsl_blas_zgemv(CblasNoTrans,one,prod,fooDown,zero,tmpDown);
 
-      // // gsl_vector_complex_memcpy(dum,&up.vector);
-
-      // // L-mult up.vector by Subduction/Wigner-D product
-      // gsl_blas_zgemv(CblasNoTrans,one,prod,dum,zero,&up.vector);
-
-      // // Hold down.vector
-      // gsl_vector_complex_memcpy(dum,&down.vector);
-      // // L-muly down.vector by Subduction/Wigner-D product
-      // gsl_blas_zgemv(CblasNoTrans,one,prod,dum,zero,&down.vector);
-      
+     
 #if 0
       std::cout << "\nup view check: size = " << up.vector.size << std::endl;
-      for ( auto j = 0; j < up.vector.size; ++j )
-	std::cout << gsl_vector_complex_get(&up.vector,j).dat[0] << " " << gsl_vector_complex_get(&up.vector,j).dat[1] << " ";
-      std::cout << "\ndown view check" << std::endl;
-      for ( auto j = 0; j < down.vector.size; ++j )
-      	std::cout << gsl_vector_complex_get(&down.vector,j).dat[0] << " " << gsl_vector_complex_get(&down.vector,j).dat[1] << " ";
+      std::cout << &up.vector << std::endl;
+      std::cout << "\ndown view check: size = " << down.vector.size << std::endl;
+      std::cout << &down.vector << std::endl;
       std::cout << "\n";
       exit(1000);
 #endif
@@ -702,13 +1040,15 @@ void Spinor::buildSpinors()
       gsl_vector_complex * toIns = gsl_vector_complex_alloc(4);
       gsl_vector_complex_memcpy(toIns,foo);
 
+      std::cout << "Inserted spinor = " << toIns << std::endl;
+
       std::pair<int, gvc> aSubducedSpinor(i,*toIns);
       subduced.twoJz.insert(aSubducedSpinor); // [i] = *foo;
       // gsl_vector_complex_memcpy(&subduced.twoJz[i],foo);
 
       gsl_vector_complex_free(foo);
 #endif
-    }
+    } // end i
 #endif
 } // buildSpinors
 
@@ -720,25 +1060,18 @@ void Spinor::initSubduce(const std::string& opName)
   coeffS = gsl_matrix_complex_calloc(subductInfo.irrep_dim,twoJ+1);
   
 
-  // Build the Wigner-D
-  for ( int i = 0; i < subductInfo.irrep_dim; ++i )
-    {
-      int twoJz_i = pow((-1),i);
-      for ( int j = 0; j < subductInfo.irrep_dim; ++j )
-	{
-	  int twoJz_j = pow((-1),j);
-	  gsl_matrix_complex_set(wig,i,j,gc_rect(Hadron::Wigner_D(twoJ,twoJz_i,twoJz_j,rot.alpha,rot.beta,rot.gamma).real(),
-						 Hadron::Wigner_D(twoJ,twoJz_i,twoJz_j,rot.alpha,rot.beta,rot.gamma).imag()));
-	}
-    }
-  // for ( int i = twoJ; i >= -twoJ; i -= subduce.irrep_dim )
+  // // Build the Wigner-D
+  // for ( int i = 0; i < subductInfo.irrep_dim; ++i )
   //   {
-  //     for ( int j = twoJ; j >= -twoJ; j -= subduce.irrep_dim )
-  // 	gsl_matrix_complex_set(wig,i,j,gc_rect(Hadron::Wigner_D(twoJ,i,j,rot.alpha,
-  // 								rot.beta,rot.gamma).real(),
-  // 					       Hadron::Wigner_D(twoJ,i,j,rot.alpha,
-  // 								rot.beta,rot.gamma).imag()));
+  //     int twoJz_i = pow((-1),i);
+  //     for ( int j = 0; j < subductInfo.irrep_dim; ++j )
+  // 	{
+  // 	  int twoJz_j = pow((-1),j);
+  // 	  gsl_matrix_complex_set(wig,i,j,gc_rect(Hadron::Wigner_D(twoJ,twoJz_i,twoJz_j,rot.alpha,rot.beta,rot.gamma).real(),
+  // 						 Hadron::Wigner_D(twoJ,twoJz_i,twoJz_j,rot.alpha,rot.beta,rot.gamma).imag()));
+  // 	}
   //   }
+
 
   // Build the subduction matrix
   for ( int row = 1; row <= subductInfo.irrep_dim; ++row )
@@ -759,44 +1092,70 @@ void Spinor::initSubduce(const std::string& opName)
 /*
   EXTRACT INVARIANT AMPLITUDES USING (IN GENERAL) AN SVD DECOMPOSITION
 */
+// //--------- Unpol. PDF */
+// void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT,
+// 		   std::vector<kinMat_t> * KIN,
+// 		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP)
+//--------- Unpol. GPD
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
 		   std::vector<kinMat_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * AMP)
+{
+  for ( auto a = AMP->begin(); a != AMP->end(); ++a )
+    {
+      int idx = std::distance(AMP->begin(),a);
+      Eigen::JacobiSVD<Eigen::MatrixXcd> SVD((*KIN)[idx].mat,
+					     Eigen::ComputeFullU | Eigen::ComputeFullV);
+#ifdef PRINT_SVS
+      std::cout << "      --> singular values = " << SVD.singularValues() << std::endl;
+#endif
+      // SVD.matrixU();
+      // SVD.matrixV();
+
+      // Solution of SVD to AMP
+      *a = SVD.solve((*MAT)[idx]);
+    } // a
+}
+
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
+		   std::vector<kinMat3_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP)
+// void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT,
+// 		   std::vector<kinMat3_t> * KIN,
+// 		   std::vector<Eigen::Vector2cd> * AMP)
+{
+  for ( auto a = AMP->begin(); a != AMP->end(); ++a )
+    {
+      int idx = std::distance(AMP->begin(),a);
+      Eigen::JacobiSVD<Eigen::MatrixXcd> SVD((*KIN)[idx].mat,
+					     Eigen::ComputeFullU | Eigen::ComputeFullV);
+#ifdef PRINT_SVS
+      std::cout << "      --> singular values = " << SVD.singularValues() << std::endl;
+#endif
+
+      // Solution of SVD to AMP
+      *a = SVD.solve((*MAT)[idx]);
+    } // a
+}
+
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
+		   std::vector<ffMat_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP)
 {
   for ( auto a = AMP->begin(); a != AMP->end(); ++a )
     {
       int idx = std::distance(AMP->begin(),a);
       Eigen::JacobiSVD<Eigen::MatrixXcd> SVD((*KIN)[idx].mat,
-					     Eigen::ComputeFullU | Eigen::ComputeFullV);
-      // SVD.singularValues();
-      // SVD.matrixU();
-      // SVD.matrixV();
-
-      // // Solve
-      // SVD.solve((*MAT)[idx]);
+      					     Eigen::ComputeFullU | Eigen::ComputeFullV);
+#ifdef PRINT_SVS
+      std::cout << "      --> singular values = " << SVD.singularValues() << std::endl;
+#endif
 
       // Solution of SVD to AMP
       *a = SVD.solve((*MAT)[idx]);
     } // a
 }
 
-// void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
-// 		   std::vector<kinMat3_t> * KIN,
-// 		   std::vector<Eigen::Matrix<std::complex<double>, 3, 1> > * AMP)
-void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT,
-		   std::vector<kinMat3_t> * KIN,
-		   std::vector<Eigen::Vector2cd> * AMP)
-{
-  for ( auto a = AMP->begin(); a != AMP->end(); ++a )
-    {
-      int idx = std::distance(AMP->begin(),a);
-      Eigen::JacobiSVD<Eigen::MatrixXcd> SVD((*KIN)[idx].mat,
-					     Eigen::ComputeFullU | Eigen::ComputeFullV);
-
-      // Solution of SVD to AMP
-      *a = SVD.solve((*MAT)[idx]);
-    } // a
-}
 
 void writePrefactor(int npt, int mu, int cfgs, const XMLArray::Array<int> &mom, std::string strRoot,
 		    std::vector<std::complex<double> > &P)

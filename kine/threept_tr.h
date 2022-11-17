@@ -8,8 +8,8 @@
 
 #include<string>
 #include<vector>
-#include<complex>
 #include<math.h>
+#include<complex>
 #include "io/adat_xmlio.h"
 #include "operators.h"
 #include<gsl/gsl_blas.h>
@@ -33,17 +33,17 @@
 
 #include "cov_utils.h"
 #include "pseudo_utils.h"
+#include "rotations.h"
+#include "shortcuts_gsl.h"
 
 using namespace Pseudo;
-using namespace std::complex_literals;
+/* using namespace std::complex_literals; */
 
-/*
-  Shortcuts
-*/
-typedef gsl_matrix_complex gmc;
-typedef gsl_vector_complex gvc;
-typedef gsl_complex        gc;
 
+std::ostream& operator<<(std::ostream& os, const gsl_vector * v);
+std::ostream& operator<<(std::ostream& os, const gsl_vector_complex * v);
+std::ostream& operator<<(std::ostream& os, const gsl_matrix * m);
+std::ostream& operator<<(std::ostream& os, const gsl_matrix_complex * m);
 
 std::complex<double> zeroComplex(const std::complex<double>& w);
 
@@ -123,6 +123,15 @@ struct projector_t
 };
 
 
+
+const Eigen::Matrix4i metric
+{ {1, 0, 0, 0}, {0, -1, 0, 0}, {0, 0, -1, 0}, {0, 0, 0, -1} };
+
+/* struct metric_t */
+/* { */
+/*   Eigen::Matrix4i m; */
+/*   m(0,0) = 1; m(1,1) = -1; m(2,2) = -1; m(3,3) = -1; */
+/* } metric; */
 
 struct pauli_t
 {
@@ -255,14 +264,14 @@ class Spinor
   // Subduction information
   subduceInfo subductInfo;
 
-  // Wigner-D
-  gmc * wig;
+  // Euler Rotation for spin=1/2
+  gmc * eulerRot;
   
   // Subduction coefficients
   gmc * coeffS;
 
  public:
-  spinor_t canon, subduced, absolute;
+  spinor_t absolute, canon, helicity, subduced;
 
 
   /*
@@ -273,7 +282,7 @@ class Spinor
   double               getE()        const { return E; }
   double               getM()        const { return m; }
   XMLArray::Array<int> getMom()      const { return mom; }
-  double               absMom()      const { return sqrt(mom*mom); }
+  double               absMom()      const { return sqrt(1.0*(mom*mom)); }
   int                  getIrrepDim() const { return subductInfo.irrep_dim; }
 
   /*
@@ -289,7 +298,7 @@ class Spinor
   */
   ~Spinor()
     {
-      gsl_matrix_complex_free(wig);
+      gsl_matrix_complex_free(eulerRot);
       gsl_matrix_complex_free(coeffS);
     }
 
@@ -302,7 +311,7 @@ class Spinor
  Spinor(const std::string& name, const XMLArray::Array<int>& _p,
 	double _E, double _m, int _L): L(_L), E(_E), m(_m), mom(_p)
   {
-    // Determine the rotation angles outright
+    // Determine the rotation angles from |\vec{p}|\hat{z} to \vec{p} outright
     if ( shortMom(mom,"") != "000" )
       rot = Hadron::cubicCanonicalRotation(mom);
     else
@@ -310,9 +319,10 @@ class Spinor
 	rot.alpha=0; rot.beta=0; rot.gamma=0;
       }
 
-    // Set the rank of Wigner-D matrix
-    wig = gsl_matrix_complex_calloc(twoJ+1,twoJ+1);
-    // Initialize subductions
+    // Get the Euler rotation matrix
+    eulerRot = Rotations::eulerRotMat2(rot.alpha, rot.beta, rot.gamma);
+
+    // Build subductions
     initSubduce(name);
   }
 };
@@ -427,6 +437,21 @@ utu_t(int mu, int nu, bool MINK) : mu(mu), nu(nu)
   }
 };
 
+/*
+  Complex kinematic matrix for unpolarized PDF
+*/
+struct kinMatPDF_t
+{
+  // -- Unpol. PDF
+  Eigen::Matrix<std::complex<double>, 2, 2> mat;
+
+  void assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini);
+
+  // Default
+  kinMatPDF_t() {}
+  // Constructor
+  kinMatPDF_t(Spinor *fin, Spinor *ini) {};
+};
 
 /*
   Complex kinematic matrix
@@ -435,9 +460,13 @@ struct kinMat_t
 {
   /* gmc * mat; */
   /* Eigen::MatrixXcd mat; */
-  Eigen::Matrix<std::complex<double>, 4, 2> mat;
 
-  void assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini);
+  // -- Unpol. GPD
+  /* Eigen::Matrix<std::complex<double>, 4, 2> mat; */
+  Eigen::Matrix<std::complex<double>, 4, 4> mat;
+
+  void assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
+		const std::vector<int> &disp);
 
   // Default
   kinMat_t() {}
@@ -455,28 +484,57 @@ struct kinMat_t
 */
 struct kinMat3_t
 {
-  /* Eigen::Matrix<std::complex<double>, 4, 3> mat; */
-  Eigen::Matrix<std::complex<double>, 2, 2> mat;
+  Eigen::Matrix<std::complex<double>, 4, 3> mat;
+  /* Eigen::Matrix<std::complex<double>, 4, 2> mat; */
+  /* Eigen::Matrix<std::complex<double>, 2, 2> mat; */
 
   void assemble(int mu, bool MINK, double mass, Spinor *s, const std::vector<int> &disp);
+  void assembleBig(int mu, bool MINK, double mass, Spinor *s, const std::vector<int> &disp);
 
   // Default
   kinMat3_t() {}
 };
 
+/*
+  Complex-valued kinematic matric for form factor decompositions
+*/
+struct ffMat_t
+{
+  int                                       gamma; // Chroma indexing of gamma matrices
+  Eigen::Matrix<std::complex<double>, 4, 2> mat;
 
+  // Member assembler methods
+  void assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini);
+  /* void assemble(int mu, int nu, bool MINK, double mass, Spinor *fin, Spinor *ini); */
 
+  // Default
+  ffMat_t() {}
+  
+  // Parameterized
+ffMat_t(int _g) : gamma(_g) {}
+};
 
 /*
   EXTRACT INVARIANT AMPLITUDES USING (IN GENERAL) AN SVD DECOMPOSITION
 */
+/* //--------- Unpol. PDF */
+/* void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT, */
+/* 		   std::vector<kinMat_t> * KIN, */
+/* 		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP); */
+//--------- Unpol. GPD
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
 		   std::vector<kinMat_t> * KIN,
-		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP);
-void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT,
+		   std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * AMP);
+//---------
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
 		   std::vector<kinMat3_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP);
-		   /* std::vector<Eigen::Matrix<std::complex<double>, 3, 1> > * AMP); */
+/* void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT, */
+/* 		   std::vector<kinMat3_t> * KIN, */
+/* 		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP); */
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
+		   std::vector<ffMat_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP);
 
 /*
   Utilities to help manage three pt function traces
