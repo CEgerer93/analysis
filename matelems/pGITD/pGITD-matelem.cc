@@ -321,23 +321,36 @@ void read(XMLReader& xml, const std::string path, domain_t& t)
   }
 }
 
+void setType(const std::string type, NCOR::fitInfo_t& I)
+{
+  try {
+    std::cout << "Read type string = " << type << std::endl;
+    auto it = table.find(type);
+    if ( it != table.end() )
+      I.type = it->second;
+  } catch ( std::string &e ) {
+    std::cerr << "Whoops" << e << std::endl;
+  }
+}
+
 // Reader for fit functions
 void read(XMLReader& xml, const std::string path, NCOR::fitInfo_t& I)
 {
   try {
-    read(xml, path+"/funcType", I.type);
+    std::string type;
+    read(xml, path+"/funcType", type); // Access type
+    setType(type, I);
+    // read(xml, path+"/funcType", type, I);
+
     read(xml, path+"/range", I.range);
     read(xml, path+"/bayes", I.bayesianFit);
+    read(xml, path+"/imposeNonLinParamHierarchy", I.imposeNonLinParamHierarchy);
     read(xml, path+"/priors/prior", I.strParamValMaps.strPriorMap);
     read(xml, path+"/priors/width", I.strParamValMaps.strWidthMap);
-    // read(xml, path+"/priors/width", I.priors.width);
-    // read(xml, path+"/priors/prior", I.priors.prior);
     read(xml, path+"/minimizerProps/maxIters", I.initFitParams.maxIters);
     read(xml, path+"/minimizerProps/tolerance", I.initFitParams.tolerance);
     read(xml, path+"/minimizerProps/start", I.strParamValMaps.strStartMap);
     read(xml, path+"/minimizerProps/step", I.strParamValMaps.strStepMap);
-    // read(xml, path+"/minimizerProps/start", I.initFitParams.start);
-    // read(xml, path+"/minimizerProps/step", I.initFitParams.step);
   } catch ( std::string &e ) {
     std::cerr << "Unable to parse fitInfo_t from ini xml " << e << std::endl;
   }
@@ -1007,6 +1020,15 @@ int main(int argc, char *argv[])
   // std::vector<NCOR::corrEquivalence> twoPtIni(1), twoPtFin(1);
   prop_t * propsIni = new prop_t(global.cfgs,temporal2ptIni,tempKey2Pi.key);
   propsIni->npt = 2;
+
+#if 0
+  std::cout << propsIni->cfgs << " " << propsIni->npt << " " << propsIni->Nt << " " << propsIni->gamma << " " << std::endl;
+  std::cout << propsIni->key << std::endl;
+  std::cout << propsIni->domain.min << " " << propsIni->domain.step << " " << propsIni->domain.max << " "<< propsIni->domain.numT() << std::endl;
+  exit(90);
+#endif
+
+  
   NCOR::correlator twoPtIni(*propsIni);
   delete propsIni;
 
@@ -1073,9 +1095,8 @@ int main(int argc, char *argv[])
   components[0] = "real"; components[1] = "imag";
   NFIT::driver(&twoPtFin, components[0], true); fitResW(&twoPtFin, components[0]);
   NFIT::driver(&twoPtIni, components[0], true); fitResW(&twoPtIni, components[0]);
-  NFIT::driver(&rest2pt, components[0], false);  fitResW(&rest2pt, components[0]);
+  NFIT::driver(&rest2pt, components[0], true);  fitResW(&rest2pt, components[0]);
 
-  exit(800);
 
   writeCorr(&twoPtFin);
   writeCorr(&twoPtIni);
@@ -1138,7 +1159,7 @@ int main(int argc, char *argv[])
 
 
 
-#if 1
+#if 0
 #warning "Establishing Gordan ID Check"
 
 
@@ -1260,10 +1281,12 @@ int main(int argc, char *argv[])
       iniSpin.buildSpinors();
 
       // Construct the kinematic matrix
-      k->assemble(4,false,rest2pt.res.params["E0"][j],&finSpin,&iniSpin);
+      k->assemble(4,true,rest2pt.res.params["E0"][j],&finSpin,&iniSpin,
+		  shortZ(funcs3pt[0].keyCorrMap.begin()->first.npoint[2].irrep.op.ops[1].disp_list));
     }
-  // std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > AMP(global.cfgs);
-  std::vector<Eigen::Vector2cd> AMP(global.cfgs);
+  // std::vector<Eigen::Vector2cd> AMP(global.cfgs);
+  // std::vector<Eigen::Vector3cd> AMP(global.cfgs);
+  std::vector<Eigen::Vector4cd> AMP(global.cfgs);
 
 
 
@@ -1273,15 +1296,18 @@ int main(int argc, char *argv[])
   for ( std::vector<NCOR::corrEquivalence>::iterator tsepItr = funcs3pt.begin();
 	tsepItr != funcs3pt.end(); ++tsepItr )
     {
-      int matIDX = std::distance(funcs3pt.begin(), tsepItr);
+      // Convenience
+      int rowf = tsepItr->keyCorrMap.begin()->first.npoint[1].irrep.irrep_mom.row;
+      int rowi = tsepItr->keyCorrMap.begin()->first.npoint[3].irrep.irrep_mom.row;
 
+      // Map the snk/src row combinations to a given element of correlator column vector
+      std::map<std::pair<int,int>, int> matIDX;
+      std::pair<int,int> rfri;
 
-      // for ( auto aa = tsepItr->keyCorrMap.begin(); aa != tsepItr->keyCorrMap.end(); ++aa )
-      // 	{
-      // 	  std::cout << aa->first << std::endl;
-      // 	}
-      // continue;
-
+      rfri = std::make_pair(1,1); matIDX[rfri] = 0;
+      rfri = std::make_pair(1,2); matIDX[rfri] = 1;
+      rfri = std::make_pair(2,1); matIDX[rfri] = 2;
+      rfri = std::make_pair(2,2); matIDX[rfri] = 3;
 
       /*
 	For each correlator stored in each corrEquivalence,
@@ -1329,37 +1355,30 @@ int main(int argc, char *argv[])
 			     * twoPtFin.jack[j].avg[TSEP].real() )/
 			   ( twoPtFin.jack[j].avg[TSEP-*tau].real() * twoPtIni.jack[j].avg[*tau].real()
 			     * twoPtIni.jack[j].avg[TSEP].real() ));
+
 		} // j
 	    } // tau
 	  
 
 
 	  // Include standard kinematic prefactors arising in forming optimized 3pt/2pt ratio
-	  // --> factors: 1/(4E_i * (E_f+m)) * \sqrt( (Ei*(Ef+m))/(Ef*(Ei+m)) )
 	  for ( int j = 0; j < global.cfgs; ++j )
 	    {
-	      // std::complex<double> commonKin(0.0,0.0);
-	      // commonKin.real( ( 1 / ( 4*twoPtIni.res.params["E0"][j] *
-	      // 			      (twoPtFin.res.params["E0"][j] + rest2pt.res.params["E0"][j]) )) *
-	      // 		      sqrt( (twoPtIni.res.params["E0"][j]*
-	      // 			     (twoPtFin.res.params["E0"][j]+rest2pt.res.params["E0"][j]))
-	      // 			    / (twoPtFin.res.params["E0"][j]*(twoPtIni.res.params["E0"][j]+
-	      // 							     rest2pt.res.params["E0"][j])) ) );
-
-	      // std::complex<double> commonKin( sqrt( (twoPtIni.res.params["E0"][j]*(twoPtFin.res.params["E0"][j]+rest2pt.res.params["E0"][j]))/
-	      // 					    (twoPtFin.res.params["E0"][j]*(twoPtIni.res.params["E0"][j]+rest2pt.res.params["E0"][j])) ) /
-	      // 				      (4*twoPtIni.res.params["E0"][j]*(twoPtFin.res.params["E0"][j] + rest2pt.res.params["E0"][j])), 0.0);
-
-
-	      std::complex<double> commonKin( sqrt(4*twoPtFin.res.params["E0"][j]*twoPtIni.res.params["E0"][j]), 0.0);
-
+	      std::complex<double> commonKin(sqrt(4*twoPtFin.res.params["E0"][j]*twoPtIni.res.params["E0"][j]), 0.0);
+	      
 	      // Remove common kinematic factor & 1/\sqrt(2) from isovector current normalization
-	      ratio[idx].ensemble.ens[j] *= (redFact*commonKin); // (1.0/(redFact*commonKin));
+	      ratio[idx].ensemble.ens[j] *= (redFact*commonKin);
 	    } // j
 
 
 	  // Get ensemble avg so bias removal can proceed
 	  ratio[idx].ensAvg();
+#if 1
+	  std::cout << "**************" << std::endl;
+	  std::cout << "Ratio ens avg" << std::endl;
+	  std::cout << ratio[idx] << std::endl;
+	  std::cout << "**************" << std::endl;
+#endif
 	  // Correct for bias in forming ratio
 	  ratio[idx].removeBias();
 
@@ -1425,6 +1444,7 @@ int main(int argc, char *argv[])
       for ( auto f = components.begin(); f != components.end(); ++f )
 	{
 	  NFIT::driver(&SR, *f, false);
+
 	  // Write out the fit results
 	  fitResW(&SR, *f);
 
@@ -1432,10 +1452,11 @@ int main(int argc, char *argv[])
 	  // Pipe fit results foreach jackknife sample into appropriate entry of MAT
 	  for ( int g = 0; g < global.cfgs; ++g )
 	    {
+	      std::pair<int,int> lookUp = std::make_pair(rowf,rowi);
 	      if ( *f == "real" )
-		MAT[g](matIDX).real(SR.res.params["b"][g]);
+		MAT[g](matIDX[lookUp]).real(SR.res.params["b"][g]);
 	      if ( *f == "imag" )
-		MAT[g](matIDX).imag(SR.res.params["b"][g]);
+		MAT[g](matIDX[lookUp]).imag(SR.res.params["b"][g]);
 	    }
 
 	  // Destroy the stored fits values since they've been written
@@ -1452,17 +1473,23 @@ int main(int argc, char *argv[])
   std::cout << "What do these solutions look like?\n";
   
   for ( auto itr = AMP.begin(); itr != AMP.end(); ++itr )
-    std::cout << "M = " << (*itr)(0) << "     L = " << (*itr)(1) << std::endl;
+    std::cout << "M = " << (*itr)(0)
+	      << "     L = " << (*itr)(1) 
+	      << "     R = " << (*itr)(2)
+	      << "     Z2 = " << (*itr)(3)
+	      << std::endl;
 
 
   // Put AMP results into a VectorXcd so writeAmplitudes can be reused
-  std::vector<Eigen::VectorXcd> finalAMP(global.cfgs,Eigen::VectorXcd(2));
+  std::vector<Eigen::VectorXcd> finalAMP(global.cfgs,Eigen::VectorXcd(4));
   for ( auto itr = AMP.begin(); itr != AMP.end(); ++itr )
     {
       int idx = std::distance(AMP.begin(),itr);
 
       finalAMP[idx](0) = (*itr)(0);
       finalAMP[idx](1) = (*itr)(1);
+      finalAMP[idx](2) = (*itr)(2);
+      finalAMP[idx](3) = (*itr)(3);
     }
 
   // Write the extracted amplitudes to h5

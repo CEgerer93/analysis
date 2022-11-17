@@ -3,7 +3,9 @@ CXX=icpc
 EIGEN=/u/home/cegerer/src/eigen
 
 # -DAMPPREFACTORS
-CXXFLAGS=-g -qopenmp -fma -falias -std=c++14 -DVERBOSITY=1 -I/dist/gmp-6.0.0/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/adat/include -I/usr/include/libxml2 -I/home/cegerer/analysis/pPDF -I/home/cegerer/analysis/fitting -I/home/cegerer/analysis/linAlg -I/home/cegerer/analysis/kine -I/home/cegerer/analysis/corrUtil -I/u/home/cegerer/gsl-2.6/include -I/u/home/cegerer/hdf5-1.12.1/include -I$(EIGEN)
+# -DHAVE_DISPLIST
+# -DPRINT_SVS
+CXXFLAGS=-g -qopenmp -fma -falias -std=c++14 -DPRINT_SVS -DHAVE_DISPLIST -DVERBOSITY=1 -I/dist/gmp-6.0.0/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/adat/include -I/usr/include/libxml2 -I/home/cegerer/analysis/pPDF -I/home/cegerer/analysis/fitting -I/home/cegerer/analysis/linAlg -I/home/cegerer/analysis/kine -I/home/cegerer/analysis/corrUtil -I/u/home/cegerer/gsl-2.6/include -I/u/home/cegerer/hdf5-1.12.1/include -I$(EIGEN)
 
 LDFLAGS=-L/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/adat/lib -L/u/home/cegerer/gsl-2.6/lib -L/home/cegerer/analysis/pPDF -L/u/home/cegerer/hdf5-1.12.1/lib
 
@@ -11,8 +13,8 @@ LDLIBS=-ladat -lfiledb -lfilehash -lXPathReader -lxmlWriter -lMinuit2Base -lxml2
 
 
 
-pGITD-matelem: pGITD-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o
-	$(CXX) $(CXXFLAGS) -o pGITD-matelem pGITD-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o $(LDFLAGS) $(LDLIBS)
+pGITD-matelem: pGITD-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o rotations.o
+	$(CXX) $(CXXFLAGS) -o pGITD-matelem pGITD-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o rotations.o $(LDFLAGS) $(LDLIBS)
 
 pGITD-matelem.o:
 	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/matelems/pGITD/pGITD-matelem.cc
@@ -38,7 +40,10 @@ cov_utils.o:
 threept_tr.o:
 	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/kine/threept_tr.cc
 
+rotations.o:
+	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/kine/rotations.cc
+
 clean:
 	rm -f pGITD-matelem pGITD-matelem.o threept_tr.o
 clean-all:
-	rm -f pGITD-matelem pGITD-matelem.o personal_fns.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o
+	rm -f pGITD-matelem pGITD-matelem.o personal_fns.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o rotations.o
