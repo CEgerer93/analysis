@@ -178,6 +178,20 @@ namespace NFIT
 	// Final Chi2 from VarPro
 	chi2 = dataSum + varProSum;
 
+#if 1
+	/*
+
+	  Explode cost if, say, E1<E0
+
+	*/
+	if ( b->fit.theFit.imposeNonLinParamHierarchy )
+	  {
+	    if ( gsl_vector_get(x,1) <= gsl_vector_get(x,0) )
+	      chi2 += 100000;
+	  }
+	//---------------------------------------------------------------------------------
+#endif
+
 	// Free memory
 	gsl_vector_free(dataRMult);
 	gsl_vector_free(rightMult);
@@ -235,7 +249,7 @@ namespace NFIT
     int numP;
     // If we are performing fit w/ varpro, drop c->fit.num to # non-lin. params
     if ( varPro )
-      numP = c->fit.theFit.getNumNonLin();
+      numP = c->fit.theFit.getNumBasisFuncs();
     else
       numP = c->fit.num;
     //-------------------------------------------------------------------------
