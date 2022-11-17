@@ -16,8 +16,10 @@ namespace Pseudo
   // Ensure 3pt keys conserve 3-momentum
   void conserveMom3PtKey(std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t>& k);
   // Set correct operator names and src/snk momenta based on global properties
-  void setOpsMoms(Hadron::KeyHadronSUNNPartNPtCorr_t *k3, Hadron::KeyHadronSUNNPartNPtCorr_t& k2f,
-		  Hadron::KeyHadronSUNNPartNPtCorr_t& k2i, Pseudo::global_t& g);
+  void setOpsMoms(Hadron::KeyHadronSUNNPartNPtCorr_t *k3, Hadron::KeyHadronSUNNPartNPtCorr_t& k2,
+		  Hadron::KeyHadronSUNNPartNPtCorr_t& k2Rest, Pseudo::global_t& g);		  
+  /* void setOpsMoms(Hadron::KeyHadronSUNNPartNPtCorr_t *k3, Hadron::KeyHadronSUNNPartNPtCorr_t& k2f, */
+  /* 		  Hadron::KeyHadronSUNNPartNPtCorr_t& k2i, Pseudo::global_t& g); */
   void setOpsMoms(Hadron::KeyHadronSUNNPartNPtCorr_t *k3, Hadron::KeyHadronSUNNPartNPtCorr_t& k2f,
 		  Hadron::KeyHadronSUNNPartNPtCorr_t& k2i, Hadron::KeyHadronSUNNPartNPtCorr_t& k2Rest,
 		  Pseudo::global_t& g);

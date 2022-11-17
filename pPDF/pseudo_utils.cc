@@ -21,8 +21,8 @@ namespace Pseudo
   }
 
   // Set correct operator names and src/snk momenta based on global properties
-  void setOpsMoms(Hadron::KeyHadronSUNNPartNPtCorr_t *k3, Hadron::KeyHadronSUNNPartNPtCorr_t& k2f,
-		  Hadron::KeyHadronSUNNPartNPtCorr_t& k2i, global_t& g)
+  void setOpsMoms(Hadron::KeyHadronSUNNPartNPtCorr_t *k3, Hadron::KeyHadronSUNNPartNPtCorr_t& k2,
+		  Hadron::KeyHadronSUNNPartNPtCorr_t& k2Rest, Pseudo::global_t& g)
   {
     // Setting the 3pt ops/moms
     k3->npoint[1].irrep.irrep_mom.mom = g.pf; // snk mom
@@ -34,19 +34,48 @@ namespace Pseudo
     k3->npoint[2].irrep.irrep_mom.mom = g.pf - g.pi; // q
     k3->npoint[2].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k3->npoint[2].irrep.irrep_mom.mom);
     // Setting the 2pt ops/moms
-    for ( int n = 1; n != k2f.npoint.size()+1; n++ )
+    for ( int n = 1; n != k2.npoint.size()+1; n++ )
       {
-	// Setting the snk 2pt ops/moms
-	k2f.npoint[n].irrep.irrep_mom.mom = g.pf;
-	k2f.npoint[n].irrep.op.ops[1].name = g.opMomXML[shortMom(g.pf,"")];
-	k2f.npoint[n].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k2f.npoint[n].irrep.irrep_mom.mom);
-	// Setting the src 2pt ops/moms
-	k2i.npoint[n].irrep.irrep_mom.mom = g.pi;
-	k2i.npoint[n].irrep.op.ops[1].name = g.opMomXML[shortMom(g.pi,"")];
-	k2i.npoint[n].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k2i.npoint[n].irrep.irrep_mom.mom);
+        // Setting the boosted 2pt ops/moms
+        k2.npoint[n].irrep.irrep_mom.mom = g.pf;
+        k2.npoint[n].irrep.op.ops[1].name = g.opMomXML[shortMom(g.pf,"")];
+        k2.npoint[n].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k2.npoint[n].irrep.irrep_mom.mom);
+
+        // Setting the rest 2pt ops/moms
+        k2Rest.npoint[n].irrep.irrep_mom.mom = g.rest;
+        k2Rest.npoint[n].irrep.op.ops[1].name = g.opMomXML[shortMom(g.rest,"")];
+        k2Rest.npoint[n].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k2Rest.npoint[n].irrep.irrep_mom.mom);
       }
     std::cout << "  Set src/snk operators/momenta in template keys " << std::endl;
   }
+
+  // // Set correct operator names and src/snk momenta based on global properties
+  // void setOpsMoms(Hadron::KeyHadronSUNNPartNPtCorr_t *k3, Hadron::KeyHadronSUNNPartNPtCorr_t& k2f,
+  // 		  Hadron::KeyHadronSUNNPartNPtCorr_t& k2i, global_t& g)
+  // {
+  //   // Setting the 3pt ops/moms
+  //   k3->npoint[1].irrep.irrep_mom.mom = g.pf; // snk mom
+  //   k3->npoint[1].irrep.op.ops[1].name = g.opMomXML[shortMom(g.pf,"")]; // snk op
+  //   k3->npoint[1].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k3->npoint[1].irrep.irrep_mom.mom);
+  //   k3->npoint[3].irrep.irrep_mom.mom = g.pi; // src mom
+  //   k3->npoint[3].irrep.op.ops[1].name = g.opMomXML[shortMom(g.pi,"")]; // src op
+  //   k3->npoint[3].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k3->npoint[3].irrep.irrep_mom.mom);
+  //   k3->npoint[2].irrep.irrep_mom.mom = g.pf - g.pi; // q
+  //   k3->npoint[2].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k3->npoint[2].irrep.irrep_mom.mom);
+  //   // Setting the 2pt ops/moms
+  //   for ( int n = 1; n != k2f.npoint.size()+1; n++ )
+  //     {
+  // 	// Setting the snk 2pt ops/moms
+  // 	k2f.npoint[n].irrep.irrep_mom.mom = g.pf;
+  // 	k2f.npoint[n].irrep.op.ops[1].name = g.opMomXML[shortMom(g.pf,"")];
+  // 	k2f.npoint[n].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k2f.npoint[n].irrep.irrep_mom.mom);
+  // 	// Setting the src 2pt ops/moms
+  // 	k2i.npoint[n].irrep.irrep_mom.mom = g.pi;
+  // 	k2i.npoint[n].irrep.op.ops[1].name = g.opMomXML[shortMom(g.pi,"")];
+  // 	k2i.npoint[n].irrep.op.ops[1].mom_type = Hadron::canonicalOrder(k2i.npoint[n].irrep.irrep_mom.mom);
+  //     }
+  //   std::cout << "  Set src/snk operators/momenta in template keys " << std::endl;
+  // }
 
   // Set correct operator names and src/snk momenta based on global properties
   void setOpsMoms(Hadron::KeyHadronSUNNPartNPtCorr_t *k3, Hadron::KeyHadronSUNNPartNPtCorr_t& k2f,

@@ -69,7 +69,8 @@ namespace Pseudo
   {
     int cfgs;
     int npt;
-    int Nt, gamma;
+    int Nt;
+    int gamma = -1;
 
     Hadron::KeyHadronSUNNPartNPtCorr_t key;
 
