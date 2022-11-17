@@ -25,7 +25,7 @@ namespace LinAlg
   // Generic gsl_matrix_complex viewer
   void printMat(gsl_matrix_complex *g);
 
-  std::ostream& operator<<(std::ostream& os, const gsl_matrix_complex *g);
+  /* std::ostream& operator<<(std::ostream& os, const gsl_matrix_complex *g); */
 
   // Form tensor product of two matrices
   gsl_matrix_complex* tensorProd(gsl_matrix_complex *g, gsl_matrix_complex *h);
