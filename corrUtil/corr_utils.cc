@@ -7,38 +7,38 @@
 #include "pseudo_utils.h"
 
 
-// namespace NCOR
+// // namespace NCOR
+// // {
+// /*
+//   OPERATORS
+// */
+// // Define operator to easily print contents of a gsl_vector
+// std::ostream& operator<<(std::ostream& os, const gsl_vector *v)
 // {
-/*
-  OPERATORS
-*/
-// Define operator to easily print contents of a gsl_vector
-std::ostream& operator<<(std::ostream& os, const gsl_vector *v)
-{
-  if ( v->size > 0 )
-    {
-      os << gsl_vector_get(v,0);
-      for ( int i = 1; i < v->size; ++i )
-	os << "," << gsl_vector_get(v,i);
-    }
-  return os;
-}
+//   if ( v->size > 0 )
+//     {
+//       os << gsl_vector_get(v,0);
+//       for ( int i = 1; i < v->size; ++i )
+// 	os << "," << gsl_vector_get(v,i);
+//     }
+//   return os;
+// }
 
-// Define operator to easily print contents of a gsl_vector_complex
-std::ostream& operator<<(std::ostream& os, const gsl_vector_complex *v)
-{
-  if ( v->size > 0 )
-    {
-      for ( int i = 0; i < v->size; ++i )
-	{
-	  for ( int c = 0; c < 2; ++c )
-	    os << gsl_vector_complex_get(v,i).dat[c] << " ";
-	  if ( i != v->size-1 )
-	    os << ", ";
-	}
-    }
-  return os;
-}
+// // Define operator to easily print contents of a gsl_vector_complex
+// std::ostream& operator<<(std::ostream& os, const gsl_vector_complex *v)
+// {
+//   if ( v->size > 0 )
+//     {
+//       for ( int i = 0; i < v->size; ++i )
+// 	{
+// 	  for ( int c = 0; c < 2; ++c )
+// 	    os << gsl_vector_complex_get(v,i).dat[c] << " ";
+// 	  if ( i != v->size-1 )
+// 	    os << ", ";
+// 	}
+//     }
+//   return os;
+// }
       
 
 namespace NCOR { 
@@ -491,9 +491,11 @@ namespace NCOR
       case 3:
 	grps.push_back("pf" + Pseudo::shortMom(c->getPf(),"") + "_pi"
 		       + Pseudo::shortMom(c->getPi(),""));
+#if HAVE_DISPLIST
 	grps.push_back("zsep" + std::to_string(Pseudo::shortZ(c->getDisp())[0])
 		       + std::to_string(Pseudo::shortZ(c->getDisp())[1])
 		       + std::to_string(Pseudo::shortZ(c->getDisp())[2]));
+#endif
 	grps.push_back("gamma-" + std::to_string(c->getGamma()));
 	grps.push_back("t0_avg");
 	grps.push_back(ops);
@@ -626,12 +628,16 @@ namespace NCOR
 	  Pseudo::shortMom(c->getPi(),"");
 	std::string rows = "rowf" + std::to_string(c->getSnk().second) + 
 	  "_rowi" + std::to_string(c->getSrc().second);
+	cmzg[1] = pfpi; cmzg.push_back(rows);
+
+#if HAVE_DISPLIST
 	std::string z    = "zsep" + std::to_string(Pseudo::shortZ(c->getDisp())[0])
 	  + std::to_string(Pseudo::shortZ(c->getDisp())[1])
 	  + std::to_string(Pseudo::shortZ(c->getDisp())[2]);
+	cmzg.push_back(z);
+#endif
 	std::string gamma = "gamma-" + std::to_string(c->getGamma());
-
-	cmzg[1] = pfpi; cmzg.push_back(rows); cmzg.push_back(z); cmzg.push_back(gamma);
+	cmzg.push_back(gamma);
 	break;
       } // switch
     // -------------------------------------------------------------------------------------
@@ -825,7 +831,8 @@ namespace NCOR
       }
     else
       {
-	ampNames[0] = "M"; ampNames[1] = "L";
+	ampNames[0] = "M"; ampNames[1] = "L"; ampNames[2] = "R";
+	ampNames[3] = "Z2";
       }
     //-----------------------------------------------------------------------------
 

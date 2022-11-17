@@ -13,6 +13,7 @@
 #include "hdf5.h"
 #include "H5Cpp.h"
 
+#include "threept_tr.h"
 #include "cov_utils.h"
 #include "pseudo_structs.h"
 
@@ -24,14 +25,14 @@ using namespace LinAlg;
 using namespace H5;
 
 
-/*
-    OPERATORS
-*/
-// Define operator to easily print contents of a gsl_vector
-std::ostream& operator<<(std::ostream& os, const gsl_vector *v);
+/* /\\* */
+/*     OPERATORS */
+/* *\/ */
+/* // Define operator to easily print contents of a gsl_vector */
+/* std::ostream& operator<<(std::ostream& os, const gsl_vector *v); */
 
-// Define operator to easily print contents of a gsl_vector_complex
-std::ostream& operator<<(std::ostream& os, const gsl_vector_complex *v);
+/* // Define operator to easily print contents of a gsl_vector_complex */
+/* std::ostream& operator<<(std::ostream& os, const gsl_vector_complex *v); */
 
 namespace NCOR {
 template<typename T>
@@ -44,6 +45,12 @@ std::ostream& operator<<(std::ostream& os, std::vector<std::complex<double> >& v
 
 namespace NCOR
 {
+  enum fitFuncs { ONESTATE_EXP, TWOSTATE_EXP, LIN, LIN_TEXP };
+  const std::unordered_map<std::string, fitFuncs> table = { {"ONESTATE_EXP", fitFuncs::ONESTATE_EXP},
+							    {"TWOSTATE_EXP", fitFuncs::TWOSTATE_EXP},
+							    {"LIN", fitFuncs::LIN},
+							    {"LIN_TEXP", fitFuncs::LIN_TEXP} };
+
   /* template<typename T> */
   std::vector<std::complex<double> > operator*=(std::vector<std::complex<double> >& v, double d);
 
@@ -98,10 +105,12 @@ namespace NCOR
   // Fit info struct
   struct fitInfo_t
   {
-    char type;
+    /* char type; */
+    fitFuncs type;
     Pseudo::domain_t range;
 
     bool bayesianFit; // Whether this fit will have Bayesian priors or not
+    bool imposeNonLinParamHierarchy; // Whether to explode cost, if something like E1<E0 in a fit
 
     // MapObjects to associate variable string with priors & starting values in minimization
     struct {
@@ -137,16 +146,20 @@ namespace NCOR
 
       switch(type)
 	{
-	case 'l':
+	case LIN:
+	/* case 'l': */
 	  parseParam("a"); parseParam("b");
 	  mapped = true; break;
-	case 'L':
+	case LIN_TEXP:
+	/* case 'L': */
 	  parseParam("a"); parseParam("b"); parseParam("c"); parseParam("dE");
 	  mapped = true; break;
-	case 'o':
+	case ONESTATE_EXP:
+	/* case 'o': */
 	  parseParam("E0"); parseParam("a");
 	  mapped = true; break;
-	case 't':
+	case TWOSTATE_EXP:
+	/* case 't': */
 	  parseParam("E0"); parseParam("E1"); parseParam("a"); parseParam("b");
 	  mapped = true; break;
 	default:
@@ -161,30 +174,38 @@ namespace NCOR
       std::string s;
       switch(type)
 	{
-	case 'l':
+	case LIN:
+	/* case 'l': */
 	  s = "a+bT"; break;
-	case 'L':
+	case LIN_TEXP:
+	/* case 'L': */
 	  s = "a+bT+cT*exp{-dE*T}"; break;
-	case 'o':
+	case ONESTATE_EXP:
+	/* case 'o': */
 	  s = "a*exp{-E0*T}"; break;
-	case 't':
+	case TWOSTATE_EXP:
+	/* case 't': */
 	  s = "exp{-E0*T}*{a+b*exp{-{E1-E0}*T}}"; break;
 	}
       return s;
     }
 
-    // Return # of non-linear fitted parameters
-    int getNumNonLin()
+    // Return # of basis functions for when VarPro is used
+    int getNumBasisFuncs()
     {
       switch(type)
 	{
-	case 'l':
+	case LIN:
+	/* case 'l': */
 	  return 0; break;
-	case 'L':
+	case LIN_TEXP:
+	/* case 'L': */
+	  return 3; break;
+	case ONESTATE_EXP:
+	/* case 'o': */
 	  return 1; break;
-	case 'o':
-	  return 1; break;
-	case 't':
+	case TWOSTATE_EXP:
+	/* case 't': */
 	  return 2; break;
 	}
     }
@@ -290,21 +311,15 @@ namespace NCOR
     {
       switch(theFit.type)
         {
-        case 'l':
+	case LIN: /* a + b*T */
 	  return gsl_vector_get(p,0) + gsl_vector_get(p,1)*T; break;
-          /* return a + b*T; */
-        case 'L':
-	  return gsl_vector_get(p,0) + gsl_vector_get(p,1)*T
-	    + gsl_vector_get(p,2)*T*exp(-gsl_vector_get(p,3)*T); break;
-          /* return a + b*T + c*T*exp(-d*T); */
-	case 'o':
+	case LIN_TEXP: /* a + b*T + c*T*exp(-d*T) */
+	  return gsl_vector_get(p,0) + gsl_vector_get(p,1)*T + gsl_vector_get(p,2)*T*exp(-gsl_vector_get(p,3)*T); break;
+	case ONESTATE_EXP: /* exp(-E0*T)*a */
 	  return exp(-gsl_vector_get(p,0)*T)*gsl_vector_get(p,1); break;
-	  /* return exp(-E0*T)*a; */
-        case 't':
-	  return gsl_vector_get(p,2)*exp(-gsl_vector_get(p,0)*T)+
-	    gsl_vector_get(p,3)*exp(-gsl_vector_get(p,1)*T);
+	case TWOSTATE_EXP: /* a*exp(-E0*T)+b*exp(-E1*T) */
+	  return exp(-gsl_vector_get(p,0)*T)*(gsl_vector_get(p,2)+gsl_vector_get(p,3)*exp(-(gsl_vector_get(p,1)-gsl_vector_get(p,0))*T));
 	  break;
-          /* return a*exp(-E0*T)+b*exp(-E1*T); */
         }
     }
 
@@ -315,25 +330,29 @@ namespace NCOR
       std::pair<std::string, double> dum;
       switch(theFit.type)
 	{
-	case 'l':
+	case LIN:
+	/* case 'l': */
 	  std::cout << "(a,b) = (" << p << ")" << std::endl;
 	  dum = std::make_pair("a", gsl_vector_get(p,0)); paramValMap.insert(dum);
 	  dum = std::make_pair("b", gsl_vector_get(p,1)); paramValMap.insert(dum);
 	  break;
-	case 'L':
+	case LIN_TEXP:
+	/* case 'L': */
 	  std::cout << "(a,b,c,dE) = (" << p << ")" << std::endl;
 	  dum = std::make_pair("a", gsl_vector_get(p,0));  paramValMap.insert(dum);
 	  dum = std::make_pair("b", gsl_vector_get(p,1));  paramValMap.insert(dum);
 	  dum = std::make_pair("c", gsl_vector_get(p,2));  paramValMap.insert(dum);
 	  dum = std::make_pair("dE", gsl_vector_get(p,3)); paramValMap.insert(dum);
 	  break;
-	case 'o':
+	case ONESTATE_EXP:
+	/* case 'o': */
 	  std::cout << "(E0,a) = (" << p << ")" << std::endl;
 	  dum = std::make_pair("E0", gsl_vector_get(p,0)); paramValMap.insert(dum);
 	  dum = std::make_pair("a", gsl_vector_get(p,1));  paramValMap.insert(dum);
 	  // Would be nice to make an operator[] here...but many attempts failed
 	  break;  
-	case 't':
+	case TWOSTATE_EXP:
+	/* case 't': */
 	  std::cout << "(E0,E1,a,b) = (" << p << ")" << std::endl;
 	  dum = std::make_pair("E0", gsl_vector_get(p,0)); paramValMap.insert(dum);
 	  dum = std::make_pair("E1", gsl_vector_get(p,1)); paramValMap.insert(dum);
@@ -345,22 +364,24 @@ namespace NCOR
       return paramValMap;
     } // printFit
 
-    // Very hacky way for now to get the non-linear parameters of a fit
-    std::vector<double> getNonLinParam(const gsl_vector *p)
-    {
-      std::vector<double> nl;
-      switch(theFit.type)
-	{
-	case 'o':
-	  nl.push_back(gsl_vector_get(p,0)); break;
-	case 't':
-	  nl.push_back(gsl_vector_get(p,0));
-	  nl.push_back(gsl_vector_get(p,3)); break;
-	default:
-	  std::cout << "No non-linear parameters for type = " << theFit.type << std::endl;
-	}
-      return nl;
-    }
+    /* // Very hacky way for now to get the non-linear parameters of a fit */
+    /* std::vector<double> getNonLinParam(const gsl_vector *p) */
+    /* { */
+    /*   std::vector<double> nl; */
+    /*   switch(theFit.type) */
+    /* 	{ */
+    /* 	case ONESTATE_EXP: */
+    /* 	/\* case 'o': *\/ */
+    /* 	  nl.push_back(gsl_vector_get(p,0)); break; */
+    /* 	case TWOSTATE_EXP: */
+    /* 	/\* case 't': *\/ */
+    /* 	  nl.push_back(gsl_vector_get(p,0)); */
+    /* 	  nl.push_back(gsl_vector_get(p,1)); break; */
+    /* 	default: */
+    /* 	  std::cout << "No non-linear parameters for type = " << theFit.type << std::endl; */
+    /* 	} */
+    /*   return nl; */
+    /* } */
 
 
     // Default
@@ -372,13 +393,17 @@ namespace NCOR
       scov(c, T); // submatrix of full data covariance - domain_t ensures correct submatrix is obtained
       switch(theFit.type)
         {
-        case 'l':
+	case LIN:
+        /* case 'l': */
           num = 2; break;
-        case 'L':
+	case LIN_TEXP:
+        /* case 'L': */
           num = 4; break;
-	case 'o':
+	case ONESTATE_EXP:
+	/* case 'o': */
 	  num = 2; break;
-        case 't':
+	case TWOSTATE_EXP:
+        /* case 't': */
           num = 4; break;
         }
     };
@@ -452,7 +477,9 @@ namespace NCOR
 
     XMLArray::Array<int>    getPi()   { return key().npoint[aspects.npt].irrep.irrep_mom.mom; }
     XMLArray::Array<int>    getPf()   { return key().npoint[1].irrep.irrep_mom.mom; }
+#if HAVE_DISPLIST
     std::vector<int>        getDisp() { return key().npoint[2].irrep.op.ops[1].disp_list; }
+#endif
 
     std::pair<std::string, int> getSrc()
     {
