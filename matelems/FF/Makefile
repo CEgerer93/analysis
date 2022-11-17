@@ -1,0 +1,47 @@
+CXX=icpc
+
+EIGEN=/u/home/cegerer/src/eigen
+
+# -DAMPPREFACTORS
+# NB AVX instructions will cause alignment issues w/ EIGEN objects!
+CXXFLAGS=-Wall -Wconversion -g -qopenmp -DVERBOSITY=1 -fma -falias -std=c++14 -I/dist/gmp-6.0.0/include -I/volatile/JLabLQCD/cegerer/builds/install/adat/include -I/usr/include/libxml2 -I/home/cegerer/analysis/pPDF -I/home/cegerer/analysis/fitting -I/home/cegerer/analysis/linAlg -I/home/cegerer/analysis/kine -I/home/cegerer/analysis/corrUtil -I/u/home/cegerer/gsl-2.6/include -I/u/home/cegerer/hdf5-1.12.1/include -I$(EIGEN)
+
+LDFLAGS=-L/volatile/JLabLQCD/cegerer/builds/install/adat/lib -L/u/home/cegerer/gsl-2.6/lib -L/home/cegerer/analysis/pPDF -L/u/home/cegerer/hdf5-1.12.1/lib
+
+LDLIBS=-ladat -lfiledb -lfilehash -lXPathReader -lxmlWriter -lMinuit2Base -lxml2 -lz -lm -ldl /dist/gmp-6.0.0/lib/libgmpxx.a /dist/gmp-6.0.0/lib/libgmp.a -lgsl -lgslcblas -lhdf5 -lhdf5_cpp -lhdf5_hl -lhdf5_hl_cpp
+
+
+ff-matelem: ff-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o rotations.o
+	$(CXX) $(CXXFLAGS) -o ff-matelem ff-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o rotations.o $(LDFLAGS) $(LDLIBS)
+
+ff-matelem.o:
+	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/matelems/FF/ff-matelem.cc
+
+operators.o:
+	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/pPDF/operators.cc
+
+pseudo_utils.o:
+	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/pPDF/pseudo_utils.cc
+
+fit_util.o:
+	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/fitting/fit_util.cc
+
+varpro.o:
+	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/fitting/varpro.cc
+
+corr_utils.o:
+	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/corrUtil/corr_utils.cc
+
+cov_utils.o:
+	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/linAlg/cov_utils.cc
+
+threept_tr.o:
+	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/kine/threept_tr.cc
+
+rotations.o:
+	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/kine/rotations.cc
+
+clean:
+	rm -f ff-matelem ff-matelem.o threept_tr.o
+clean-all:
+	rm -f ff-matelem ff-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o rotations.o
