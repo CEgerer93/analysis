@@ -40,17 +40,25 @@ using namespace Pseudo;
 /* using namespace std::complex_literals; */
 
 
-std::ostream& operator<<(std::ostream& os, const gsl_vector * v);
-std::ostream& operator<<(std::ostream& os, const gsl_vector_complex * v);
-std::ostream& operator<<(std::ostream& os, const gsl_matrix * m);
-std::ostream& operator<<(std::ostream& os, const gsl_matrix_complex * m);
-
-std::complex<double> zeroComplex(const std::complex<double>& w);
-
 namespace projections
 {
   enum projSelect { UNPOL = 1, POL = 2 };
 }
+enum current { VECTOR, AXIAL, TENSOR };
+
+
+std::ostream& operator<<(std::ostream& os, const gsl_vector * v);
+std::ostream& operator<<(std::ostream& os, const gsl_vector_complex * v);
+std::ostream& operator<<(std::ostream& os, const gsl_matrix * m);
+std::ostream& operator<<(std::ostream& os, const gsl_matrix_complex * m);
+std::ostream& operator<<(std::ostream& os, const current c);
+
+std::complex<double> zeroFuzz(const std::complex<double>& w);
+
+/*
+  Spinor sanity checks
+*/
+void iniFinSpinorsEqualL(const int l1, const int l2);
 
 
 struct projector_t
@@ -437,46 +445,109 @@ utu_t(int mu, int nu, bool MINK) : mu(mu), nu(nu)
   }
 };
 
+
+
 /*
-  Complex kinematic matrix for unpolarized PDF
+  Generic class to evaluate spinor contractions
 */
-struct kinMatPDF_t
+class contractHandler
 {
-  // -- Unpol. PDF
-  Eigen::Matrix<std::complex<double>, 2, 2> mat;
+ public:
+  void vectorContract(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
+		      std::map<int, std::pair<int,int> > rowMap, Eigen::MatrixXcd &mat);
+  void axialContract(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
+		     const std::vector<int> &disp,
+		     std::map<int, std::pair<int,int> > rowMap, Eigen::MatrixXcd &mat);
+  void tensorContract(int mu, int nu, bool MINK, double mass, Spinor *fin, Spinor *ini,
+		      const std::vector<int> &disp,
+		      std::map<int, std::pair<int,int> > rowMap, Eigen::MatrixXcd &mat);
 
-  void assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini);
+  /* // Parameterized contructor */
+  /* contractHandler(current c) */
+  /*   { */
+  /*     switch(c) */
+  /* 	{ */
+  /* 	case VECTOR: contract = vectorContract; break; */
+  /* 	/\* case AXIAL:  contract = axialContract;  break; *\/ */
+  /* 	/\* case TENSOR: contract = tensorContract; break; *\/ */
+  /* 	} */
+  /*   } */
 
+  contractHandler() {}
+};
+
+
+/*
+  Complex kinematic matrix for PDFs
+*/
+struct kinMatPDF_t : contractHandler
+{
+  // Lorentz indices
+  int mu = -1; int nu = -1;
+  // Current type
+  current TYPE;
+  // Potential displacement
+  std::vector<int> disp;
+  // Dynamic matrix to hold entries of a PDF kinematic matrix
+  Eigen::MatrixXcd mat;
+
+  /* // Return a pointer to function that will handle contractions */
+  /* /\* void * contract = &(contractHandler(current c).contract); *\/ */
+  /* void * contract; */
+
+  void assemble(bool MINK, double mass, Spinor *fin, Spinor *ini);
+  void echoAction();
+
+  // Ensure ini/fin spinor momenta are equal
+  void spinorMomsEqual(bool truth);
+
+  /*
+    Constructors
+  */
   // Default
   kinMatPDF_t() {}
-  // Constructor
-  kinMatPDF_t(Spinor *fin, Spinor *ini) {};
+  // Parameterized
+ kinMatPDF_t(const int row, const int col, current c, std::vector<int> _d) : TYPE(c), disp(_d)
+  {
+    mat.resize(row, col);
+    std::cout << "--> Init'd a Kinematic Matrix for PDFs of size " << row << " x "
+	      << col << std::endl;
+  }
+ kinMatPDF_t(const int row, const int col, current c, int _m, std::vector<int> _d) : TYPE(c), mu(_m), disp(_d)
+  {
+    mat.resize(row, col);
+    std::cout << "--> Init'd a Kinematic Matrix for PDFs of size " << row << " x "
+	      << col << std::endl;
+  }
+ kinMatPDF_t(const int row, const int col, current c, int _m, int _n, std::vector<int> _d) : TYPE(c), mu(_m), nu(_n), disp(_d)
+  {
+    mat.resize(row, col);
+    std::cout << "--> Init'd a Kinematic Matrix for PDFs of size " << row << " x "
+	      << col << std::endl;
+  }
 };
 
 /*
   Complex kinematic matrix
 */
-struct kinMat_t
+struct kinMatGPD_t
 {
-  /* gmc * mat; */
-  /* Eigen::MatrixXcd mat; */
-
-  // -- Unpol. GPD
-  /* Eigen::Matrix<std::complex<double>, 4, 2> mat; */
-  Eigen::Matrix<std::complex<double>, 4, 4> mat;
+  // Dynamic matrix to hold entries of a GPD kinematic matrix
+  Eigen::MatrixXcd mat;
 
   void assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
 		const std::vector<int> &disp);
 
-  // Default
-  kinMat_t() {}
+  // Ensure ini/fin spinor momenta are different
+  void spinorMomsEqual(bool truth);
 
-  // Constructor
-  kinMat_t(Spinor *fin, Spinor *ini)
-  {
-    /* /\* mat = gsl_matrix_complex_calloc(fin->getIrrepDim()*ini->getIrrepDim(),2); *\/ */
-    /* mat = Eigen::MatrixXcd(fin->getIrrepDim()*ini->getIrrepDim(),2); */
-  }
+  /*
+    Constructors
+  */
+  // Default
+  kinMatGPD_t() {}
+  // Parameterized
+  kinMatGPD_t(const int row, const int col);
 };
 
 /*
@@ -519,11 +590,11 @@ ffMat_t(int _g) : gamma(_g) {}
 */
 /* //--------- Unpol. PDF */
 /* void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT, */
-/* 		   std::vector<kinMat_t> * KIN, */
+/* 		   std::vector<kinMatPDF_t> * KIN, */
 /* 		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP); */
 //--------- Unpol. GPD
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
-		   std::vector<kinMat_t> * KIN,
+		   std::vector<kinMatGPD_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * AMP);
 //---------
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,

@@ -69,8 +69,20 @@ std::ostream& operator<<(std::ostream& os, const gsl_matrix_complex * m)
   return os;
 }
 
+// Print elements of current enum
+std::ostream& operator<<(std::ostream& os, const current c)
+{
+  switch(c)
+    {
+    case VECTOR: { os << "Vector"; break; }
+    case AXIAL:  { os << "Axial"; break; }
+    case TENSOR: { os << "Tensor"; break; }
+    }
+  return os;      
+}
+
 //! Zero out bits of a complex number - n.b. not in an adat header
-std::complex<double> zeroComplex(const std::complex<double>& w)
+std::complex<double> zeroFuzz(const std::complex<double>& w)
 {
   const double fuzz = 1.0e-11;
   // Pretty print the complex number. Replace noise with 0.
@@ -83,6 +95,18 @@ std::complex<double> zeroComplex(const std::complex<double>& w)
     op_i = 0;
 
   return std::complex<double>(op_r,op_i);
+}
+
+/*
+  Spinor sanity checks
+*/
+void iniFinSpinorsEqualL(const int l1, const int l2)
+{
+  if ( l1 != l2 )
+    {
+      std::cerr << "Big problem: initial/final state spinors have different L's!" << std::endl;
+      exit(4);
+    }
 }
 
 
@@ -494,39 +518,16 @@ std::complex<double> utu_t::eval(gsl_vector_complex * left, gsl_vector_complex *
 }
 //==============================================================================================
 
-//==============================================================================================
+
 /*
-  kinMatPDF_t methods
+  contractHandler member functions
 */
-void kinMatPDF_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini)
+void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
+				     std::map<int, std::pair<int,int> > rowMap,
+				     Eigen::MatrixXcd &mat)
 {
-  if ( mu != 4 )
-    {
-      std::cout << "Sigma^{mu*} for mu = " << mu << " is unsupported" << std::endl;
-      exit(3);
-    }
-
-  if ( fin->getL() != ini->getL() )
-    {
-      std::cerr << "Big problem: initial/final state spinors have different L's!" << std::endl;
-      exit(4);
-    }
-
-  if ( fin->getMom() != ini->getMom() )
-    {
-      std::cerr << "kinMatPDF_t expects initial/final state spinors of equal momenta!" << std::endl;
-      exit(4);
-    }
-
   // The spinor contraction w/ \gamma_\mu
   ugu_t ugu(mu,MINK);
-
-  // Map the rows of spinor at snk/src to rows of gmc matrix
-  std::map<int, std::pair<int,int> > rowMap;
-
-  // Forward case we only need two row combinations - diagonals!
-  rowMap[0] = std::make_pair(fin->getTwoJ(),ini->getTwoJ());
-  rowMap[1] = std::make_pair(-fin->getTwoJ(),-ini->getTwoJ());
   
   for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
     {
@@ -534,7 +535,7 @@ void kinMatPDF_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *
       foo = ugu.eval(&(fin->subduced.twoJz[r->second.first]),
 		     &(ini->subduced.twoJz[r->second.second]));
 
-      mat(r->first,0) = zeroComplex(foo);
+      mat(r->first,0) = zeroFuzz(foo);
       foo = std::complex<double>(0.0,0.0);
 
       // Sigma is in fact not needed. Should evaluate to zero from qrho = 0 below
@@ -559,33 +560,236 @@ void kinMatPDF_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *
       // Scale by (I/2m)
       foo *= std::complex<double>(0.0,1.0/(2*mass));
 
-      mat(r->first,1) = zeroComplex(foo);      
+      mat(r->first,1) = zeroFuzz(foo);      
     } // auto r
+}
+
+void contractHandler::axialContract(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
+				    const std::vector<int> &disp,
+				    std::map<int, std::pair<int,int> > rowMap,
+				    Eigen::MatrixXcd &mat)
+{
+  // The polarization vector associated with mu
+  polVec_t S(mu,MINK);
+
+  std::complex<double> prefactor(0.0,0.0);
+  std::complex<double> polVecEval(0.0,0.0);
+
+  for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
+    {
+      polVecEval = S.eval(&(fin->subduced.twoJz[r->second.first]),
+			  &(ini->subduced.twoJz[r->second.second]),mass);
+      mat(r->first,0) = zeroFuzz(polVecEval*std::complex<double>(-2*mass,0.0));
+
+      // Reset
+      polVecEval = std::complex<double>(0.0,0.0);
+      // Loop over Lorentz indices to compute z_\nu \cdot <<gamma^nu\gamma^5>>
+      for ( int nu = 1; nu < 4; ++nu )
+	{
+	  std::complex<double> foo;
+	  polVec_t tmpS(nu,MINK);
+	  
+	  foo = tmpS.eval(&(fin->subduced.twoJz[r->second.first]),
+			  &(ini->subduced.twoJz[r->second.second]),mass);
+
+	  for ( int rho = 1; rho <= 4; ++rho )
+	    polVecEval += metric(nu%4,rho%4)*disp[rho-1]*foo;
+	}
+
+      double pMu = ( mu < 4 ) ? ini->getMom()[mu-1] : ini->getE();
+
+      mat(r->first,1) = zeroFuzz(polVecEval*std::complex<double>(0.0,-2*mass*pMu));
+      mat(r->first,2) = zeroFuzz(polVecEval*std::complex<double>(2*pow(mass,3)*disp[mu-1]));
+    } // auto r
+}
+
+void contractHandler::tensorContract(int mu, int nu, bool MINK, double mass, Spinor *fin,
+				     Spinor *ini, const std::vector<int> &disp,
+				     std::map<int, std::pair<int,int> > rowMap,
+				     Eigen::MatrixXcd &mat)
+{
+  // The polarization vector associated with mu, nu
+  polVec_t Smu(mu,MINK), Snu(nu,MINK);
+
+  double pMu = ( mu < 4 ) ? ini->getMom()[mu-1] : ini->getE();
+  double pNu = ( nu < 4 ) ? ini->getMom()[nu-1] : ini->getE();
+
+  std::complex<double> prefactor(0.0,0.0);
+  std::complex<double> polVecEvalMu(0.0,0.0), polVecEvalNu(0.0,0.0);
+
+  for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
+    {
+      // Evaluate S^nu
+      polVecEvalNu = Snu.eval(&(fin->subduced.twoJz[r->second.first]),
+			      &(ini->subduced.twoJz[r->second.second]),mass);
+      prefactor = pMu * polVecEvalNu;
+
+      // Evaluate S^mu
+      polVecEvalMu = Smu.eval(&(fin->subduced.twoJz[r->second.first]),
+			      &(ini->subduced.twoJz[r->second.second]),mass);
+      prefactor -= polVecEvalMu * pNu;
+      
+      // Set first prefactor
+      mat(r->first,0) = zeroFuzz(2*prefactor);
+
+      
+      prefactor = disp[mu-1] * polVecEvalNu - polVecEvalMu * disp[nu-1];
+      // Set second prefactor
+      mat(r->first,1) = zeroFuzz(2*_I_*pow(mass,2)*prefactor);
+
+
+      // Reset
+      polVecEvalMu = std::complex<double>(0.0,0.0);
+      // Loop over Lorentz indices to compute z \cdot S
+      for ( int rho = 1; rho < 4; ++rho )
+	{
+	  std::complex<double> foo;
+	  polVec_t tmpS(rho,MINK);
+	  
+	  foo = tmpS.eval(&(fin->subduced.twoJz[r->second.first]),
+			  &(ini->subduced.twoJz[r->second.second]),mass);
+
+	  for ( int lambda = 1; lambda <= 4; ++lambda )
+	    polVecEvalMu += metric(rho%4,lambda%4)*disp[lambda-1]*foo;
+	}
+
+      prefactor = 2*pow(mass,2)*( disp[mu-1]*pNu - pMu*disp[nu-1] )*polVecEvalMu;
+      
+      // Set third prefactor
+      mat(r->first,2) = zeroFuzz(prefactor);
+    } // auto r
+}
+
+
+//==============================================================================================
+/*
+  kinMatPDF_t methods
+*/
+// // Parameterized constructor
+// kinMatPDF_t::kinMatPDF_t(const int row, const int col, current c, std::vector<int> _d)
+// {
+//   mat.resize(row, col);
+//   std::cout << "--> Init'd a Kinematic Matrix for PDFs of size " << row << " x " << col << std::endl;
+
+//   // switch(c)
+//   //   {
+//   //   case VECTOR:
+//   //     // contract = &(contractHandler.vectorContract);
+//   //     contract = &vectorContract;
+//   //   }
+// }
+
+// kinMatPDF_t::kinMatPDF_t(const int row, const int col, current c, int _m, std::vector<int> _d)
+// {
+//   mat.resize(row, col);
+//   std::cout << "--> Init'd a Kinematic Matrix for PDFs of size " << row << " x " << col << std::endl;
+// }
+
+// kinMatPDF_t::kinMatPDF_t(const int row, const int col, current c, int _m, int _n, std::vector<int> _d)
+// {
+//   mat.resize(row, col);
+//   std::cout << "--> Init'd a Kinematic Matrix for PDFs of size " << row << " x " << col << std::endl;
+// }
+
+
+// Ensure ini/fin spinor momenta are equal
+void kinMatPDF_t::spinorMomsEqual(bool truth)
+{
+  if ( truth )
+    {
+      std::cerr << "kinMatPDF_t expects initial/final state spinors of equal momenta!" << std::endl;
+      exit(4);
+    }
+}
+
+void kinMatPDF_t::echoAction()
+{
+  std::cout << "Assembling kinMatPDF for current = " << TYPE << std::endl;
+}
+
+void kinMatPDF_t::assemble(bool MINK, double mass, Spinor *fin, Spinor *ini)
+{
+  // Sanity checks first
+  iniFinSpinorsEqualL(fin->getL(), ini->getL());
+  spinorMomsEqual( fin->getMom() != ini->getMom() );
+
+  // Map the rows of spinor at snk/src to rows of gmc matrix
+  std::map<int, std::pair<int,int> > rowMap;
+
+  // Forward case we only need two row combinations - diagonals!
+  if ( TYPE == VECTOR )
+    {
+      rowMap[0] = std::make_pair(fin->getTwoJ(),ini->getTwoJ());
+      rowMap[1] = std::make_pair(-fin->getTwoJ(),-ini->getTwoJ());
+    }
+  else
+    {
+      if ( shortMom(ini->getMom(),"") == "000" )
+	{
+	  rowMap[0] = std::make_pair(fin->getTwoJ(),ini->getTwoJ());
+	  rowMap[1] = std::make_pair(-fin->getTwoJ(),-ini->getTwoJ());
+	}
+      else
+	{
+	  rowMap[0] = std::make_pair(fin->getTwoJ(),-ini->getTwoJ());
+	  rowMap[1] = std::make_pair(-fin->getTwoJ(),ini->getTwoJ());
+	}
+    }
+  // rowMap[0] = std::make_pair(s->getTwoJ(),s->getTwoJ());
+  // rowMap[1] = std::make_pair(s->getTwoJ(),-s->getTwoJ());
+  // rowMap[2] = std::make_pair(-s->getTwoJ(),s->getTwoJ());
+  // rowMap[3] = std::make_pair(-s->getTwoJ(),-s->getTwoJ());
+
+  switch(TYPE)
+    {
+    case VECTOR:
+      vectorContract(mu, MINK, mass, fin, ini, rowMap, mat); break;
+    case AXIAL:
+      axialContract(mu, MINK, mass, fin, ini, disp, rowMap, mat); break;
+    case TENSOR:
+      tensorContract(mu, nu, MINK, mass, fin, ini, disp, rowMap, mat); break;
+    default:
+      std::cout << "Shouldn't be here - what's the current?" << std::endl;
+      exit(2);
+    }
+  // (*contract)(mat,fin,ini);
 }
 //==============================================================================================
 
 
 //==============================================================================================
 /*
-  kinMat_t methods
+  kinMatGPD_t methods
 */
-void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
-			const std::vector<int> &disp)
+// Parameterized constructor
+kinMatGPD_t::kinMatGPD_t(const int row, const int col)
 {
+  mat.resize(row, col);
+  std::cout << "--> Init'd a Kinematic Matrix for GPDs of size " << row << " x " << col << std::endl;
+}
+
+// Ensure ini/fin spinor momenta are different
+void kinMatGPD_t::spinorMomsEqual(bool truth)
+{
+  if ( !truth )
+    {
+      std::cerr << "kinMatGPD_t expects initial/final state spinors of distinct momenta!" << std::endl;
+      exit(4);
+    }
+}
+
+void kinMatGPD_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
+			   const std::vector<int> &disp)
+{
+  // Sanity checks first
+  iniFinSpinorsEqualL(fin->getL(), ini->getL());
+  spinorMomsEqual( fin->getMom() != ini->getMom() );
+  
   if ( mu != 4 )
     {
       std::cout << "Sigma^{mu*} for mu = " << mu << " is unsupported" << std::endl;
       exit(3);
     }
-
-  if ( fin->getL() != ini->getL() )
-    {
-      std::cerr << "Big problem: initial/final state spinors have different L's!" << std::endl;
-      exit(4);
-    }
-
-  // The spinor contraction w/ \gamma_\mu
-  ugu_t ugu(mu,MINK);
 
   // Map the rows of spinor at snk/src to rows of gmc matrix
   std::map<int, std::pair<int,int> > rowMap;
@@ -596,13 +800,17 @@ void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini
   rowMap[2] = std::make_pair(-fin->getTwoJ(),ini->getTwoJ());
   rowMap[3] = std::make_pair(-fin->getTwoJ(),-ini->getTwoJ());
 
+
+  // The spinor contraction w/ \gamma_\mu
+  ugu_t ugu(mu,MINK); 
+
   for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
     {
       std::complex<double> foo(0.0,0.0);
       foo = ugu.eval(&(fin->subduced.twoJz[r->second.first]),
 		     &(ini->subduced.twoJz[r->second.second]));
 
-      mat(r->first,0) = zeroComplex(foo);
+      mat(r->first,0) = zeroFuzz(foo);
       foo = std::complex<double>(0.0,0.0);
 
       for ( int nu = 1; nu <= 4; ++nu )
@@ -626,7 +834,7 @@ void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini
       // Scale by (I/2m)
       foo *= std::complex<double>(0.0,1.0/(2*mass));
 
-      mat(r->first,1) = zeroComplex(foo);
+      mat(r->first,1) = zeroFuzz(foo);
 
 
       /*
@@ -647,7 +855,7 @@ void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini
       // Rescale by 1/2m so energy dimensions agree
       foo *= std::complex<double>(-1.0/mass,0.0); // "-" so we have (p1 - p2)
 
-      mat(r->first,2) = zeroComplex(foo);
+      mat(r->first,2) = zeroFuzz(foo);
 
 
       /*
@@ -676,77 +884,11 @@ void kinMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini
       // Scale by (I*m)
       foo *= std::complex<double>(0.0,1.0*mass);
 
-      mat(r->first,3) = zeroComplex(foo);
+      mat(r->first,3) = zeroFuzz(foo);
     } // auto r
 }
 //==============================================================================================
 
-/*
-  kinMat3_t methods
-*/
-void kinMat3_t::assemble(int mu, bool MINK, double mass, Spinor *s, const std::vector<int> &disp)
-{
-  // The polarization vector associated with mu
-  polVec_t S(mu,MINK);
-
-  // Map the rows of spinor at snk/src to rows of gmc matrix
-  std::map<int, std::pair<int,int> > rowMap;
-  rowMap[0] = std::make_pair(s->getTwoJ(),s->getTwoJ());
-  rowMap[1] = std::make_pair(s->getTwoJ(),-s->getTwoJ());
-  rowMap[2] = std::make_pair(-s->getTwoJ(),s->getTwoJ());
-  rowMap[3] = std::make_pair(-s->getTwoJ(),-s->getTwoJ());
-
-#if 0
-  // For vector insertions
-  rowMap[0] = std::make_pair(s->getTwoJ(),s->getTwoJ());
-  rowMap[1] = std::make_pair(-s->getTwoJ(),-s->getTwoJ());
-#endif
-#if 0
-  // For axial insertions
-  if ( shortMom(s->getMom(),"") == "000" )
-    {
-      rowMap[0] = std::make_pair(s->getTwoJ(),s->getTwoJ());
-      rowMap[1] = std::make_pair(-s->getTwoJ(),-s->getTwoJ());
-    }
-  else
-    {
-      rowMap[0] = std::make_pair(s->getTwoJ(),-s->getTwoJ());
-      rowMap[1] = std::make_pair(-s->getTwoJ(),s->getTwoJ());
-    }
-#endif
-
-
-  double pref = 1.0;
-
-  for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
-    {
-#if 1
-      // Use foo to collect spinor contractions
-      std::complex<double> foo(pref*mass*S.eval(&(s->subduced.twoJz[r->second.first]),
-						&(s->subduced.twoJz[r->second.second]),mass));
-
-      // Mat[*,0] = -1*<<gamma^mu gamma^5>>
-      mat(r->first,0) = foo*std::complex<double>(0.0,-1.0); // _I_;
-      // mat(r->first,0) = foo;
-
-      foo = 0.0;
-      // Loop over Lorentz indices to compute z_nu \cdot <<gamma^nu\gamma^5>>
-      // Skip 4th component, since \vec{z}^4 is always zero
-      for ( int nu = 1; nu < 4; ++nu )
-	{
-	  polVec_t tmpS(nu,MINK);
-
-	  foo += tmpS.eval(&(s->subduced.twoJz[r->second.first]),
-			   &(s->subduced.twoJz[r->second.second]),mass)*disp[nu-1]; //*_I_;
-	}
-
-      // Mat[*,1] = 2 m^3 z^mu (z_nu \cdot <<gamma^nu\gamma^5>>)
-      // mat(r->first,1) = pref*pow(mass,3)*disp[mu-1]*foo;
-      mat(r->first,1) = pref*pow(mass,3)*disp[mu-1]*foo*std::complex<double>(0.0,-1.0);
-#endif
-    } // auto r
-}
-//=========
 
 
 void kinMat3_t::assembleBig(int mu, bool MINK, double mass, Spinor *s, const std::vector<int> &disp)
@@ -769,7 +911,7 @@ void kinMat3_t::assembleBig(int mu, bool MINK, double mass, Spinor *s, const std
       polVecEval = S.eval(&(s->subduced.twoJz[r->second.first]),
 			  &(s->subduced.twoJz[r->second.second]),mass);
       
-      mat(r->first,0) = zeroComplex(polVecEval*std::complex<double>(-2*mass,0.0));
+      mat(r->first,0) = zeroFuzz(polVecEval*std::complex<double>(-2*mass,0.0));
       
 
       // Reset
@@ -789,8 +931,8 @@ void kinMat3_t::assembleBig(int mu, bool MINK, double mass, Spinor *s, const std
 
       double pMu = ( mu < 4 ) ? s->getMom()[mu-1] : s->getE();
 
-      mat(r->first,1) = zeroComplex(polVecEval*std::complex<double>(0.0,-2*mass*pMu));
-      mat(r->first,2) = zeroComplex(polVecEval*std::complex<double>(2*pow(mass,3)*disp[mu-1]));
+      mat(r->first,1) = zeroFuzz(polVecEval*std::complex<double>(0.0,-2*mass*pMu));
+      mat(r->first,2) = zeroFuzz(polVecEval*std::complex<double>(2*pow(mass,3)*disp[mu-1]));
     } // auto r
 }
 
@@ -830,7 +972,7 @@ void ffMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini)
       foo = pref*ff1.eval(&(fin->subduced.twoJz[r->second.first]),
 			  &(ini->subduced.twoJz[r->second.second]));
 
-      mat(r->first,0) = zeroComplex(foo);
+      mat(r->first,0) = zeroFuzz(foo);
       foo = std::complex<double>(0.0,0.0);
 
       for ( int nu = 1; nu <= 4; ++nu )
@@ -855,7 +997,7 @@ void ffMat_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini)
       // Scale by (I/2m)
       foo *= std::complex<double>(0.0,1.0/(2*mass));
 
-      mat(r->first,1) = zeroComplex(foo);
+      mat(r->first,1) = zeroFuzz(foo);
     } // auto r	  
 }
 
@@ -1094,11 +1236,11 @@ void Spinor::initSubduce(const std::string& opName)
 */
 // //--------- Unpol. PDF */
 // void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT,
-// 		   std::vector<kinMat_t> * KIN,
+// 		   std::vector<kinMatPDF_t> * KIN,
 // 		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP)
 //--------- Unpol. GPD
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
-		   std::vector<kinMat_t> * KIN,
+		   std::vector<kinMatGPD_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * AMP)
 {
   for ( auto a = AMP->begin(); a != AMP->end(); ++a )
