@@ -10,6 +10,9 @@ fi
 EXE=/w/scifs17/JLabLQCD/cegerer/pPDF/pITD-matelem
 XML=/work/JLabLQCD/cegerer/pPDF/sum-matelem.m0p2350.ini.xml
 
+# EXE=/volatile/JLabLQCD/cegerer/workBlows/pITD-matelem
+# XML=/volatile/JLabLQCD/cegerer/workBlows/sum-matelem.m0p2350.ini.xml
+
 PHASEDIR=unphased
 PHASESTUB=$PHASEDIR
 ZTAG=absZ-8-8
@@ -32,7 +35,8 @@ PROJ=0
 
 ##############################################################################
 # Set the 2pt fitting window - sloppy for now!
-tmin2ptFit=2; tmax2ptFit=0
+tmin2ptFitRest=3
+tmin2ptFit=3; tmax2ptFit=0
 if [ $1 -eq 0 ]; then tmax2ptFit=18; fi
 if [ $1 -eq 1 ] || [ $1 -eq -1 ]; then tmax2ptFit=15; fi
 if [ $1 -eq 2 ]; then tmax2ptFit=14; fi
@@ -41,8 +45,8 @@ if [ $1 -eq 3 ]; then tmax2ptFit=12; fi
 if [ $1 -eq -3 ]; then tmax2ptFit=12; fi
 if [ $1 -eq 4 ]; then tmax2ptFit=11; fi
 if [ $1 -eq -4 ]; then tmax2ptFit=10; fi
-if [ $1 -eq 5 ]; then tmax2ptFit=11; fi
-if [ $1 -eq -5 ]; then tmax2ptFit=10; fi
+if [ $1 -eq 5 ]; then tmax2ptFit=11; fi  # 2state has some jk fits w/ E0,E1 flipped
+if [ $1 -eq -5 ]; then tmax2ptFit=10; fi # 2state has some jk fits w/ E0,E1 flipped
 if [ $1 -eq 6 ]; then tmax2ptFit=8; fi
 if [ $1 -eq -6 ]; then tmax2ptFit=9; fi
 
@@ -106,7 +110,8 @@ for p in $1; do
 	    -e 's@2PTTmin@'"${tmin2ptFit}"'@g' -e 's@2PTTmax@'"${tmax2ptFit}"'@g' \
 	    -e 's@PHASEDIR@'"${PHASEDIR}"'@g' -e 's@PHASESTUB@'"${PHASESTUB}"'@g' \
 	    -e 's@GAMMA@'"${gamma}"'@' -e 's@PROJ@'"${PROJ}"'@' \
-	    -e 's@ZTAG@'"${ZTAG}"'@' $XML > sum.${p}${z}.xml
+	    -e 's@ZTAG@'"${ZTAG}"'@' $XML -e 's@2PTRESTTmin@'"${tmin2ptFitRest}"'@' \
+	    > sum.${p}${z}.xml
 	
 	    # -e 's@XPHASEX@'"${phaseStub}"'@g' -e 's@XOPX@'"${operator}"'@g' \
 	    # sum-matelem.ini.xml > sum.${p}${z}.xml

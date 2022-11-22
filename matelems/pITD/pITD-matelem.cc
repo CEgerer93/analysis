@@ -6,6 +6,7 @@
   ALLOWING FOR SUMMATION METHOD TO EXTRACT MATRIX ELEMENT
 */
 #include<vector>
+#include<unordered_map>
 #include<fstream>
 #include<math.h>
 #include<string>
@@ -1185,13 +1186,20 @@ int main(int argc, char *argv[])
   /*
     TRY SVD INSTEAD OF ALL THIS ROW AVERAGE BS
   */
-  std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > MAT(global.cfgs);
-  // std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > MAT(global.cfgs);
+  // std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > MAT(global.cfgs);
+  std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > MAT(global.cfgs);
+  // std::vector<Eigen::MatrixXcd> MAT(global.cfgs, Eigen::MatrixXcd(2,1));
 
   // if ( global.chromaGamma == 8 )
   // std::vector<kinMatPDF_t> KIN(global.cfgs);
   // if ( global.chromaGamma == 11 )
-  std::vector<kinMat3_t> KIN(global.cfgs);
+  // std::vector<kinMat3_t> KIN(global.cfgs);
+
+  
+  std::vector<kinMatPDF_t> KIN(global.cfgs,
+			       kinMatPDF_t(2,2,current::AXIAL,3,
+					   shortZ(funcs3pt[0].keyCorrMap.begin()->
+						  first.npoint[2].irrep.op.ops[1].disp_list)));
 
   for ( auto k = KIN.begin(); k != KIN.end(); ++k )
     {
@@ -1202,55 +1210,23 @@ int main(int argc, char *argv[])
 		  global.pf,twoPt.res.params["E0"][j],rest2pt.res.params["E0"][j],global.Lx);
       // Build the spinor
       spin.buildSpinors();
-
-#if 0
-      std::complex<double> ssqr(0.0,0.0);
-      polVec_t pol = polVec_t(4,true);
-      ssqr += pol.eval(&(spin.canon.twoJz[-1]),&(spin.canon.twoJz[-1]),rest2pt.res.params["E0"][j])*pol.eval(&(spin.canon.twoJz[-1]),&(spin.canon.twoJz[-1]),rest2pt.res.params["E0"][j]);
-      for ( int i = 1; i < 4; ++i )
-	{
-	  polVec_t foo = polVec_t(i,true);
-	  ssqr -= (foo.eval(&(spin.canon.twoJz[-1]),&(spin.canon.twoJz[-1]),rest2pt.res.params["E0"][j])*foo.eval(&(spin.canon.twoJz[-1]),&(spin.canon.twoJz[-1]),rest2pt.res.params["E0"][j]));
-	}
-      std::cout << "S^2 = " << ssqr << std::endl;
-
-
-      spin.projector();
-#endif
-
       std::cout << "Constructed sub-spinor(1) = " << &(spin.subduced.twoJz[1]) << std::endl;
       std::cout << "Constructed sub-spinor(2) = " << &(spin.subduced.twoJz[-1]) << std::endl;
-#if 0
-      polVec_t pol = polVec_t(3,false);
-      std::cout << "With canonical spinors, <<g^3g^5>>_11 = " << pol.eval(&(spin.canon.twoJz[1]),&(spin.canon.twoJz[1]),rest2pt.res.params["E0"][j]) << std::endl;
-      std::cout << "     subduced  spinors, <<g^3g^5>>_11 = " << pol.eval(&(spin.subduced.twoJz[1]),&(spin.subduced.twoJz[1]),rest2pt.res.params["E0"][j]) << std::endl;
-      std::cout << "With canonical spinors, <<g^3g^5>>_12 = " << pol.eval(&(spin.canon.twoJz[1]),&(spin.canon.twoJz[-1]),rest2pt.res.params["E0"][j]) << std::endl;
-      std::cout << "     subduced  spinors, <<g^3g^5>>_12 = " << pol.eval(&(spin.subduced.twoJz[1]),&(spin.subduced.twoJz[-1]),rest2pt.res.params["E0"][j]) << std::endl;
-      std::cout << "With canonical spinors, <<g^3g^5>>_21 = " << pol.eval(&(spin.canon.twoJz[-1]),&(spin.canon.twoJz[1]),rest2pt.res.params["E0"][j]) << std::endl;
-      std::cout << "     subduced  spinors, <<g^3g^5>>_21 = " << pol.eval(&(spin.subduced.twoJz[-1]),&(spin.subduced.twoJz[1]),rest2pt.res.params["E0"][j]) << std::endl;
-      std::cout << "With canonical spinors, <<g^3g^5>>_22 = " << pol.eval(&(spin.canon.twoJz[-1]),&(spin.canon.twoJz[-1]),rest2pt.res.params["E0"][j]) << std::endl;
-      std::cout << "     subduced  spinors, <<g^3g^5>>_22 = " << pol.eval(&(spin.subduced.twoJz[-1]),&(spin.subduced.twoJz[-1]),rest2pt.res.params["E0"][j]) << std::endl;
-      // exit(80);
-#endif
 
       /*
 	Construct the kinematic matrix based on passed current
       */
-      // // Vector
-      // // if ( global.chromaGamma == 8 )
-      // k->assemble(4,false,rest2pt.res.params["E0"][j],&spin,&spin);
-      // Axial
-      // if ( global.chromaGamma == 11 )
-      k->assemble(3,false,rest2pt.res.params["E0"][j],&spin,
-		  shortZ(funcs3pt[0].keyCorrMap.begin()->first.npoint[2].irrep.op.ops[1].disp_list));
+      k->assemble(true,rest2pt.res.params["E0"][j],&spin,&spin);
 
       std::cout << "KIN MAT!" << std::endl;
       std::cout << k->mat << std::endl;
 
     }
+
   // std::vector<Eigen::Matrix<std::complex<double>, 3, 1> > AMP(global.cfgs);
   // std::vector<Eigen::Vector3cd> AMP(global.cfgs);
   std::vector<Eigen::Vector2cd> AMP(global.cfgs);
+  // std::vector<Eigen::VectorXcd> AMP(global.cfgs,Eigen::VectorXcd(2));
 
 
   /*
@@ -1266,17 +1242,20 @@ int main(int argc, char *argv[])
       int rowi = tsepItr->keyCorrMap.begin()->first.npoint[3].irrep.irrep_mom.row;
 
 
-      // Vector!
-      if ( global.chromaGamma == 8 )
-	if ( rowf != rowi )
-	  continue;
+      // // Vector!
+      // if ( global.chromaGamma == 8 )
+	// if ( rowf != rowi )
+	//   continue;
 
       
       // Map the snk/src row combinations to a given element of correlator column vector
+      // std::unordered_map<std::pair<int,int>, int> matIDX;
       std::map<std::pair<int,int>, int> matIDX;
       std::pair<int,int> rfri;
 
-      // Handle pairs of row combinations differently depending of chromaGamma
+      /*
+	Handle pairs of row combinations differently depending on chromaGamma
+      */
       // Vector
       if ( global.chromaGamma == 8 )
 	{
@@ -1359,8 +1338,6 @@ int main(int argc, char *argv[])
 
               // Remove common kinematic factor & 1/\sqrt(2) from isovector current normalization
 	      ratio[idx].ensemble.ens[j] *= (redFact*commonKin);
-
-	      // ratio[idx].ensemble.ens[j] *= commonKin;
             } // j
 
 
@@ -1439,14 +1416,6 @@ int main(int argc, char *argv[])
 	  // Do default fit
 	  NFIT::driver(&SR, *f, false);
 
-	  // // If Ioffe-time is zero and *f == 'imag' then force fit results to zero
-	  // if ( *f == "imag" && ioffeTime(SR.getPf(),shortZ(SR.getDisp()),global.Lx) <= 0 )
-	  //   {
-	  //     SR.res.chi2 = std::vector<double>(global.cfgs,0.0);
-	  //     SR.res.params["a"] = std::vector<double>(global.cfgs,0.0);
-	  //     SR.res.params["b"] = std::vector<double>(global.cfgs,0.0);
-	  //   }
-
           // Write out the fit results
           fitResW(&SR, *f);
 
@@ -1456,11 +1425,19 @@ int main(int argc, char *argv[])
             {
 	      std::pair<int,int> lookUp = std::make_pair(rowf,rowi);
 
-	      std::cout << "Look up = " << lookUp.first << " & " << lookUp.second << std::endl;
-              if ( *f == "real" )
-                MAT[g](matIDX[lookUp]).real(SR.res.params["b"][g]);
-              if ( *f == "imag" )
-                MAT[g](matIDX[lookUp]).imag(SR.res.params["b"][g]);
+	      try {
+		if ( *f == "real" )
+		  MAT[g](matIDX.at(lookUp)).real(SR.res.params["b"][g]);
+		if ( *f == "imag" )
+		  MAT[g](matIDX.at(lookUp)).imag(SR.res.params["b"][g]);
+		std::cout << "Found row pair = " << lookUp.first << " & "
+			  << lookUp.second << std::endl;
+	      }
+	      catch ( std::out_of_range &r) {
+		std::cout << "Skipping row pair = " << lookUp.first << " & "
+			  << lookUp.second << std::endl;
+		// continue;
+	      }
             }
 
           // Destroy the stored fits values since they've been written
