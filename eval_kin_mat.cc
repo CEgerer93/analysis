@@ -93,21 +93,28 @@ int main(int argc, char *argv[])
   double mass = 0.535;
   int Lx      = 32;
 
-  XMLArray::Array<int> mom;
-  mom.resize(3);
-  mom[0] = px; mom[1] = py; mom[2] = pz;
+  XMLArray::Array<int> mom_i;
+  mom_i.resize(3);
+  mom_i[0] = px; mom_i[1] = py; mom_i[2] = pz;
+  XMLArray::Array<int> mom_f;
+  mom_f.resize(3);
+  mom_f[0] = 0; mom_f[1] = 1; mom_f[2] = 1;
 
-  double E    = sqrt( pow(mass,2) + pow(2*PI/Lx,2)*(mom*mom) );
+  double Ei    = sqrt( pow(mass,2) + pow(2*PI/Lx,2)*(mom_i*mom_i) );
+  double Ef    = sqrt( pow(mass,2) + pow(2*PI/Lx,2)*(mom_f*mom_f) );
 
   
   // std::string opName = "NucleonMG1g1MxD0J0S_J1o2_G1g1";
   std::string opName = "NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1";
+  std::string opNameD2 = "NucleonMG1g1MxD0J0S_J1o2_H1o2D2E";
 
   std::vector<int> disp = { dx, dy, dz, 0 };
 
 
-  Spinor s(opName,mom,E,mass,Lx);
-  s.buildSpinors();
+  Spinor si(opName,mom_i,Ei,mass,Lx);
+  si.buildSpinors();
+  Spinor sf(opNameD2,mom_f,Ef,mass,Lx);
+  sf.buildSpinors();
 
 
   // K.assembleBig(mu,true,mass,&s,disp);
@@ -163,19 +170,27 @@ int main(int argc, char *argv[])
 
   kinMatPDF_t V(2,2,current::VECTOR,mu,disp);
   kinMatPDF_t A(2,2,current::AXIAL,mu,disp);
-  kinMatPDF_t T(2,2,current::TENSOR,mu,4,disp);
+  
+  // kinMatPDF_t A(2,3,current::AXIAL,mu,disp);
+  // kinMatPDF_t T(2,3,current::TENSOR,mu,4,disp);
   
 
-  V.assemble(true,mass,&s,&s);
+  V.assemble(true,mass,&si,&si);
   std::cout << "Vector = " << V.mat << std::endl;
 
-  A.assemble(true,mass,&s,&s);
+  A.assemble(true,mass,&si,&si);
   std::cout << "Axial = " << A.mat << std::endl;
 
-  T.assemble(true,mass,&s,&s);
-  std::cout << "Tensor = " << T.mat << std::endl;
+  // T.assemble(true,mass,&s,&s);
+  // std::cout << "Tensor = " << T.mat << std::endl;
   
   
+
+  kinMatGPD_t GPD(4,4,current::VECTOR,mu,disp);
+  GPD.assemble(true,mass,&sf,&si);
+  std::cout << "GPD = " << GPD.mat << std::endl;
+  getSVs(&GPD.mat);
+
 
   return 0;
 }

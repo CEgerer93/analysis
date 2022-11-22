@@ -523,18 +523,27 @@ std::complex<double> utu_t::eval(gsl_vector_complex * left, gsl_vector_complex *
   contractHandler member functions
 */
 void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
+				     const std::vector<int> &disp,
 				     std::map<int, std::pair<int,int> > rowMap,
 				     Eigen::MatrixXcd &mat)
 {
   // The spinor contraction w/ \gamma_\mu
   ugu_t ugu(mu,MINK);
-  
+  std::cout << "Contracting " << rowMap.size() << " rows" << std::endl;
   for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
     {
+      std::cout << "   Contracting rf = " << r->second.first << ", ri = "
+		<< r->second.second << " for pf = " << fin->getMom()
+		<< " and pi = " << ini->getMom() << std::endl;
       std::complex<double> foo(0.0,0.0);
       foo = ugu.eval(&(fin->subduced.twoJz[r->second.first]),
 		     &(ini->subduced.twoJz[r->second.second]));
 
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	  THE SPINOR CONTRACTION W/ \GAMMA_\MU
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
       mat(r->first,0) = zeroFuzz(foo);
       foo = std::complex<double>(0.0,0.0);
 
@@ -560,7 +569,70 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
       // Scale by (I/2m)
       foo *= std::complex<double>(0.0,1.0/(2*mass));
 
-      mat(r->first,1) = zeroFuzz(foo);      
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	  THE SPINOR CONTRACTION W/ \SIGMA_{\MU\NU} * Q_\NU
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,1) = zeroFuzz(foo);
+
+      
+
+      // Skip to next row combination only in forward case
+      if ( fin->getMom() == ini->getMom() )
+	{
+	  std::cout << " True for pf = " << fin->getMom() << " pi = " << ini->getMom() << std::endl;
+	  continue;
+	}
+
+
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	  THE SPINOR CONTRACTION W/ \SIGMA_{\MU\NU} * Q_\NU
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = std::complex<double>(0.0,0.0);
+      // The spinor contraction w/ identity
+      u1u_t u1u(MINK);
+      foo = u1u.eval(&(fin->subduced.twoJz[r->second.first]),
+		     &(ini->subduced.twoJz[r->second.second]));
+      
+      if ( mu == 4 )
+	foo *= ( fin->getE() - ini->getE() );
+      else
+	foo *= ( (2*PI/fin->getL())*( fin->getMom()[mu-1] - ini->getMom()[mu-1] ) );
+      // Rescale by 1/2m so energy dimensions agree
+      foo *= std::complex<double>(-1.0/mass,0.0); // "-" so we have (p1 - p2)
+
+      mat(r->first,2) = zeroFuzz(foo);
+
+
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	  THE SPINOR CONTRACTION W/ \SIGMA_{\MU\NU} * Z_\NU
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = std::complex<double>(0.0,0.0);
+      for ( int nu = 1; nu <= 4; ++nu )
+	{
+	  utu_t sig(mu,nu,MINK);
+	  for ( int rho = 1; rho <= 4; ++rho )
+	    {
+	      double zrho(0.0);
+
+	      if ( rho == 4 )
+		zrho = 0.0;
+	      else
+		zrho = disp[rho-1];
+
+	      foo += sig.eval(&(fin->subduced.twoJz[r->second.first]),
+			      &(ini->subduced.twoJz[r->second.second]))*metric(rho%4,nu%4)*zrho;
+	    } // rho
+	} //nu
+      
+      // Scale by (I*m)
+      foo *= std::complex<double>(0.0,1.0*mass);
+      mat(r->first,3) = zeroFuzz(foo);
     } // auto r
 }
 
@@ -580,6 +652,7 @@ void contractHandler::axialContract(int mu, bool MINK, double mass, Spinor *fin,
       polVecEval = S.eval(&(fin->subduced.twoJz[r->second.first]),
 			  &(ini->subduced.twoJz[r->second.second]),mass);
       mat(r->first,0) = zeroFuzz(polVecEval*std::complex<double>(-2*mass,0.0));
+      mat(r->first,0) *= -1;
 
       // Reset
       polVecEval = std::complex<double>(0.0,0.0);
@@ -598,8 +671,13 @@ void contractHandler::axialContract(int mu, bool MINK, double mass, Spinor *fin,
 
       double pMu = ( mu < 4 ) ? ini->getMom()[mu-1] : ini->getE();
 
-      mat(r->first,1) = zeroFuzz(polVecEval*std::complex<double>(0.0,-2*mass*pMu));
-      mat(r->first,2) = zeroFuzz(polVecEval*std::complex<double>(2*pow(mass,3)*disp[mu-1]));
+      // Forcing prefactor of R to zero
+      mat(r->first,1) = std::complex<double>(0.0,0.0);
+
+      // // Accounting correctly for N & R prefactors
+      // mat(r->first,1) = zeroFuzz(polVecEval*std::complex<double>(0.0,-2*mass*pMu));
+      // mat(r->first,2) = zeroFuzz(polVecEval*std::complex<double>(2*pow(mass,3)*disp[mu-1]));
+
     } // auto r
 }
 
@@ -743,7 +821,7 @@ void kinMatPDF_t::assemble(bool MINK, double mass, Spinor *fin, Spinor *ini)
   switch(TYPE)
     {
     case VECTOR:
-      vectorContract(mu, MINK, mass, fin, ini, rowMap, mat); break;
+      vectorContract(mu, MINK, mass, fin, ini, disp, rowMap, mat); break;
     case AXIAL:
       axialContract(mu, MINK, mass, fin, ini, disp, rowMap, mat); break;
     case TENSOR:
@@ -761,11 +839,9 @@ void kinMatPDF_t::assemble(bool MINK, double mass, Spinor *fin, Spinor *ini)
 /*
   kinMatGPD_t methods
 */
-// Parameterized constructor
-kinMatGPD_t::kinMatGPD_t(const int row, const int col)
+void kinMatGPD_t::echoAction()
 {
-  mat.resize(row, col);
-  std::cout << "--> Init'd a Kinematic Matrix for GPDs of size " << row << " x " << col << std::endl;
+  std::cout << "Assembling kinMatGPD for current = " << TYPE << std::endl;
 }
 
 // Ensure ini/fin spinor momenta are different
@@ -778,18 +854,11 @@ void kinMatGPD_t::spinorMomsEqual(bool truth)
     }
 }
 
-void kinMatGPD_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
-			   const std::vector<int> &disp)
+void kinMatGPD_t::assemble(bool MINK, double mass, Spinor *fin, Spinor *ini)
 {
   // Sanity checks first
   iniFinSpinorsEqualL(fin->getL(), ini->getL());
   spinorMomsEqual( fin->getMom() != ini->getMom() );
-  
-  if ( mu != 4 )
-    {
-      std::cout << "Sigma^{mu*} for mu = " << mu << " is unsupported" << std::endl;
-      exit(3);
-    }
 
   // Map the rows of spinor at snk/src to rows of gmc matrix
   std::map<int, std::pair<int,int> > rowMap;
@@ -800,96 +869,21 @@ void kinMatGPD_t::assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *
   rowMap[2] = std::make_pair(-fin->getTwoJ(),ini->getTwoJ());
   rowMap[3] = std::make_pair(-fin->getTwoJ(),-ini->getTwoJ());
 
-
-  // The spinor contraction w/ \gamma_\mu
-  ugu_t ugu(mu,MINK); 
-
-  for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
+  switch(TYPE)
     {
-      std::complex<double> foo(0.0,0.0);
-      foo = ugu.eval(&(fin->subduced.twoJz[r->second.first]),
-		     &(ini->subduced.twoJz[r->second.second]));
-
-      mat(r->first,0) = zeroFuzz(foo);
-      foo = std::complex<double>(0.0,0.0);
-
-      for ( int nu = 1; nu <= 4; ++nu )
-	{
-	  utu_t sig(mu,nu,MINK);
-
-	  for ( int rho = 1; rho <= 4; ++rho )
-	    {
-	      double qrho(0.0);
-
-	      if ( rho == 4 )
-		qrho = ( fin->getE() - ini->getE() );
-	      else
-		qrho = ( (2*PI/fin->getL())*( fin->getMom()[rho-1] - ini->getMom()[rho-1] ) );
-
-	      foo += sig.eval(&(fin->subduced.twoJz[r->second.first]),
-			      &(ini->subduced.twoJz[r->second.second]))*metric(nu%4,rho%4)*qrho;
-	    } // rho
-	} // nu
-
-      // Scale by (I/2m)
-      foo *= std::complex<double>(0.0,1.0/(2*mass));
-
-      mat(r->first,1) = zeroFuzz(foo);
-
-
-      /*
-	Mon. Oct. 24, 2022 - Explore adding in a q^\mu term
-      */
-      foo = std::complex<double>(0.0,0.0);
-
-      // The spinor contraction w/ identity
-      u1u_t u1u(MINK);
-
-      foo = u1u.eval(&(fin->subduced.twoJz[r->second.first]),
-		     &(ini->subduced.twoJz[r->second.second]));
-      
-      if ( mu == 4 )
-	foo *= ( fin->getE() - ini->getE() );
-      else
-	foo *= ( (2*PI/fin->getL())*( fin->getMom()[mu] - ini->getMom()[mu] ) );
-      // Rescale by 1/2m so energy dimensions agree
-      foo *= std::complex<double>(-1.0/mass,0.0); // "-" so we have (p1 - p2)
-
-      mat(r->first,2) = zeroFuzz(foo);
-
-
-      /*
-	Tues. Oct. 25, 2022 - Explore adding in a im\sigma^{\mu\nu}z_\nu term
-      */
-      // Dead in the water --> Need eight matrix elements to constrain!
-      foo = std::complex<double>(0.0,0.0);
-
-      for ( int nu = 1; nu <= 4; ++nu )
-	{
-	  utu_t sig(mu,nu,MINK);
-	  for ( int rho = 1; rho <= 4; ++rho )
-	    {
-	      double zrho(0.0);
-
-	      if ( rho == 4 )
-		zrho = 0.0;
-	      else
-		zrho = disp[rho-1];
-
-	      foo += sig.eval(&(fin->subduced.twoJz[r->second.first]),
-			      &(ini->subduced.twoJz[r->second.second]))*metric(rho%4,nu%4)*zrho;
-	    } // rho
-	} //nu
-      
-      // Scale by (I*m)
-      foo *= std::complex<double>(0.0,1.0*mass);
-
-      mat(r->first,3) = zeroFuzz(foo);
-    } // auto r
+    case VECTOR:
+      vectorContract(mu, MINK, mass, fin, ini, disp, rowMap, mat); break;
+    case AXIAL:
+      std::cout << "Not ready for AXIAL GPDs!" << std::endl; exit(3);
+      // axialContract(mu, MINK, mass, fin, ini, disp, rowMap, mat); break;
+    case TENSOR:
+      std::cout << "Not ready for TENSOR GPDs!" << std::endl; exit(3);
+      // tensorContract(mu, nu, MINK, mass, fin, ini, disp, rowMap, mat); break;
+    default:
+      std::cout << "Shouldn't be here - what's the current?" << std::endl;
+      exit(2);
+    }
 }
-//==============================================================================================
-
-
 
 void kinMat3_t::assembleBig(int mu, bool MINK, double mass, Spinor *s, const std::vector<int> &disp)
 {
@@ -1235,9 +1229,27 @@ void Spinor::initSubduce(const std::string& opName)
   EXTRACT INVARIANT AMPLITUDES USING (IN GENERAL) AN SVD DECOMPOSITION
 */
 // //--------- Unpol. PDF */
-// void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT,
-// 		   std::vector<kinMatPDF_t> * KIN,
-// 		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP)
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT,
+		   std::vector<kinMatPDF_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP)
+// void extAmplitudes(std::vector<Eigen::MatrixXcd,std::allocator<Eigen::MatrixXcd> > * MAT,
+// 		   std::vector<kinMatPDF_t, std::allocator<kinMatPDF_t> > * KIN,
+// 		   std::vector<Eigen::MatrixXcd, std::allocator<Eigen::VectorXcd> > * AMP)
+{
+   for ( auto a = AMP->begin(); a != AMP->end(); ++a )
+    {
+      int idx = std::distance(AMP->begin(),a);
+      Eigen::JacobiSVD<Eigen::MatrixXcd> SVD((*KIN)[idx].mat,
+					     Eigen::ComputeFullU | Eigen::ComputeFullV);
+#ifdef PRINT_SVS
+      std::cout << "      --> singular values = " << SVD.singularValues() << std::endl;
+#endif
+
+      // Solution of SVD to AMP
+      *a = SVD.solve((*MAT)[idx]);
+    } // a
+}
+
 //--------- Unpol. GPD
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
 		   std::vector<kinMatGPD_t> * KIN,

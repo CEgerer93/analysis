@@ -454,6 +454,7 @@ class contractHandler
 {
  public:
   void vectorContract(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
+		      const std::vector<int> &disp,
 		      std::map<int, std::pair<int,int> > rowMap, Eigen::MatrixXcd &mat);
   void axialContract(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
 		     const std::vector<int> &disp,
@@ -482,14 +483,12 @@ class contractHandler
 */
 struct kinMatPDF_t : contractHandler
 {
-  // Lorentz indices
-  int mu = -1; int nu = -1;
-  // Current type
-  current TYPE;
-  // Potential displacement
-  std::vector<int> disp;
-  // Dynamic matrix to hold entries of a PDF kinematic matrix
-  Eigen::MatrixXcd mat;
+  // Public members
+  int mu = -1; int nu = -1; // Lorentz indices
+  current TYPE;             // Current type
+  std::vector<int> disp;    // Potential displacement
+  Eigen::MatrixXcd mat;     // Dynamic matrix to hold entries of a PDF kinematic matrix
+  
 
   /* // Return a pointer to function that will handle contractions */
   /* /\* void * contract = &(contractHandler(current c).contract); *\/ */
@@ -528,15 +527,19 @@ struct kinMatPDF_t : contractHandler
 };
 
 /*
-  Complex kinematic matrix
+  Complex kinematic matrix for GPDs
 */
-struct kinMatGPD_t
+struct kinMatGPD_t : contractHandler
 {
-  // Dynamic matrix to hold entries of a GPD kinematic matrix
-  Eigen::MatrixXcd mat;
+  // Public members
+  int mu = -1; int nu = -1; // Lorentz indices
+  current TYPE;             // Current type
+  std::vector<int> disp;    // Potential displacement
+  Eigen::MatrixXcd mat;     // Dynamic matrix to hold entries of a GPD kinematic matrix
 
-  void assemble(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
-		const std::vector<int> &disp);
+
+  void assemble(bool MINK, double mass, Spinor *fin, Spinor *ini);
+  void echoAction();
 
   // Ensure ini/fin spinor momenta are different
   void spinorMomsEqual(bool truth);
@@ -547,7 +550,24 @@ struct kinMatGPD_t
   // Default
   kinMatGPD_t() {}
   // Parameterized
-  kinMatGPD_t(const int row, const int col);
+  kinMatGPD_t(const int row, const int col, current c, std::vector<int> _d) : TYPE(c), disp(_d)
+  {
+    mat.resize(row, col);
+    std::cout << "--> Init'd a Kinematic Matrix for GPDs of size " << row << " x "
+	      << col << std::endl;
+  }
+ kinMatGPD_t(const int row, const int col, current c, int _m, std::vector<int> _d) : TYPE(c), mu(_m), disp(_d)
+  {
+    mat.resize(row, col);
+    std::cout << "--> Init'd a Kinematic Matrix for GPDs of size " << row << " x "
+	      << col << std::endl;
+  }
+ kinMatGPD_t(const int row, const int col, current c, int _m, int _n, std::vector<int> _d) : TYPE(c), mu(_m), nu(_n), disp(_d)
+  {
+    mat.resize(row, col);
+    std::cout << "--> Init'd a Kinematic Matrix for GPDs of size " << row << " x "
+	      << col << std::endl;
+  }
 };
 
 /*
@@ -589,9 +609,9 @@ ffMat_t(int _g) : gamma(_g) {}
   EXTRACT INVARIANT AMPLITUDES USING (IN GENERAL) AN SVD DECOMPOSITION
 */
 /* //--------- Unpol. PDF */
-/* void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT, */
-/* 		   std::vector<kinMatPDF_t> * KIN, */
-/* 		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP); */
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT,
+		   std::vector<kinMatPDF_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP);
 //--------- Unpol. GPD
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
 		   std::vector<kinMatGPD_t> * KIN,
