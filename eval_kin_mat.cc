@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
 
 
 
-  kinMatPDF_t V(2,2,current::VECTOR,mu,disp);
+  kinMatPDF_t V(2,8,current::VECTOR,mu,disp);
   kinMatPDF_t A(2,2,current::AXIAL,mu,disp);
   
   // kinMatPDF_t A(2,3,current::AXIAL,mu,disp);
@@ -186,11 +186,30 @@ int main(int argc, char *argv[])
   
   
 
-  kinMatGPD_t GPD(4,4,current::VECTOR,mu,disp);
+  kinMatGPD_t GPD(4,8,current::VECTOR,mu,disp);
   GPD.assemble(true,mass,&sf,&si);
   std::cout << "GPD = " << GPD.mat << std::endl;
   getSVs(&GPD.mat);
 
+
+  kinMatGPD_t GPD_4(4,8,current::VECTOR,4,disp);
+  kinMatGPD_t GPD_1(4,8,current::VECTOR,1,disp);
+  kinMatGPD_t GPD_2(4,8,current::VECTOR,2,disp);
+  GPD_4.assemble(true,mass,&sf,&si);
+  GPD_1.assemble(true,mass,&sf,&si);
+  GPD_2.assemble(true,mass,&sf,&si);
+
+  // Try to concatenate GPD kinematic matrices
+  Eigen::MatrixXcd bigGPD(12,8);
+  std::cout << GPD_4.mat.row(0) << std::endl;
+  std::cout << bigGPD.row(0) << std::endl;
+  bigGPD.row(0) << GPD_4.mat.row(0);
+  std::cout << bigGPD.row(0) << std::endl;
+  for ( int i = 0; i < 4; ++i )  bigGPD.row(i) << GPD_4.mat.row(i);
+  for ( int i = 4; i < 8; ++i )  bigGPD.row(i) << GPD_1.mat.row(i-4);
+  for ( int i = 8; i < 12; ++i ) bigGPD.row(i) << GPD_2.mat.row(i-8);
+  std::cout << "Big GPD = " << bigGPD << std::endl;
+  getSVs(&bigGPD);
 
   return 0;
 }

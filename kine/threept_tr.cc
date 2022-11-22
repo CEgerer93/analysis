@@ -527,112 +527,131 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 				     std::map<int, std::pair<int,int> > rowMap,
 				     Eigen::MatrixXcd &mat)
 {
-  // The spinor contraction w/ \gamma_\mu
+  /*
+    Basic structures needed
+  */
   ugu_t ugu(mu,MINK);
+  u1u_t u1u(MINK);
+
+  std::complex<double> res(0.0,0.0); // collect contraction results
+  std::complex<double> ubaru(0.0,0.0);
+
+  // Average four-momentum
+  XMLArray::Array<double> avgP(4);
+  avgP[0] = 0.5*(fin->getMom()[0] + ini->getMom()[0]);
+  avgP[1] = 0.5*(fin->getMom()[1] + ini->getMom()[1]);
+  avgP[2] = 0.5*(fin->getMom()[2] + ini->getMom()[2]);
+  avgP[3] = 0.5*(fin->getE() + ini->getE());
+
+  // Difference four-momentum
+  XMLArray::Array<double> Rmu(4);
+  Rmu[0] = ini->getMom()[0] - fin->getMom()[0];
+  Rmu[1] = ini->getMom()[1] - fin->getMom()[1];
+  Rmu[2] = ini->getMom()[2] - fin->getMom()[2];
+  Rmu[3] = ini->getE() - fin->getE();
+
+  // Convenient disp
+  std::vector<int> zmu(disp);
+  zmu.push_back(0); // z^4 = 0  -->  no time-like Wilson lines!
+
+  // ubar' zslash u
+  std::complex<double> ubarZSlashU(0.0,0.0);
+  // avgP \cdot zmu
+  double avgPDotZ(0.0);
+  for ( int nu = 1; nu <= 4; ++nu )
+    for ( int rho = 1; rho <= 4; ++rho )
+      avgPDotZ += avgP[nu-1]*zmu[rho-1]*metric(nu%4,rho%4);
+  //--------------------------------------------------------------------------
+
   std::cout << "Contracting " << rowMap.size() << " rows" << std::endl;
   for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
     {
       std::cout << "   Contracting rf = " << r->second.first << ", ri = "
 		<< r->second.second << " for pf = " << fin->getMom()
 		<< " and pi = " << ini->getMom() << std::endl;
-      std::complex<double> foo(0.0,0.0);
-      foo = ugu.eval(&(fin->subduced.twoJz[r->second.first]),
+
+      ubaru = u1u.eval(&(fin->subduced.twoJz[r->second.first]),
+		       &(ini->subduced.twoJz[r->second.second]));
+
+
+      res = ugu.eval(&(fin->subduced.twoJz[r->second.first]),
 		     &(ini->subduced.twoJz[r->second.second]));
+
+      // Compute ubar' zslash u
+      for ( int nu = 1; nu <= 4; ++nu )
+	{
+	  ugu_t gnu(nu,MINK);
+	  for ( int rho = 1; rho <= 4; ++rho )
+	    ubarZSlashU += gnu.eval(&(fin->subduced.twoJz[r->second.first]),
+				    &(ini->subduced.twoJz[r->second.second]))*zmu[rho-1]*metric(nu%4,rho%4);
+	} // nu
+      //-------------------------------
 
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	  THE SPINOR CONTRACTION W/ \GAMMA_\MU
+	          UBAR' \GAMMA_MU U
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      mat(r->first,0) = zeroFuzz(foo);
-      foo = std::complex<double>(0.0,0.0);
+      mat(r->first,0) = zeroFuzz(res);
+      res = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	            Z^MU  UBAR' U
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,1) = zeroFuzz( zmu[mu-1]*ubaru );
 
-      // Sigma is in fact not needed. Should evaluate to zero from qrho = 0 below
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	    UBAR'  i SIGMA^\MU\NU Z_NU  U
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      std::complex<double> sigMuZ(0.0,0.0);
       for ( int nu = 1; nu <= 4; ++nu )
 	{
 	  utu_t sig(mu,nu,MINK);
-
+	  res = sig.eval(&(fin->subduced.twoJz[r->second.first]),
+			 &(ini->subduced.twoJz[r->second.second]));
 	  for ( int rho = 1; rho <= 4; ++rho )
-	    {
-	      double qrho(0.0);
-
-	      if ( rho == 4 )
-		qrho = ( fin->getE() - ini->getE() );
-	      else
-		qrho = ( (2*PI/fin->getL())*( fin->getMom()[rho-1] - ini->getMom()[rho-1] ) );
-
-	      foo += sig.eval(&(fin->subduced.twoJz[r->second.first]),
-			      &(ini->subduced.twoJz[r->second.second]))*metric(nu%4,rho%4)*qrho;
-	    } // rho
+	    sigMuZ += res*zmu[rho-1]*metric(nu%4,rho%4);
 	} // nu
 
-      // Scale by (I/2m)
-      foo *= std::complex<double>(0.0,1.0/(2*mass));
-
-      /*
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	  THE SPINOR CONTRACTION W/ \SIGMA_{\MU\NU} * Q_\NU
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-      */
-      mat(r->first,1) = zeroFuzz(foo);
-
-      
-
-      // Skip to next row combination only in forward case
+      // Force i sigma^\mu\nu z_nu term to zero in forward case
       if ( fin->getMom() == ini->getMom() )
-	{
-	  std::cout << " True for pf = " << fin->getMom() << " pi = " << ini->getMom() << std::endl;
-	  continue;
-	}
-
-
-      /*
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	  THE SPINOR CONTRACTION W/ \SIGMA_{\MU\NU} * Q_\NU
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-      */
-      foo = std::complex<double>(0.0,0.0);
-      // The spinor contraction w/ identity
-      u1u_t u1u(MINK);
-      foo = u1u.eval(&(fin->subduced.twoJz[r->second.first]),
-		     &(ini->subduced.twoJz[r->second.second]));
-      
-      if ( mu == 4 )
-	foo *= ( fin->getE() - ini->getE() );
+	mat(r->first,2) = _ZERO_;
       else
-	foo *= ( (2*PI/fin->getL())*( fin->getMom()[mu-1] - ini->getMom()[mu-1] ) );
-      // Rescale by 1/2m so energy dimensions agree
-      foo *= std::complex<double>(-1.0/mass,0.0); // "-" so we have (p1 - p2)
-
-      mat(r->first,2) = zeroFuzz(foo);
-
+	mat(r->first,2) = zeroFuzz( _I_*sigMuZ );
 
       /*
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	  THE SPINOR CONTRACTION W/ \SIGMA_{\MU\NU} * Z_\NU
-	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	       - (P'+P)^MU/2M  UBAR' U
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      foo = std::complex<double>(0.0,0.0);
-      for ( int nu = 1; nu <= 4; ++nu )
-	{
-	  utu_t sig(mu,nu,MINK);
-	  for ( int rho = 1; rho <= 4; ++rho )
-	    {
-	      double zrho(0.0);
-
-	      if ( rho == 4 )
-		zrho = 0.0;
-	      else
-		zrho = disp[rho-1];
-
-	      foo += sig.eval(&(fin->subduced.twoJz[r->second.first]),
-			      &(ini->subduced.twoJz[r->second.second]))*metric(rho%4,nu%4)*zrho;
-	    } // rho
-	} //nu
-      
-      // Scale by (I*m)
-      foo *= std::complex<double>(0.0,1.0*mass);
-      mat(r->first,3) = zeroFuzz(foo);
+      mat(r->first,3) = zeroFuzz( (-avgP[mu-1]/mass)*ubaru );
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	          R^MU/2M  UBAR' U
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,4) = zeroFuzz( (Rmu[mu-1]/(2*mass))*ubaru );
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	 {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * (P'+P)^MU/2
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,5) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*avgP[mu-1]);
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * R^MU
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,6) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*Rmu[mu-1]);
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * R^MU
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,7) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*zmu[mu-1]);
     } // auto r
 }
 
@@ -743,33 +762,6 @@ void contractHandler::tensorContract(int mu, int nu, bool MINK, double mass, Spi
 /*
   kinMatPDF_t methods
 */
-// // Parameterized constructor
-// kinMatPDF_t::kinMatPDF_t(const int row, const int col, current c, std::vector<int> _d)
-// {
-//   mat.resize(row, col);
-//   std::cout << "--> Init'd a Kinematic Matrix for PDFs of size " << row << " x " << col << std::endl;
-
-//   // switch(c)
-//   //   {
-//   //   case VECTOR:
-//   //     // contract = &(contractHandler.vectorContract);
-//   //     contract = &vectorContract;
-//   //   }
-// }
-
-// kinMatPDF_t::kinMatPDF_t(const int row, const int col, current c, int _m, std::vector<int> _d)
-// {
-//   mat.resize(row, col);
-//   std::cout << "--> Init'd a Kinematic Matrix for PDFs of size " << row << " x " << col << std::endl;
-// }
-
-// kinMatPDF_t::kinMatPDF_t(const int row, const int col, current c, int _m, int _n, std::vector<int> _d)
-// {
-//   mat.resize(row, col);
-//   std::cout << "--> Init'd a Kinematic Matrix for PDFs of size " << row << " x " << col << std::endl;
-// }
-
-
 // Ensure ini/fin spinor momenta are equal
 void kinMatPDF_t::spinorMomsEqual(bool truth)
 {
