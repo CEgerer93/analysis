@@ -587,6 +587,7 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 	} // nu
       //-------------------------------
 
+#if 0
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	          UBAR' \GAMMA_MU U
@@ -648,10 +649,83 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
       mat(r->first,6) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*Rmu[mu-1]);
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * R^MU
+            {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * Z^MU
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
       mat(r->first,7) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*zmu[mu-1]);
+
+#else
+
+
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	          UBAR' \GAMMA_MU U
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,0) = zeroFuzz(res);
+      res = _ZERO_;
+      // /*
+      // 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      // 	            Z^MU  UBAR' U
+      // 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      // */
+      // mat(r->first,1) = zeroFuzz( zmu[mu-1]*ubaru );
+
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	    UBAR'  i SIGMA^\MU\NU Z_NU  U
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      std::complex<double> sigMuZ(0.0,0.0);
+      for ( int nu = 1; nu <= 4; ++nu )
+	{
+	  utu_t sig(mu,nu,MINK);
+	  res = sig.eval(&(fin->subduced.twoJz[r->second.first]),
+			 &(ini->subduced.twoJz[r->second.second]));
+	  for ( int rho = 1; rho <= 4; ++rho )
+	    sigMuZ += res*zmu[rho-1]*metric(nu%4,rho%4);
+	} // nu
+
+      // Force i sigma^\mu\nu z_nu term to zero in forward case
+      if ( fin->getMom() == ini->getMom() )
+	mat(r->first,1) = _ZERO_;
+      else
+	mat(r->first,1) = zeroFuzz( _I_*sigMuZ );
+
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	       - (P'+P)^MU/2M  UBAR' U
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,2) = zeroFuzz( (-avgP[mu-1]/mass)*ubaru );
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	          R^MU/2M  UBAR' U
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,3) = zeroFuzz( (Rmu[mu-1]/(2*mass))*ubaru );
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	 {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * (P'+P)^MU/2
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,4) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*avgP[mu-1]);
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * R^MU
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,5) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*Rmu[mu-1]);
+      // /*
+      // 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      //       {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * Z^MU
+      // 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      // */
+      // mat(r->first,6) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*zmu[mu-1]);
+
+#endif
+
+
     } // auto r
 }
 

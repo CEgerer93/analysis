@@ -103,6 +103,8 @@ int main(int argc, char *argv[])
   double Ei    = sqrt( pow(mass,2) + pow(2*PI/Lx,2)*(mom_i*mom_i) );
   double Ef    = sqrt( pow(mass,2) + pow(2*PI/Lx,2)*(mom_f*mom_f) );
 
+  std::cout << "Ef = " << Ef << std::endl;
+  std::cout << "Ei = " << Ei << std::endl;
   
   // std::string opName = "NucleonMG1g1MxD0J0S_J1o2_G1g1";
   std::string opName = "NucleonMG1g1MxD0J0S_J1o2_H1o2D4E1";
@@ -186,21 +188,24 @@ int main(int argc, char *argv[])
   
   
 
-  kinMatGPD_t GPD(4,8,current::VECTOR,mu,disp);
+
+  int gpdRank = 6; // 8
+
+  kinMatGPD_t GPD(4,gpdRank,current::VECTOR,mu,disp);
   GPD.assemble(true,mass,&sf,&si);
   std::cout << "GPD = " << GPD.mat << std::endl;
   getSVs(&GPD.mat);
 
 
-  kinMatGPD_t GPD_4(4,8,current::VECTOR,4,disp);
-  kinMatGPD_t GPD_1(4,8,current::VECTOR,1,disp);
-  kinMatGPD_t GPD_2(4,8,current::VECTOR,2,disp);
+  kinMatGPD_t GPD_4(4,gpdRank,current::VECTOR,4,disp);
+  kinMatGPD_t GPD_1(4,gpdRank,current::VECTOR,1,disp);
+  kinMatGPD_t GPD_2(4,gpdRank,current::VECTOR,2,disp);
   GPD_4.assemble(true,mass,&sf,&si);
   GPD_1.assemble(true,mass,&sf,&si);
   GPD_2.assemble(true,mass,&sf,&si);
 
   // Try to concatenate GPD kinematic matrices
-  Eigen::MatrixXcd bigGPD(12,8);
+  Eigen::MatrixXcd bigGPD(12,gpdRank);
   std::cout << GPD_4.mat.row(0) << std::endl;
   std::cout << bigGPD.row(0) << std::endl;
   bigGPD.row(0) << GPD_4.mat.row(0);
