@@ -1091,6 +1091,7 @@ void Spinor::projector()
   gsl_matrix_complex_free(g4.gamma);
 }
 
+// Build helicity spinors by applying Euler rotations to upper/lower comps. of canon spinors
 void Spinor::buildSpinors()
 {
   // Canonical momentum is |\vec{p}| in +z-direction
@@ -1101,8 +1102,10 @@ void Spinor::buildSpinors()
   absolute.build(mom,E,m,L);
   canon.build(canonMom,E,m,L);
 
-  // // Build helicity spinors by applying Euler rotations to upper/lower comps. of canon spinors
-  // helicity = canon;
+
+  // Form a single euler rotation matrix via product : (eulerLatRot) x (eulerRefRot)
+  gmc * eulerRot = gsl_matrix_complex_calloc(4,4);
+  gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,eulerLatRot,eulerRefRot,zero,eulerRot);
 
 
   std::cout << "Canonical spinors(1): " << &canon.twoJz[1] << std::endl;

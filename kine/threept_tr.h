@@ -267,13 +267,15 @@ class Spinor
   XMLArray::Array<int> mom;
 
   // Euler angles to rotate from |{p}|\hat{z} to \vec{p}
-  Hadron::CubicCanonicalRotation_t rot;
+  Hadron::CubicCanonicalRotation_t refRot;
+  Hadron::CubicCanonicalRotation_t latRot;
 
   // Subduction information
   subduceInfo subductInfo;
 
   // Euler Rotation for spin=1/2
-  gmc * eulerRot;
+  gmc * eulerRefRot;
+  gmc * eulerLatRot;
   
   // Subduction coefficients
   gmc * coeffS;
@@ -306,7 +308,8 @@ class Spinor
   */
   ~Spinor()
     {
-      gsl_matrix_complex_free(eulerRot);
+      gsl_matrix_complex_free(eulerRefRot);
+      gsl_matrix_complex_free(eulerLatRot);
       gsl_matrix_complex_free(coeffS);
     }
 
@@ -321,14 +324,21 @@ class Spinor
   {
     // Determine the rotation angles from |\vec{p}|\hat{z} to \vec{p} outright
     if ( shortMom(mom,"") != "000" )
-      rot = Hadron::cubicCanonicalRotation(mom);
+      {
+	/* rot = Hadron::cubicCanonicalRotation(mom); */
+	// Split rotations to helicity eigenstates
+	refRot = Hadron::refRotation(mom);
+	latRot = Hadron::latticeRotation(mom);
+      }
     else
       {
-	rot.alpha=0; rot.beta=0; rot.gamma=0;
+	refRot.alpha = refRot.beta = refRot.gamma = 0;	
+	latRot.alpha = latRot.beta = latRot.gamma = 0;
       }
 
     // Get the Euler rotation matrix
-    eulerRot = Rotations::eulerRotMat2(rot.alpha, rot.beta, rot.gamma);
+    eulerRefRot = Rotations::eulerRotMat2(refRot.alpha, refRot.beta, refRot.gamma);
+    eulerLatRot = Rotations::eulerRotMat2(latRot.alpha, latRot.beta, latRot.gamma);
 
     // Build subductions
     initSubduce(name);
