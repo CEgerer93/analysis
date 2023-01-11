@@ -20,6 +20,12 @@ namespace Rotations
     U[R(a,b,g)] = exp(-i a/2 \sigma_z) * exp(-i b/2 \sigma_y) * exp(-i g/2 \sigma_z)
   */
   gmc * eulerRotMat2(double alpha, double beta, double gamma);  
+
+  // Rotation Matrix for Lorentz 4-vectors using euler angles z-y-z convention
+  /*
+    R(a,b,g) = Rz(a) Ry(b) Rz(g) acting on Cartesian four-vectors
+  */
+  gmc * eulerRotMat(double alpha, double beta, double gamma);
 }
 
 #endif
