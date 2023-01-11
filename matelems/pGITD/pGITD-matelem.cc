@@ -76,86 +76,86 @@ info2pt db2ptFinInfo, db2ptIniInfo, db2ptRestInfo;
 const std::complex<double> redFact(sqrt(2),0);
 
 
-/*
-  Convert between lattice LG rows and helicity amplitudes
-*/
-std::complex<double> lgToHelicityAmps(const Hadron::KeyHadronSUNNPartNPtCorr_t *k)
-{
-  // Returned complex weight
-  std::complex<double> weight;
+// /*
+//   Convert between lattice LG rows and helicity amplitudes
+// */
+// std::complex<double> lgToHelicityAmps(const Hadron::KeyHadronSUNNPartNPtCorr_t *k)
+// {
+//   // Returned complex weight
+//   std::complex<double> weight;
 
-  // Construct snk/src operator subduction info
-  subduceInfo snkOp(k->npoint[1].irrep.op.ops[1].name,k->npoint[1].irrep.irrep_mom.mom);
-  subduceInfo srcOp(k->npoint[3].irrep.op.ops[1].name,k->npoint[3].irrep.irrep_mom.mom);
-  // Instantiate canonical rotation structs
-  Hadron::CubicCanonicalRotation_t snkRot, srcRot;
-
-
-  // Get the Euler angles, setting all to null for rest case
-  if ( shortMom(k->npoint[1].irrep.irrep_mom.mom,"") != "000" )
-    snkRot = Hadron::cubicCanonicalRotation(k->npoint[1].irrep.irrep_mom.mom);
-  else
-    {
-      snkRot.alpha=0; snkRot.beta=0; snkRot.gamma=0;
-    }
-  if ( shortMom(k->npoint[3].irrep.irrep_mom.mom,"") != "000" )
-    srcRot = Hadron::cubicCanonicalRotation(k->npoint[3].irrep.irrep_mom.mom);
-  else
-    {
-      srcRot.alpha=0; srcRot.beta=0; srcRot.gamma=0;
-    }
-
-#if VERBOSITY>0
-  // Irrep stuff
-  std::cout << "SNK/SRC IRREP DIMS = " << snkOp.irrep_dim << "/" << srcOp.irrep_dim << std::endl;
-  std::cout << "Snk Euler Angles:"
-	    << "        alpha = " << snkRot.alpha
-	    << "        beta  = " << snkRot.beta
-	    << "        gamma = " << snkRot.gamma << std::endl;
-  std::cout << "Src Euler Angles:"
-	    << "        alpha = " << srcRot.alpha
-	    << "        beta  = " << srcRot.beta
-	    << "        gamma = " << srcRot.gamma << std::endl;
-#endif
-
-  // Inner subduction/Wigner-D matrix mults
-  for ( int a = 1; a <= snkOp.irrep_dim; ++a )
-    {
-      int twoJZ_a = pow((-1),a-1);
-      for ( int b = 1; b <= snkOp.irrep_dim; ++b )
-	{
-	  int twoJZ_b = pow((-1),b-1);
-	  for ( int c = 1; c <= srcOp.irrep_dim; ++c )
-	    {
-	      int twoJZ_c = pow((-1),c-1);
-
-#if VERBOSITY>2
-	      std::cout << "NEW COMBO" << std::endl;
-	      std::cout << "Snk Wigner-D: " << Hadron::Wigner_D(1,twoJZ_a,twoJZ_b,snkRot.alpha,snkRot.beta,snkRot.gamma) << std::endl;
-	      std::cout << "Snk Subduction: " << (*snkOp.H).operator()(k->npoint[1].irrep.irrep_mom.row,a) << std::endl;
-	      std::cout << "Src Wigner-D: " << Hadron::Wigner_D(1,twoJZ_b,twoJZ_c,srcRot.alpha,srcRot.beta,srcRot.gamma) << std::endl;
-	      std::cout << "Src Subduction: " << (*srcOp.H).operator()(c,k->npoint[3].irrep.irrep_mom.row) << std::endl;
-#endif
-
-	      // Build the weight
-	      weight += (*snkOp.H).operator()(k->npoint[1].irrep.irrep_mom.row,a)*
-		Hadron::Wigner_D(1,twoJZ_a,twoJZ_b,
-				 snkRot.alpha,snkRot.beta,snkRot.gamma)*
-		Hadron::Wigner_D(1,twoJZ_b,twoJZ_c,
-				 srcRot.alpha,srcRot.beta,srcRot.gamma)*
-		(*srcOp.H).operator()(c,k->npoint[3].irrep.irrep_mom.row);
+//   // Construct snk/src operator subduction info
+//   subduceInfo snkOp(k->npoint[1].irrep.op.ops[1].name,k->npoint[1].irrep.irrep_mom.mom);
+//   subduceInfo srcOp(k->npoint[3].irrep.op.ops[1].name,k->npoint[3].irrep.irrep_mom.mom);
+//   // Instantiate canonical rotation structs
+//   Hadron::CubicCanonicalRotation_t snkRot, srcRot;
 
 
-	    } // c
-	} // b
-    } // a
+//   // Get the Euler angles, setting all to null for rest case
+//   if ( shortMom(k->npoint[1].irrep.irrep_mom.mom,"") != "000" )
+//     snkRot = Hadron::cubicCanonicalRotation(k->npoint[1].irrep.irrep_mom.mom);
+//   else
+//     {
+//       snkRot.alpha=0; snkRot.beta=0; snkRot.gamma=0;
+//     }
+//   if ( shortMom(k->npoint[3].irrep.irrep_mom.mom,"") != "000" )
+//     srcRot = Hadron::cubicCanonicalRotation(k->npoint[3].irrep.irrep_mom.mom);
+//   else
+//     {
+//       srcRot.alpha=0; srcRot.beta=0; srcRot.gamma=0;
+//     }
 
-#if VERBOSITY>0
-  std::cout << "WEIGHT = " << weight << std::endl;
-#endif
+// #if VERBOSITY>0
+//   // Irrep stuff
+//   std::cout << "SNK/SRC IRREP DIMS = " << snkOp.irrep_dim << "/" << srcOp.irrep_dim << std::endl;
+//   std::cout << "Snk Euler Angles:"
+// 	    << "        alpha = " << snkRot.alpha
+// 	    << "        beta  = " << snkRot.beta
+// 	    << "        gamma = " << snkRot.gamma << std::endl;
+//   std::cout << "Src Euler Angles:"
+// 	    << "        alpha = " << srcRot.alpha
+// 	    << "        beta  = " << srcRot.beta
+// 	    << "        gamma = " << srcRot.gamma << std::endl;
+// #endif
 
-  return weight;			
-}
+//   // Inner subduction/Wigner-D matrix mults
+//   for ( int a = 1; a <= snkOp.irrep_dim; ++a )
+//     {
+//       int twoJZ_a = pow((-1),a-1);
+//       for ( int b = 1; b <= snkOp.irrep_dim; ++b )
+// 	{
+// 	  int twoJZ_b = pow((-1),b-1);
+// 	  for ( int c = 1; c <= srcOp.irrep_dim; ++c )
+// 	    {
+// 	      int twoJZ_c = pow((-1),c-1);
+
+// #if VERBOSITY>2
+// 	      std::cout << "NEW COMBO" << std::endl;
+// 	      std::cout << "Snk Wigner-D: " << Hadron::Wigner_D(1,twoJZ_a,twoJZ_b,snkRot.alpha,snkRot.beta,snkRot.gamma) << std::endl;
+// 	      std::cout << "Snk Subduction: " << (*snkOp.H).operator()(k->npoint[1].irrep.irrep_mom.row,a) << std::endl;
+// 	      std::cout << "Src Wigner-D: " << Hadron::Wigner_D(1,twoJZ_b,twoJZ_c,srcRot.alpha,srcRot.beta,srcRot.gamma) << std::endl;
+// 	      std::cout << "Src Subduction: " << (*srcOp.H).operator()(c,k->npoint[3].irrep.irrep_mom.row) << std::endl;
+// #endif
+
+// 	      // Build the weight
+// 	      weight += (*snkOp.H).operator()(k->npoint[1].irrep.irrep_mom.row,a)*
+// 		Hadron::Wigner_D(1,twoJZ_a,twoJZ_b,
+// 				 snkRot.alpha,snkRot.beta,snkRot.gamma)*
+// 		Hadron::Wigner_D(1,twoJZ_b,twoJZ_c,
+// 				 srcRot.alpha,srcRot.beta,srcRot.gamma)*
+// 		(*srcOp.H).operator()(c,k->npoint[3].irrep.irrep_mom.row);
+
+
+// 	    } // c
+// 	} // b
+//     } // a
+
+// #if VERBOSITY>0
+//   std::cout << "WEIGHT = " << weight << std::endl;
+// #endif
+
+//   return weight;			
+// }
 
 
 
@@ -594,86 +594,86 @@ std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> makeKeyList(domain_t& t, Hadron:
 }
 
 
-#if 0
-void rowAvg(std::vector<corrEquivalence> &tC, ADAT::MapObject<XMLArray::Array<int>, double> &r)
-{
-  std::cout << "New corrEquivalence to average" << std::endl;
-  // Iterate over std::vec components - i.e. time slices
-  for ( std::vector<corrEquivalence>::iterator it = tC.begin(); it != tC.end(); ++it )
-    {
-      // For this tsep, organize keys within each pz/z channel
-      Hadron::KeyHadronSUNNPartNPtCorr_t kAvg = it->keyCorrMap.begin()->first;
-      ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, correlators> cAvg;
+// #if 0
+// void rowAvg(std::vector<corrEquivalence> &tC, ADAT::MapObject<XMLArray::Array<int>, double> &r)
+// {
+//   std::cout << "New corrEquivalence to average" << std::endl;
+//   // Iterate over std::vec components - i.e. time slices
+//   for ( std::vector<corrEquivalence>::iterator it = tC.begin(); it != tC.end(); ++it )
+//     {
+//       // For this tsep, organize keys within each pz/z channel
+//       Hadron::KeyHadronSUNNPartNPtCorr_t kAvg = it->keyCorrMap.begin()->first;
+//       ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, correlators> cAvg;
 
-      std::cout << "--- Running through this corrEquivalence" << std::endl;
-      // Hold z's & p's as temporaries
-      XMLArray::Array<int> _pi, _pf, _q;
-      std::vector<int> _d;
-      _pf = kAvg.npoint[1].irrep.irrep_mom.mom;
-      _q  = kAvg.npoint[2].irrep.irrep_mom.mom;
-      _pi = kAvg.npoint[3].irrep.irrep_mom.mom;
-      _d  = kAvg.npoint[2].irrep.op.ops[1].disp_list;
+//       std::cout << "--- Running through this corrEquivalence" << std::endl;
+//       // Hold z's & p's as temporaries
+//       XMLArray::Array<int> _pi, _pf, _q;
+//       std::vector<int> _d;
+//       _pf = kAvg.npoint[1].irrep.irrep_mom.mom;
+//       _q  = kAvg.npoint[2].irrep.irrep_mom.mom;
+//       _pi = kAvg.npoint[3].irrep.irrep_mom.mom;
+//       _d  = kAvg.npoint[2].irrep.op.ops[1].disp_list;
 
-      // Try to negate momentum & z's, and fetch new keys
-      for ( int i = 1; i > -2; i-=2 )
-	{
-	  for ( int j = 1; j > -2; j-=2 )
-	    {
-	      std::cout << "------ Swap pair = ( " << i << " , " << j << " )" << std::endl;
-	      kAvg.npoint[1].irrep.irrep_mom.mom = _pf * i; // allow swap of snk mom
-	      kAvg.npoint[2].irrep.irrep_mom.mom = _q * i; // allow swap of ins mom
-	      kAvg.npoint[3].irrep.irrep_mom.mom = _pi * i; // allow swap of src mom
-	      // Since we are accessing a key from the tc[*].keyCorrMap map (unordered)
-	      // We have no guarantee the operator name is correct after setting opposing momenta
-	      // So we enforce the correct name here...
-	      kAvg.npoint[1].irrep.op.ops[1].name =
-		global.opMomXML[shortMom(kAvg.npoint[1].irrep.irrep_mom.mom,"")];
-	      kAvg.npoint[3].irrep.op.ops[1].name =
-		global.opMomXML[shortMom(kAvg.npoint[3].irrep.irrep_mom.mom,"")];
+//       // Try to negate momentum & z's, and fetch new keys
+//       for ( int i = 1; i > -2; i-=2 )
+// 	{
+// 	  for ( int j = 1; j > -2; j-=2 )
+// 	    {
+// 	      std::cout << "------ Swap pair = ( " << i << " , " << j << " )" << std::endl;
+// 	      kAvg.npoint[1].irrep.irrep_mom.mom = _pf * i; // allow swap of snk mom
+// 	      kAvg.npoint[2].irrep.irrep_mom.mom = _q * i; // allow swap of ins mom
+// 	      kAvg.npoint[3].irrep.irrep_mom.mom = _pi * i; // allow swap of src mom
+// 	      // Since we are accessing a key from the tc[*].keyCorrMap map (unordered)
+// 	      // We have no guarantee the operator name is correct after setting opposing momenta
+// 	      // So we enforce the correct name here...
+// 	      kAvg.npoint[1].irrep.op.ops[1].name =
+// 		global.opMomXML[shortMom(kAvg.npoint[1].irrep.irrep_mom.mom,"")];
+// 	      kAvg.npoint[3].irrep.op.ops[1].name =
+// 		global.opMomXML[shortMom(kAvg.npoint[3].irrep.irrep_mom.mom,"")];
 	      
 
-	      // Allow swap of z
-	      for ( int d = 0; d != _d.size(); ++d )
-		{ 
-		  kAvg.npoint[2].irrep.op.ops[1].disp_list[d] = _d[d] * j;
-		}
+// 	      // Allow swap of z
+// 	      for ( int d = 0; d != _d.size(); ++d )
+// 		{ 
+// 		  kAvg.npoint[2].irrep.op.ops[1].disp_list[d] = _d[d] * j;
+// 		}
 
 	      
-	      // Collect the correlators to average
-	      correlators toAvg(r.size());
+// 	      // Collect the correlators to average
+// 	      correlators toAvg(r.size());
 
-	      for ( auto rows = r.begin(); rows != r.end(); ++rows )
-		{
-		  kAvg.npoint[1].irrep.irrep_mom.row = rows->first[0];
-		  kAvg.npoint[3].irrep.irrep_mom.row = rows->first[1];
+// 	      for ( auto rows = r.begin(); rows != r.end(); ++rows )
+// 		{
+// 		  kAvg.npoint[1].irrep.irrep_mom.row = rows->first[0];
+// 		  kAvg.npoint[3].irrep.irrep_mom.row = rows->first[1];
 
-		  std::cout << "*****Key = " << kAvg << std::endl;
+// 		  std::cout << "*****Key = " << kAvg << std::endl;
 
-		  // Map matelem btwn lattice LG rows to helicity amplitudes
-		  std::complex<double> weight = lgToHelicityAmps(&kAvg);
+// 		  // Map matelem btwn lattice LG rows to helicity amplitudes
+// 		  std::complex<double> weight = lgToHelicityAmps(&kAvg);
 
-		  std::cout << "*****Weight = " << weight << std::endl;
-		  std::cout << "\n\n";
+// 		  std::cout << "*****Weight = " << weight << std::endl;
+// 		  std::cout << "\n\n";
 
-		  // // Fetch this correlator, applying weight in line
-		  // toAvg.ncor[std::distance(r.begin(),rows)] = rows->second * it->keyCorrMap[kAvg].ncor[0];
-		}
+// 		  // // Fetch this correlator, applying weight in line
+// 		  // toAvg.ncor[std::distance(r.begin(),rows)] = rows->second * it->keyCorrMap[kAvg].ncor[0];
+// 		}
 	      
-	      // Set row values to "-60" to indicate averaging
-	      kAvg.npoint[1].irrep.irrep_mom.row = -60;
-	      kAvg.npoint[3].irrep.irrep_mom.row = -60;
-	      // Insert this average key and result of merged correlators
-	      cAvg.insert(kAvg, mergeCorrelators(toAvg));
-	    } // for zswap (j)
-	} // for 3-mom swap (i)
+// 	      // Set row values to "-60" to indicate averaging
+// 	      kAvg.npoint[1].irrep.irrep_mom.row = -60;
+// 	      kAvg.npoint[3].irrep.irrep_mom.row = -60;
+// 	      // Insert this average key and result of merged correlators
+// 	      cAvg.insert(kAvg, mergeCorrelators(toAvg));
+// 	    } // for zswap (j)
+// 	} // for 3-mom swap (i)
 
-      // With all swapping done, clear std::vector<corrEquivalence>[*it].keyCorrMap and refill it with "cAvg"
-      it->keyCorrMap.clear();
-      it->keyCorrMap = cAvg;
+//       // With all swapping done, clear std::vector<corrEquivalence>[*it].keyCorrMap and refill it with "cAvg"
+//       it->keyCorrMap.clear();
+//       it->keyCorrMap = cAvg;
 
-    } // for std::vector<corrEquivalence> iterator
-}
-#endif
+//     } // for std::vector<corrEquivalence> iterator
+// }
+// #endif
 
 
 /*
@@ -849,70 +849,7 @@ int main(int argc, char *argv[])
   // dumpRowInfo(db3ptInfo.rows,db3ptInfo.signs,3);
   // dumpRowInfo(db2ptInfo.rows,db2ptInfo.signs,2);
 
-#if 0
 
-
-  Spinor dumF(global.opMomXML[shortMom(global.pf,"")],global.pf,0.66365470597820764,0.535,global.Lx); // (011)
-  Spinor dumI(global.opMomXML[shortMom(global.pi,"")],global.pi,0.56989309716099856,0.535,global.Lx); // (001)
-  dumF.buildSpinors();
-  dumI.buildSpinors();
-
-  std::cout << &(dumF.absolute.twoJz[1]) << std::endl;
-  std::cout << &(dumF.absolute.twoJz[-1]) << std::endl;
-  std::cout << &(dumF.canon.twoJz[1]) << std::endl;
-  std::cout << &(dumF.canon.twoJz[-1]) << std::endl;
-  std::cout << &(dumF.subduced.twoJz[1]) << std::endl;
-  std::cout << &(dumF.subduced.twoJz[-1]) << std::endl;
-
-  
-  // polVec_t P(3,true);
-  // std::cout << "PolVec[11] = " << P.eval(&(dumI.subduced.twoJz[1]),&(dumI.subduced.twoJz[1])) << std::endl;
-  // std::cout << "PolVec[12] = " << P.eval(&(dumI.subduced.twoJz[1]),&(dumI.subduced.twoJz[-1])) << std::endl;
-  // std::cout << "PolVec[21] = " << P.eval(&(dumI.subduced.twoJz[-1]),&(dumI.subduced.twoJz[1])) << std::endl;
-  // std::cout << "PolVec[22] = " << P.eval(&(dumI.subduced.twoJz[-1]),&(dumI.subduced.twoJz[-1])) << std::endl;
-  // exit(80);
-
-
-  ugu_t foo(4,false);
-  std::cout << "[a1]Inner prod.= " << foo.eval(&(dumF.absolute.twoJz[1]),&(dumF.absolute.twoJz[1])) << std::endl;
-  std::cout << "[a-1]Inner prod.= " << foo.eval(&(dumF.absolute.twoJz[-1]),&(dumF.absolute.twoJz[-1])) << std::endl;
-  std::cout << "[c1]Inner prod.= " << foo.eval(&(dumF.canon.twoJz[1]),&(dumF.canon.twoJz[1])) << std::endl;
-  std::cout << "[c-1]Inner prod.= " << foo.eval(&(dumF.canon.twoJz[-1]),&(dumF.canon.twoJz[-1])) << std::endl;
-  std::cout << "[s11]Inner prod.= " << foo.eval(&(dumF.subduced.twoJz[1]),&(dumF.subduced.twoJz[1])) << std::endl;
-  std::cout << "[s1-1]Inner prod.= " << foo.eval(&(dumF.subduced.twoJz[1]),&(dumF.subduced.twoJz[-1])) << std::endl;
-  std::cout << "[s-11]Inner prod.= " << foo.eval(&(dumF.subduced.twoJz[-1]),&(dumF.subduced.twoJz[1])) << std::endl;
-  std::cout << "[s-1-1]Inner prod.= " << foo.eval(&(dumF.subduced.twoJz[-1]),&(dumF.subduced.twoJz[-1])) << std::endl;
-
-  std::cout << "vvvvvvvvvv Off-forward contractions vvvvvvvvv" << std::endl;
-  std::cout << "[a1]Inner prod.= " << foo.eval(&(dumF.absolute.twoJz[1]),&(dumI.absolute.twoJz[1])) << std::endl;
-  std::cout << "[a-1]Inner prod.= " << foo.eval(&(dumF.absolute.twoJz[-1]),&(dumI.absolute.twoJz[-1])) << std::endl;
-  std::cout << "[c1]Inner prod.= " << foo.eval(&(dumF.canon.twoJz[1]),&(dumI.canon.twoJz[1])) << std::endl;
-  std::cout << "[c-1]Inner prod.= " << foo.eval(&(dumF.canon.twoJz[-1]),&(dumI.canon.twoJz[-1])) << std::endl;
-  std::cout << "[s11]Inner prod.= " << foo.eval(&(dumF.subduced.twoJz[1]),&(dumI.subduced.twoJz[1])) << std::endl;
-  std::cout << "[s1-1]Inner prod.= " << foo.eval(&(dumF.subduced.twoJz[1]),&(dumI.subduced.twoJz[-1])) << std::endl;
-  std::cout << "[s-11]Inner prod.= " << foo.eval(&(dumF.subduced.twoJz[-1]),&(dumI.subduced.twoJz[1])) << std::endl;
-  std::cout << "[s-1-1]Inner prod.= " << foo.eval(&(dumF.subduced.twoJz[-1]),&(dumI.subduced.twoJz[-1])) << std::endl;
-
-
-
-  // std::cout << "Canonical test sigma" << std::endl;
-  // utu_t sigTest(4,2,false);
-  // std::cout << sigTest.eval(&(dumF.absolute.twoJz[1]),&(dumI.absolute.twoJz[1])) << std::endl;
-
-  std::cout << "Contract w/ sigma" << std::endl;
-  for ( int i = 1; i < 4; ++i )
-    {
-      utu_t sig(4,i,false);
-      std::cout << "(4" << i << "): s[11] = " << sig.eval(&(dumF.subduced.twoJz[1]),&(dumI.subduced.twoJz[1])) << std::endl;
-      std::cout << "(4" << i << "): s[1-1] = " << sig.eval(&(dumF.subduced.twoJz[1]),&(dumI.subduced.twoJz[-1])) << std::endl;
-      std::cout << "(4" << i << "): s[-11] = " << sig.eval(&(dumF.subduced.twoJz[-1]),&(dumI.subduced.twoJz[1])) << std::endl;
-      std::cout << "(4" << i << "): s[-1-1] = " << sig.eval(&(dumF.subduced.twoJz[-1]),&(dumI.subduced.twoJz[-1])) << std::endl;
-      std::cout << "---------------------------" << std::endl;
-    }
-
-
-
-#endif
 
   // Set the number of tseps once and for all
   const int nTSeps = temporal3pt.numT();
@@ -1159,114 +1096,16 @@ int main(int argc, char *argv[])
 
 
 
-#if 0
-#warning "Establishing Gordan ID Check"
+  // Global properties
+  const int NUM_MATS           = 12;
+  const int GPD_RANK           = 6;
+  const int MATS_PER_INSERTION = 4;
 
+  // Circular polarization vector
+  polVecBasis_t BASIS;
 
-  double M(0.535);
-  double Ef(0.63394355156848614);
-  double Ei(0.66365470597820764);
-  u1u_t id(true);
-  ugu_t gam(4,true);
-
-  std::complex<double> rhs(0.0,0.0);
-
-  Spinor fin(global.opMomXML[shortMom(global.pf,"")],
-	     global.pf,Ef,M,global.Lx);
-  Spinor ini(global.opMomXML[shortMom(global.pi,"")],
-	     global.pi,Ei,M,global.Lx);
-  ini.buildSpinors();
-  fin.buildSpinors();
-
-
-  /*
-    \bar{u}(p,s')\gamma^\mu u(p,s) = \bar{u}(p,s')(p^\mu/M) u(p,s)
-
-    std::cout << "<<gamma_mu>> = " << gam.eval(&fin.absolute.twoJz[1],&fin.absolute.twoJz[1]) << std::endl;
-    std::cout << "rhs = " << ((Ef/M)*id.eval(&fin.absolute.twoJz[1],&fin.absolute.twoJz[1])) << std::endl;
-    
-    PASSED
-  */
-
-  /*
-    <<\sigma_{43}>> = 0.18897240910531166
-    w/ Ef(1,1,1)=0.63394355156848614, Ei(0,0,2)=0.66365470597820764, M=0.535
-
-    utu_t sig(4,3,true);
-    std::cout << sig.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1]) << std::endl;
-
-    PASSED
-  */
-#if 0
-  utu_t sig_x(4,1,true); utu_t sig_y(4,2,true); utu_t sig_z(4,3,true);
-  std::cout << sig_x.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1]) << std::endl;
-  std::cout << sig_y.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1]) << std::endl;
-  std::cout << sig_z.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1]) << std::endl;
-  exit(100);
-#endif
-
-  /*
-    \bar{u}(p,s')u(p,s) = 2m\delta_{s's}
-
-    std::cout << "2m = " << 2*M << std::endl;
-    for ( int i = 1; i < 3; ++i )
-    {
-    for ( int j = 1; j < 3; ++j )
-    {
-    std::cout << "ID CHECK[ij] = " << id.eval(&fin.absolute.twoJz[pow(-1,i+1)],&fin.absolute.twoJz[pow(-1,j+1)])
-    << std::endl;
-    
-    PASSED
-  */
-  
-  for ( int i = 1; i <=4; ++i )
-    {
-      diracMat_t D(i,true);
-      LinAlg::printMat(D.gamma);
-    }
-  
-
-  std::cout << "2m*<<gamma_mu>> = "
-  	    << (2*M*gam.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1]))
-  	    << std::endl;
-
-  rhs += (id.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1])*(Ef+Ei));
-  // std::cout << "RHS b4 sigma = " << rhs << std::endl;
-
-  std::complex<double> sigTot(0.0,0.0);
-
-  for ( int j = 1; j < 4; ++j )
-    {
-      utu_t sig(4,j,true);
-
-      // std::cout << "This sigma eval = " << sig.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1])
-      // 		<< std::endl;
-     
-      // Minus from metric tensor!
-      sigTot -= (sig.eval(&fin.absolute.twoJz[1],&ini.absolute.twoJz[1])*(2*M_PIl/fin.getL())*( fin.getMom()[j-1] - ini.getMom()[j-1] ));
-
-    }
-
-  // std::cout << "sigTot = " << sigTot << std::endl;
-
-
-  sigTot *= std::complex<double>(0,1.0);
-
-  // std::cout << "sigTot = " << sigTot << std::endl;
-
-  rhs += sigTot;
-
-  std::cout << "RHS = " << rhs << std::endl;
-
-  /*
-    GORDAN IDENTITY IS SATISFIED! JUST DONT FORGET THE METRIC IN THE SIGMA * (PF-PI) PIECE
-  */
-#endif
-
-
-
-  std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > MAT(global.cfgs);
-  std::vector<kinMat_t> KIN(global.cfgs);
+  std::vector<Eigen::Matrix<std::complex<double>, NUM_MATS, 1> > MAT(global.cfgs);
+  std::vector<kinMatGPD_t> KIN(global.cfgs);
   for ( auto k = KIN.begin(); k != KIN.end(); ++k )
     {
       int j = std::distance(KIN.begin(),k);
@@ -1280,13 +1119,48 @@ int main(int argc, char *argv[])
       finSpin.buildSpinors();
       iniSpin.buildSpinors();
 
-      // Construct the kinematic matrix
-      k->assemble(4,true,rest2pt.res.params["E0"][j],&finSpin,&iniSpin,
-		  shortZ(funcs3pt[0].keyCorrMap.begin()->first.npoint[2].irrep.op.ops[1].disp_list));
+      // Constant DISP & MASS variables for convenience
+      const std::vector<int> DISP = shortZ(funcs3pt[0].keyCorrMap.begin()->first.npoint[2].irrep.op.ops[1].disp_list);
+      const double MASS = rest2pt.res.params["E0"][j];
+
+
+      // Init kinematic matrices for each of \gamma_4, \gamma_1, \gamma_2
+      kinMatGPD_t GPD_4(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,4,DISP);
+      kinMatGPD_t GPD_1(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,1,DISP);
+      kinMatGPD_t GPD_2(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,2,DISP);
+      // Assemble the kinematic matrices
+      GPD_4.assemble(true,MASS,&finSpin,&iniSpin);
+      GPD_1.assemble(true,MASS,&finSpin,&iniSpin);
+      GPD_2.assemble(true,MASS,&finSpin,&iniSpin);
+
+      
+      // Concatenate GPD_4,1,2 matrices into one large one for SVD
+      Eigen::Matrix<std::complex<double>, 3*MATS_PER_INSERTION, GPD_RANK> GPD;
+      std::cout << "GPD = " << GPD << std::endl;
+      
+      // Push GPD_4.mat into GPD
+      for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
+      
+      std::cout << "GPD = " << GPD << std::endl;
+      // Form m=+/-1 components of \gamma_j's in circular basis
+      for ( int m = 1; m >= -1; m-=2 )
+	{
+	  Eigen::Matrix<std::complex<double>, MATS_PER_INSERTION, GPD_RANK> TMP;
+	  TMP = _I_*( BASIS.cirq(m)(0)*GPD_1.mat + BASIS.cirq(m)(1)*GPD_2.mat );
+
+	  std::cout << "TMP = " << TMP << std::endl;
+
+	  int offset = ( m > 0 ) ? 1 : 2; // ensure rows are mapped correctly w/ 'm'
+	  for ( int i = offset*GPD_4.mat.rows(); i < (1+offset)*GPD_4.mat.rows(); ++i )
+	    // Push TMP rows into GPD
+	    GPD.row(i) << TMP.row(i - offset*GPD_4.mat.rows() );
+	}
+
+      std::cout << "FINAL GPD = " << GPD << std::endl;
+      exit(8);
+
     }
-  // std::vector<Eigen::Vector2cd> AMP(global.cfgs);
-  // std::vector<Eigen::Vector3cd> AMP(global.cfgs);
-  std::vector<Eigen::Vector4cd> AMP(global.cfgs);
+  std::vector<Eigen::Matrix<std::complex<double>, GPD_RANK, 1> > AMP(global.cfgs);
 
 
 
@@ -1472,56 +1346,33 @@ int main(int argc, char *argv[])
   extAmplitudes(&MAT,&KIN,&AMP);
   std::cout << "What do these solutions look like?\n";
   
-  for ( auto itr = AMP.begin(); itr != AMP.end(); ++itr )
-    std::cout << "M = " << (*itr)(0)
-	      << "     L = " << (*itr)(1) 
-	      << "     R = " << (*itr)(2)
-	      << "     Z2 = " << (*itr)(3)
-	      << std::endl;
-
-
   // Put AMP results into a VectorXcd so writeAmplitudes can be reused
-  std::vector<Eigen::VectorXcd> finalAMP(global.cfgs,Eigen::VectorXcd(4));
+  std::vector<Eigen::VectorXcd> finalAMP(global.cfgs,Eigen::VectorXcd(GPD_RANK));
   for ( auto itr = AMP.begin(); itr != AMP.end(); ++itr )
     {
-      int idx = std::distance(AMP.begin(),itr);
-
-      finalAMP[idx](0) = (*itr)(0);
-      finalAMP[idx](1) = (*itr)(1);
-      finalAMP[idx](2) = (*itr)(2);
-      finalAMP[idx](3) = (*itr)(3);
+      int idx = std::distance(AMP.begin(), itr);
+      std::cout << "A" << idx+1 << " = "  << (*itr)(idx) << "    ";
+      finalAMP[idx](idx) = (*itr)(idx);
     }
+  std::cout << "\n";
+
+
+  // // Put AMP results into a VectorXcd so writeAmplitudes can be reused
+  // std::vector<Eigen::VectorXcd> finalAMP(global.cfgs,Eigen::VectorXcd(4));
+  // for ( auto itr = AMP.begin(); itr != AMP.end(); ++itr )
+  //   {
+  //     int idx = std::distance(AMP.begin(),itr);
+
+  //     finalAMP[idx](0) = (*itr)(0);
+  //     finalAMP[idx](1) = (*itr)(1);
+  //     finalAMP[idx](2) = (*itr)(2);
+  //     finalAMP[idx](3) = (*itr)(3);
+  //   }
 
   // Write the extracted amplitudes to h5
   // -->clunky way to pass displacement
   writeAmplitudes(&finalAMP,&global,&threePtFitInfo,
 		  &tempKey3pt.key.npoint[2].irrep.op.ops[1].disp_list);
-  
-
-
-
-
-#if 0
-#ifndef AMPPREFACTORS
-  std::cout << "Not applying kinematic prefactors of pseudo-GITDs" << std::endl;
-  if ( global.chromaGamma == 8 )
-    {
-      std::vector<std::complex<double> > uBarGammaU(global.cfgs,std::complex<double> (0.0,0.0));
-      for ( int j = 0; j < global.cfgs; ++j )
-	{
-	  ugu_t uGu(4,false);
-	  // Evaluate assuming twoJz_i=twoJz_f=1
-	  uBarGammaU[j] = uGu.eval(global.pf,global.pi,twoPtFin.res.params["E0"][j],
-				   twoPtIni.res.params["E0"][j],rest2pt.res.params["E0"][j],
-				   1,1,global.Lx);
-	}
-
-      std::cout << "Writing fin/ini spinor contraction with \\gamma^\\mu" << std::endl;
-      // Write the contraction for each jackknife bin to h5
-      writeSpinorContract(3,4,global.cfgs,global.pf,global.pi,1,1,uBarGammaU);
-    }
-#endif
-#endif
   
 
   return 0;
