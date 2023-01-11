@@ -44,7 +44,7 @@ namespace projections
 {
   enum projSelect { UNPOL = 1, POL = 2 };
 }
-enum current { VECTOR, AXIAL, TENSOR };
+enum current { VECTOR, AXIAL, TENSOR, VECTOR_GLUON };
 
 
 std::ostream& operator<<(std::ostream& os, const gsl_vector * v);
@@ -54,7 +54,7 @@ std::ostream& operator<<(std::ostream& os, const gsl_matrix_complex * m);
 std::ostream& operator<<(std::ostream& os, const current c);
 
 std::complex<double> zeroFuzz(const std::complex<double>& w);
-
+void zeroFuzz(Eigen::VectorXcd& v);
 /*
   Spinor sanity checks
 */
@@ -134,6 +134,24 @@ struct projector_t
 
 const Eigen::Matrix4i metric
 { {1, 0, 0, 0}, {0, -1, 0, 0}, {0, 0, -1, 0}, {0, 0, 0, -1} };
+
+struct leviCivita
+{
+  int at(int i, int j, int k, int l);
+};
+
+struct polVecBasis_t
+{
+  const Eigen::Vector3cd e1 {std::complex<double>(1.0,0.0), _ZERO_, _ZERO_};
+  const Eigen::Vector3cd e2 {_ZERO_, std::complex<double>(1.0,0.0), _ZERO_};
+  const Eigen::Vector3cd e3 {_ZERO_, _ZERO_, std::complex<double>(1.0,0.0)};
+  /* const Eigen::Vector3i e1 {1, 0, 0}; */
+  /* const Eigen::Vector3i e2 {0, 1, 0}; */
+  /* const Eigen::Vector3i e3 {0, 0, 1}; */
+
+  // Select component (0, +/-1) of circular polarization vector
+  Eigen::Vector3cd cirq(int m);
+};
 
 /* struct metric_t */
 /* { */
@@ -339,7 +357,6 @@ class Spinor
     // Get the Euler rotation matrix
     eulerRefRot = Rotations::eulerRotMat2(refRot.alpha, refRot.beta, refRot.gamma);
     eulerLatRot = Rotations::eulerRotMat2(latRot.alpha, latRot.beta, latRot.gamma);
-
     // Build subductions
     initSubduce(name);
   }
@@ -466,6 +483,11 @@ class contractHandler
   void vectorContract(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
 		      const std::vector<int> &disp,
 		      std::map<int, std::pair<int,int> > rowMap, Eigen::MatrixXcd &mat);
+  // For gluons
+  void vectorContract(int mu, int alpha, int lambda, int beta,
+		      bool MINK, double mass, Spinor *fin, Spinor *ini,
+		      const std::vector<int> &disp,
+		      std::map<int, std::pair<int,int> > rowMap, Eigen::MatrixXcd &mat);
   void axialContract(int mu, bool MINK, double mass, Spinor *fin, Spinor *ini,
 		     const std::vector<int> &disp,
 		     std::map<int, std::pair<int,int> > rowMap, Eigen::MatrixXcd &mat);
@@ -494,10 +516,11 @@ class contractHandler
 struct kinMatPDF_t : contractHandler
 {
   // Public members
-  int mu = -1; int nu = -1; // Lorentz indices
-  current TYPE;             // Current type
-  std::vector<int> disp;    // Potential displacement
-  Eigen::MatrixXcd mat;     // Dynamic matrix to hold entries of a PDF kinematic matrix
+  int mu     = -1; int nu   = -1; // Lorentz indices
+  int lambda = -1; int beta = -1; // Two more Lorentz indices for gluons
+  current TYPE;                   // Current type
+  std::vector<int> disp;          // Potential displacement
+  Eigen::MatrixXcd mat;           // Dynamic matrix to hold entries of a PDF kinematic matrix
   
 
   /* // Return a pointer to function that will handle contractions */
@@ -532,6 +555,12 @@ struct kinMatPDF_t : contractHandler
   {
     mat.resize(row, col);
     std::cout << "--> Init'd a Kinematic Matrix for PDFs of size " << row << " x "
+	      << col << std::endl;
+  }
+ kinMatPDF_t(const int row, const int col, current c, int _m, int _n, int _l, int _b, std::vector<int> _d) : TYPE(c), mu(_m), nu(_n), lambda(_l), beta(_b), disp(_d)
+  {
+    mat.resize(row, col);
+    std::cout << "--> Init'd a Kinematic Matrix for Gluonic PDFs of size " << row << " x "
 	      << col << std::endl;
   }
 };
@@ -623,9 +652,9 @@ void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT
 		   std::vector<kinMatPDF_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP);
 //--------- Unpol. GPD
-void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 12, 1> > * MAT,
 		   std::vector<kinMatGPD_t> * KIN,
-		   std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * AMP);
+		   std::vector<Eigen::Matrix<std::complex<double>, 6, 1> > * AMP);
 //---------
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
 		   std::vector<kinMat3_t> * KIN,

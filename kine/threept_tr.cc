@@ -77,6 +77,7 @@ std::ostream& operator<<(std::ostream& os, const current c)
     case VECTOR: { os << "Vector"; break; }
     case AXIAL:  { os << "Axial"; break; }
     case TENSOR: { os << "Tensor"; break; }
+    case VECTOR_GLUON: { os << "Gluonic Vector"; break; }
     }
   return os;      
 }
@@ -97,6 +98,13 @@ std::complex<double> zeroFuzz(const std::complex<double>& w)
   return std::complex<double>(op_r,op_i);
 }
 
+//! Zero out bits of complex numbers in an Eigen::VectorXcd
+void zeroFuzz(Eigen::VectorXcd& v)
+{
+  for ( int i = 0; i < v.size(); ++i )
+    zeroFuzz( v(i) );
+}
+
 /*
   Spinor sanity checks
 */
@@ -109,6 +117,59 @@ void iniFinSpinorsEqualL(const int l1, const int l2)
     }
 }
 
+
+/*
+  Levi-Civita member functions
+*/
+int leviCivita::at(int _i, int _j, int _k, int _l)
+{
+  std::string key = std::to_string(_i) + std::to_string(_j)
+    + std::to_string(_k) + std::to_string(_l);
+  std::unordered_map<std::string,int> elem = {
+    { "1234", 1 },
+    { "2341", 1 },
+    { "3412", 1 },
+    { "4123", 1 },
+
+    { "2134", -1 },
+    { "1342", -1 },
+    { "3421", -1 },
+    { "4213", -1 },
+
+    { "3214", 1 },
+    { "2143", 1 },
+    { "1432", 1 },
+    { "4321", 1 }
+  };
+
+  if ( _i == _j || _i == _k || _i == _l || _j == _k || _j == _l || _k == _l )
+    return 0;
+  else
+    return elem[key];
+}
+
+/*
+  polVecBasis_t member functions
+*/
+// Select component (0, +/-1) of circular polarization vector
+Eigen::Vector3cd polVecBasis_t::cirq(int m)
+{
+  switch(m)
+    {
+    case 1:
+      return (-1.0/sqrt(2))*(e1+_I_*e2);
+      break;
+    case 0:
+      return e3;
+      break;
+    case -1:
+      return (1.0/sqrt(2))*(e1-_I_*e2);
+      break;
+    default:
+      std::cerr << "Not a valid component of circular polarization vector - must be 0, +/-1 !" << std::endl;
+      exit(1);
+    }
+}
 
 /*
   pauli_t constructor
@@ -583,7 +644,8 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 	  ugu_t gnu(nu,MINK);
 	  for ( int rho = 1; rho <= 4; ++rho )
 	    ubarZSlashU += gnu.eval(&(fin->subduced.twoJz[r->second.first]),
-				    &(ini->subduced.twoJz[r->second.second]))*zmu[rho-1]*metric(nu%4,rho%4);
+				    &(ini->subduced.twoJz[r->second.second]))*
+	      zmu[rho-1]*metric(nu%4,rho%4);
 	} // nu
       //-------------------------------
 
@@ -694,7 +756,7 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	       - (P'+P)^MU/2M  UBAR' U
+	- (P'+P)^MU/2M  UBAR' U
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
       mat(r->first,2) = zeroFuzz( (-avgP[mu-1]/mass)*ubaru );
@@ -726,6 +788,198 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 #endif
 
 
+    } // auto r
+}
+
+// For gluons
+void contractHandler::vectorContract(int mu, int nu, int lambda, int beta,
+				     bool MINK, double mass, Spinor *fin, Spinor *ini,
+				     const std::vector<int> &disp,
+				     std::map<int, std::pair<int,int> > rowMap,
+				     Eigen::MatrixXcd &mat)
+{
+  // Convenient disp
+  std::vector<int> Z(disp);
+  Z.push_back(0); // z^4 = 0  -->  no time-like Wilson lines!
+	
+
+  for ( auto r = rowMap.begin(); r != rowMap.end(); ++r )
+    {
+      // Pre-compute all possible polVec evaluations for convenience
+      std::vector<std::complex<double> > polVecEvals;
+      for ( int p = 1; p <= 4; ++p )
+	{
+	  polVec_t S(p,MINK);
+	  polVecEvals.push_back( S.eval(&(fin->subduced.twoJz[r->second.first]),
+					&(ini->subduced.twoJz[r->second.second]),mass) );
+	}
+
+      // Pre-compute S dot Z for this row combination
+      std::complex<double> sDotZ(0.0,0.0);
+      for ( int rho = 1; rho <= 4; ++rho )
+	{
+	  for ( int sigma = 1; sigma <= 4; ++sigma )
+	    {
+	      polVec_t tmpS(sigma,MINK);
+	      std::complex<double> tmp = tmpS.eval(&(fin->subduced.twoJz[r->second.first]),
+						   &(ini->subduced.twoJz[r->second.second]),mass);
+	      
+	      sDotZ += metric(rho%4,sigma%4)*tmp*Z[rho-1];
+	    }
+	}
+
+
+      // Collect specific evalations of tensor structures
+      std::complex<double> foo;
+
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	  g_{ml}s_ap_b - g_{mb}s_ap_l - g_{al}s_mp_b + g_{ab}s_mp_l
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      std::cout << "mu,nu,lambda,beta = " << mu << " " << nu << " " << lambda << " " << beta
+		<< std::endl;
+      std::cout << metric(mu%4,lambda%4) << std::endl;
+      std::cout << polVecEvals[nu-1] << std::endl;
+      std::cout << ini->getMom()[beta-1] << std::endl;
+      foo = metric(mu%4,lambda%4)*polVecEvals[nu-1]*ini->getMom()[beta-1]
+	- metric(mu%4,beta%4)*polVecEvals[nu-1]*ini->getMom()[lambda-1]
+	- metric(nu%4,lambda%4)*polVecEvals[mu-1]*ini->getMom()[beta-1]
+	+ metric(nu%4,beta%4)*polVecEvals[mu-1]*ini->getMom()[lambda-1];
+      mat(r->first,0) = zeroFuzz(foo);
+      foo = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	  g_{ml}p_as_b - g_{mb}p_as_l - g_{al}p_ms_b + g_{ab}p_ms_l
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = metric(mu%4,lambda%4)*ini->getMom()[nu-1]*polVecEvals[beta-1]
+	- metric(mu%4,beta%4)*ini->getMom()[nu-1]*polVecEvals[lambda-1]
+	- metric(nu%4,lambda%4)*ini->getMom()[mu-1]*polVecEvals[beta-1]
+	+ metric(nu%4,beta%4)*ini->getMom()[mu-1]*polVecEvals[lambda-1];
+      mat(r->first,1) = zeroFuzz(foo);
+      foo = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	  g_{ml}s_az_b - g_{mb}s_az_l - g_{al}s_mz_b + g_{ab}s_mz_l
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = metric(mu%4,lambda%4)*polVecEvals[nu-1]*Z[beta-1]
+	- metric(mu%4,beta%4)*polVecEvals[nu-1]*Z[lambda-1]
+	- metric(nu%4,lambda%4)*polVecEvals[mu-1]*Z[beta-1]
+	+ metric(nu%4,beta%4)*polVecEvals[mu-1]*Z[lambda-1];
+      mat(r->first,2) = zeroFuzz(foo);
+      foo = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	  g_{ml}z_as_b - g_{mb}z_as_l - g_{al}z_ms_b + g_{ab}z_ms_l
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = metric(mu%4,lambda%4)*Z[nu-1]*polVecEvals[beta-1]
+	- metric(mu%4,beta%4)*Z[nu-1]*polVecEvals[lambda-1]
+	- metric(nu%4,lambda%4)*Z[mu-1]*polVecEvals[beta-1]
+	+ metric(nu%4,beta%4)*Z[mu-1]*polVecEvals[lambda-1];
+      mat(r->first,3) = zeroFuzz(foo);
+      foo = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	                  [p_m,s_a][p_l,z_b]
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = (ini->getMom()[mu-1]*polVecEvals[nu-1] - ini->getMom()[nu-1]*polVecEvals[mu-1])*
+	(ini->getMom()[lambda-1]*Z[beta-1] - ini->getMom()[beta-1]*Z[lambda-1]);
+      mat(r->first,4) = zeroFuzz(foo);
+      foo = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	                  [p_m,z_a][p_l,s_b]
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = (ini->getMom()[mu-1]*Z[nu-1] - ini->getMom()[nu-1]*Z[mu-1])*
+	(ini->getMom()[lambda-1]*polVecEvals[beta-1] - ini->getMom()[beta-1]*polVecEvals[lambda-1]);
+      mat(r->first,5) = zeroFuzz(foo);
+      foo = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	                  [s_m,z_a][p_l,z_b]
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = (polVecEvals[mu-1]*Z[nu-1] - polVecEvals[nu-1]*Z[mu-1])*
+	(ini->getMom()[lambda-1]*Z[beta-1] - ini->getMom()[beta-1]*Z[lambda-1]);
+      mat(r->first,6) = zeroFuzz(foo);
+      foo = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	                  [p_m,z_a][s_l,z_b]
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = (ini->getMom()[mu-1]*Z[nu-1] - ini->getMom()[nu-1]*Z[mu-1])*
+	(polVecEvals[lambda-1]*Z[beta-1] - polVecEvals[beta-1]*Z[lambda-1]);
+      mat(r->first,7) = zeroFuzz(foo);
+      foo = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	  (sz)(g_{ml}p_ap_b - g_{mb}p_ap_l - g_{al}p_mp_b + g_{ab}p_mp_l
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = metric(mu%4,lambda%4)*ini->getMom()[nu-1]*ini->getMom()[beta-1]-
+	metric(mu%4,beta%4)*ini->getMom()[nu-1]*ini->getMom()[lambda-1]-
+	metric(nu%4,lambda%4)*ini->getMom()[mu-1]*ini->getMom()[beta-1]+
+	metric(nu%4,beta%4)*ini->getMom()[mu-1]*ini->getMom()[lambda-1];
+      mat(r->first,8) = zeroFuzz(sDotZ*foo);
+      foo = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	  (sz)(g_{ml}z_az_b - g_{mb}z_az_l - g_{al}z_mz_b + g_{ab}z_mz_l
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = metric(mu%4,lambda%4)*Z[nu-1]*Z[beta-1]-
+	metric(mu%4,beta%4)*Z[nu-1]*Z[lambda-1]-
+	metric(nu%4,lambda%4)*Z[mu-1]*Z[beta-1]+
+	metric(nu%4,beta%4)*Z[mu-1]*Z[lambda-1];
+      mat(r->first,9) = zeroFuzz(sDotZ*foo);
+      foo = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	  (sz)(g_{ml}z_ap_b - g_{mb}z_ap_l - g_{al}z_mp_b + g_{ab}z_mp_l
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = metric(mu%4,lambda%4)*Z[nu-1]*ini->getMom()[beta-1]-
+	metric(mu%4,beta%4)*Z[nu-1]*ini->getMom()[lambda-1]-
+	metric(nu%4,lambda%4)*Z[mu-1]*ini->getMom()[beta-1]+
+	metric(nu%4,beta%4)*Z[mu-1]*ini->getMom()[lambda-1];
+      mat(r->first,10) = zeroFuzz(sDotZ*foo);
+      foo = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	  (sz)(g_{ml}p_az_b - g_{mb}p_az_l - g_{al}p_mz_b + g_{ab}p_mz_l
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = metric(mu%4,lambda%4)*ini->getMom()[nu-1]*Z[beta-1]-
+	metric(mu%4,beta%4)*ini->getMom()[nu-1]*Z[lambda-1]-
+	metric(nu%4,lambda%4)*ini->getMom()[mu-1]*Z[beta-1]+
+	metric(nu%4,beta%4)*ini->getMom()[mu-1]*Z[lambda-1];
+      mat(r->first,11) = zeroFuzz(sDotZ*foo);
+      foo = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	                   (sz)[p_m,z_a][p_l,z_b]
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = (ini->getMom()[mu-1]*Z[nu-1] - ini->getMom()[nu-1]*Z[mu-1])*
+	(ini->getMom()[lambda-1]*Z[beta-1] - ini->getMom()[beta-1]*Z[lambda-1]);
+      mat(r->first,12) = zeroFuzz(sDotZ*foo);
+      foo = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                      (sz)( g_{ml}g_{ab} - g_{mb}g_{al} )
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      foo = metric(mu%4,lambda%4)*metric(nu%4,beta%4)-
+	metric(mu%4,beta%4)*metric(nu%4,lambda%4);
+      mat(r->first,13) = zeroFuzz(sDotZ*foo);
+      foo = _ZERO_;
+      
     } // auto r
 }
 
@@ -861,7 +1115,7 @@ void kinMatPDF_t::assemble(bool MINK, double mass, Spinor *fin, Spinor *ini)
   std::map<int, std::pair<int,int> > rowMap;
 
   // Forward case we only need two row combinations - diagonals!
-  if ( TYPE == VECTOR )
+  if ( TYPE == VECTOR || TYPE == VECTOR_GLUON )
     {
       rowMap[0] = std::make_pair(fin->getTwoJ(),ini->getTwoJ());
       rowMap[1] = std::make_pair(-fin->getTwoJ(),-ini->getTwoJ());
@@ -892,6 +1146,8 @@ void kinMatPDF_t::assemble(bool MINK, double mass, Spinor *fin, Spinor *ini)
       axialContract(mu, MINK, mass, fin, ini, disp, rowMap, mat); break;
     case TENSOR:
       tensorContract(mu, nu, MINK, mass, fin, ini, disp, rowMap, mat); break;
+    case VECTOR_GLUON:
+      vectorContract(mu, nu, lambda, beta, MINK, mass, fin, ini, disp, rowMap, mat); break;
     default:
       std::cout << "Shouldn't be here - what's the current?" << std::endl;
       exit(2);
@@ -1104,7 +1360,7 @@ void Spinor::buildSpinors()
 
 
   // Form a single euler rotation matrix via product : (eulerLatRot) x (eulerRefRot)
-  gmc * eulerRot = gsl_matrix_complex_calloc(4,4);
+  gmc * eulerRot = gsl_matrix_complex_calloc(2,2);
   gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,eulerLatRot,eulerRefRot,zero,eulerRot);
 
 
@@ -1320,9 +1576,9 @@ void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT
 }
 
 //--------- Unpol. GPD
-void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 12, 1> > * MAT,
 		   std::vector<kinMatGPD_t> * KIN,
-		   std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * AMP)
+		   std::vector<Eigen::Matrix<std::complex<double>, 6, 1> > * AMP)
 {
   for ( auto a = AMP->begin(); a != AMP->end(); ++a )
     {
