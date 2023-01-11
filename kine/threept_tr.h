@@ -151,6 +151,9 @@ struct polVecBasis_t
 
   // Select component (0, +/-1) of circular polarization vector
   Eigen::Vector3cd cirq(int m);
+
+  // Default constructor
+  polVecBasis_t() {}
 };
 
 /* struct metric_t */
