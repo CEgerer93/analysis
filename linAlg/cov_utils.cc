@@ -184,6 +184,14 @@ namespace LinAlg
 	       
 
 
+  // Get singular values of a complex-valued matrix (Eigen)
+  void getSVs(Eigen::MatrixXcd *h)
+  {
+    Eigen::JacobiSVD<Eigen::MatrixXcd> s(*h,Eigen::ComputeFullU | Eigen::ComputeFullV);
+    std::cout << s.singularValues() << std::endl;
+  }
+
+
 #if 0
   void extAmplitudes(Eigen::Matrix<std::complex<double>, 4, 2> * K)
   {

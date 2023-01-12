@@ -1135,7 +1135,8 @@ int main(int argc, char *argv[])
 
       
       // Concatenate GPD_4,1,2 matrices into one large one for SVD
-      Eigen::Matrix<std::complex<double>, 3*MATS_PER_INSERTION, GPD_RANK> GPD;
+      // Eigen::Matrix<std::complex<double>, 3*MATS_PER_INSERTION, GPD_RANK> GPD;
+      Eigen::MatrixXcd GPD(3*MATS_PER_INSERTION, GPD_RANK);
       std::cout << "GPD = " << GPD << std::endl;
       
       // Push GPD_4.mat into GPD
@@ -1157,6 +1158,7 @@ int main(int argc, char *argv[])
 	}
 
       std::cout << "FINAL GPD = " << GPD << std::endl;
+      getSVs(&GPD);
       exit(8);
 
     }

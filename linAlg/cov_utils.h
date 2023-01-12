@@ -37,7 +37,12 @@ namespace LinAlg
   int matrixInv(gsl_matrix * M, gsl_matrix * MInv);
 
 
-  // TRY EIGEN SINCE IT HAS SUPPORT FOR SVD OF COMPLEX MATRICES
+  /*
+    TRY EIGEN SINCE IT HAS SUPPORT FOR SVD OF COMPLEX MATRICES
+  */
+  // Get singular values of a complex-valued matrix (Eigen)
+  void getSVs(Eigen::MatrixXcd *h);
+  
   /*
     EXTRACT INVARIANT AMPLTUDES USING (IN GENERAL) AN SVD DECOMPOSITION
   */
