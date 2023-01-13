@@ -7,9 +7,68 @@
     <observable>pGITD</observable>
     <state>nuc</state>
     <projection>PROJ</projection> <!-- UNPOL (1) -or- POL (2) -->
-    <insertion>
-      <gamma>GAMMA</gamma>
-    </insertion>
+    <basic_op_structure>
+      <Irrep>
+	<creation_op>false</creation_op>
+	<smearedP>true</smearedP>
+	<flavor>
+	  <twoI>1</twoI>
+	  <threeY>3</threeY>
+	  <twoI_z>1</twoI_z>
+	</flavor>
+	<irmom>
+	  <row>1</row>
+	  <mom>0 0 0</mom>
+	</irmom>
+	<Op>
+	  <Operators>
+	    <elem>
+	      <name>XOPX</name>
+	      <mom_type>0 0 0</mom_type>
+	      <disp_list></disp_list>
+	    </elem>
+	  </Operators>
+	  <CGs>
+	  </CGs>
+	</Op>
+      </Irrep>
+    </basic_op_structure>
+    <npt_props>
+      <snk>
+	<creation_op>false</creation_op><smearedP>true</smearedP>
+	<flavor>
+	  <twoI>1</twoI><threeY>3</threeY><twoI_z>1</twoI_z>
+	</flavor>
+	<names>
+	  <elem><Key>NucleonMG1g1MxD0J0S_J1o2</Key><Val>1</Val></elem>
+	</names>
+	<disp_list></disp_list>
+      </snk>
+      <ins>
+	<creation_op>true</creation_op><smearedP>false</smearedP>
+	<flavor>
+	  <twoI>2</twoI><threeY>0</threeY><twoI_z>0</twoI_z>
+	</flavor>
+	<names>
+	  <!-- <elem><Key>b_b0xDA__J0</Key><Val>1</Val></elem> -->
+	  <!-- <elem><Key>rho_rhoxDA__J1</Key><Val>2</Val></elem> -->
+	  <elem><Key>b_b0xDA__J0_A1pP</Key><Val>1</Val></elem>
+	  <elem><Key>rho_rhoxDA__J1_T1mP</Key><Val>3</Val></elem>
+	  <!-- <elem><Key>rho_rhoxDA__J1_T1mP</Key><Val>3</Val></elem> -->
+	</names>
+	<disp_list>3</disp_list>
+      </ins>
+      <src>
+	<creation_op>true</creation_op><smearedP>true</smearedP>
+	<flavor>
+	  <twoI>1</twoI><threeY>3</threeY><twoI_z>1</twoI_z>
+	</flavor>
+	<names>
+	  <elem><Key>NucleonMG1g1MxD0J0S_J1o2</Key><Val>1</Val></elem>
+	</names>
+	<disp_list></disp_list>
+      </src>
+    </npt_props>
     <nvec>64</nvec>
     <Lt>64</Lt>
     <Lx>32</Lx>

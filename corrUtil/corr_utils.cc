@@ -796,7 +796,8 @@ namespace NCOR
     grps[1] = "zsep" + std::to_string(Pseudo::shortZ(*disp)[0])
       + std::to_string(Pseudo::shortZ(*disp)[1])
       + std::to_string(Pseudo::shortZ(*disp)[2]);
-    grps[2] = "gamma-" + std::to_string(global->chromaGamma);
+#warning "Fix old chromaGamma member!"
+    grps[2] = "gamma-" + std::to_string(-1); //global->chromaGamma);
 
     
     try {

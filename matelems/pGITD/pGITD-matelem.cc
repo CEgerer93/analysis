@@ -47,14 +47,19 @@
 #include "io/adat_xml_group_reader.h"
 #include "adat/handle.h"
 
-#include "hadron/irreps_cubic_factory.h"
-#include "hadron/irreps_cubic_oct_factory.h"
-#include "hadron/irreps_cubic_helicity_factory.h"
-#include "hadron/subduce_tables_oct_factory.h"
-#include "hadron/subduce_tables_lg_factory.h"
-#include "hadron/subduce_tables.h"
-#include "hadron/subduce_tables_factory.h"
-#include "hadron/single_hadron_coeffs.h"
+#include "hadron_npt_op_factory.h"
+#include "single_hadron_factory.h"
+#include "cont_hadron_op_factory.h"
+#include "operators/spin_subduced_obj_factory.h"
+
+// #include "hadron/irreps_cubic_factory.h"
+// #include "hadron/irreps_cubic_oct_factory.h"
+// #include "hadron/irreps_cubic_helicity_factory.h"
+// #include "hadron/subduce_tables_oct_factory.h"
+// #include "hadron/subduce_tables_lg_factory.h"
+// #include "hadron/subduce_tables.h"
+// #include "hadron/subduce_tables_factory.h"
+// #include "hadron/single_hadron_coeffs.h"
 
 
 using namespace ADATXML;
@@ -63,6 +68,9 @@ using namespace NCOR;
 
 
 typedef XMLArray::Array<XMLArray::Array<int> > XML2D;
+typedef Hadron::KeyHadronSUNNPartNPtCorr_t       K;
+typedef ENSEM::VectorComplex                     V;
+
 
 // Define a struct for global props
 global_t global;
@@ -76,89 +84,6 @@ info2pt db2ptFinInfo, db2ptIniInfo, db2ptRestInfo;
 const std::complex<double> redFact(sqrt(2),0);
 
 
-// /*
-//   Convert between lattice LG rows and helicity amplitudes
-// */
-// std::complex<double> lgToHelicityAmps(const Hadron::KeyHadronSUNNPartNPtCorr_t *k)
-// {
-//   // Returned complex weight
-//   std::complex<double> weight;
-
-//   // Construct snk/src operator subduction info
-//   subduceInfo snkOp(k->npoint[1].irrep.op.ops[1].name,k->npoint[1].irrep.irrep_mom.mom);
-//   subduceInfo srcOp(k->npoint[3].irrep.op.ops[1].name,k->npoint[3].irrep.irrep_mom.mom);
-//   // Instantiate canonical rotation structs
-//   Hadron::CubicCanonicalRotation_t snkRot, srcRot;
-
-
-//   // Get the Euler angles, setting all to null for rest case
-//   if ( shortMom(k->npoint[1].irrep.irrep_mom.mom,"") != "000" )
-//     snkRot = Hadron::cubicCanonicalRotation(k->npoint[1].irrep.irrep_mom.mom);
-//   else
-//     {
-//       snkRot.alpha=0; snkRot.beta=0; snkRot.gamma=0;
-//     }
-//   if ( shortMom(k->npoint[3].irrep.irrep_mom.mom,"") != "000" )
-//     srcRot = Hadron::cubicCanonicalRotation(k->npoint[3].irrep.irrep_mom.mom);
-//   else
-//     {
-//       srcRot.alpha=0; srcRot.beta=0; srcRot.gamma=0;
-//     }
-
-// #if VERBOSITY>0
-//   // Irrep stuff
-//   std::cout << "SNK/SRC IRREP DIMS = " << snkOp.irrep_dim << "/" << srcOp.irrep_dim << std::endl;
-//   std::cout << "Snk Euler Angles:"
-// 	    << "        alpha = " << snkRot.alpha
-// 	    << "        beta  = " << snkRot.beta
-// 	    << "        gamma = " << snkRot.gamma << std::endl;
-//   std::cout << "Src Euler Angles:"
-// 	    << "        alpha = " << srcRot.alpha
-// 	    << "        beta  = " << srcRot.beta
-// 	    << "        gamma = " << srcRot.gamma << std::endl;
-// #endif
-
-//   // Inner subduction/Wigner-D matrix mults
-//   for ( int a = 1; a <= snkOp.irrep_dim; ++a )
-//     {
-//       int twoJZ_a = pow((-1),a-1);
-//       for ( int b = 1; b <= snkOp.irrep_dim; ++b )
-// 	{
-// 	  int twoJZ_b = pow((-1),b-1);
-// 	  for ( int c = 1; c <= srcOp.irrep_dim; ++c )
-// 	    {
-// 	      int twoJZ_c = pow((-1),c-1);
-
-// #if VERBOSITY>2
-// 	      std::cout << "NEW COMBO" << std::endl;
-// 	      std::cout << "Snk Wigner-D: " << Hadron::Wigner_D(1,twoJZ_a,twoJZ_b,snkRot.alpha,snkRot.beta,snkRot.gamma) << std::endl;
-// 	      std::cout << "Snk Subduction: " << (*snkOp.H).operator()(k->npoint[1].irrep.irrep_mom.row,a) << std::endl;
-// 	      std::cout << "Src Wigner-D: " << Hadron::Wigner_D(1,twoJZ_b,twoJZ_c,srcRot.alpha,srcRot.beta,srcRot.gamma) << std::endl;
-// 	      std::cout << "Src Subduction: " << (*srcOp.H).operator()(c,k->npoint[3].irrep.irrep_mom.row) << std::endl;
-// #endif
-
-// 	      // Build the weight
-// 	      weight += (*snkOp.H).operator()(k->npoint[1].irrep.irrep_mom.row,a)*
-// 		Hadron::Wigner_D(1,twoJZ_a,twoJZ_b,
-// 				 snkRot.alpha,snkRot.beta,snkRot.gamma)*
-// 		Hadron::Wigner_D(1,twoJZ_b,twoJZ_c,
-// 				 srcRot.alpha,srcRot.beta,srcRot.gamma)*
-// 		(*srcOp.H).operator()(c,k->npoint[3].irrep.irrep_mom.row);
-
-
-// 	    } // c
-// 	} // b
-//     } // a
-
-// #if VERBOSITY>0
-//   std::cout << "WEIGHT = " << weight << std::endl;
-// #endif
-
-//   return weight;			
-// }
-
-
-
 /*
   SOME CALLS TO HELP ADAT READ
 */
@@ -166,9 +91,6 @@ const std::complex<double> redFact(sqrt(2),0);
 std::vector<NCOR::corrEquivalence>
 getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t>& fetch)
 {
-  typedef Hadron::KeyHadronSUNNPartNPtCorr_t       K;
-  typedef ENSEM::VectorComplex                     V;
-
   // Initialize map returned to main associating keys with correlators datatypes
   // n.b. cannot use a std::map here as I haven't created a comparator
   // ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, correlators> retMap;
@@ -283,6 +205,20 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
   return RET;
 }
 
+// Reader for npt_props
+void read(XMLReader& xml, const std::string path, global_t::nptProps_t& p)
+{
+  try {
+    read(xml, path+"/creation_op", p.create);
+    read(xml, path+"/smearedP", p.smear);
+    read(xml, path+"/flavor", p.cgc);
+    read(xml, path+"/names", p.cont_names);
+    read(xml, path+"/disp_list", p.disp_list);
+  } catch ( std::string &e ) {
+    std::cerr << "Unable to parse nptProps_t of global properties " << e << std::endl;
+  }
+}
+
 
 // Reader for global properties
 void read(XMLReader& xml, const std::string path, global_t& g)
@@ -294,7 +230,11 @@ void read(XMLReader& xml, const std::string path, global_t& g)
     read(xml, path+"/observable", g.observable);
     read(xml, path+"/state", g.state);
     read(xml, path+"/projection", g.projector);
-    read(xml, path+"/insertion/gamma", g.chromaGamma);
+    read(xml, path+"/basic_op_structure/Irrep", g.basic_op);
+    read(xml, path+"/npt_props/snk", g.snk);
+    read(xml, path+"/npt_props/ins", g.ins);
+    read(xml, path+"/npt_props/src", g.src);
+    // read(xml, path+"/insertions/props", g.ins);
     read(xml, path+"/nvec", g.nvec);
     read(xml, path+"/Lt", g.Lt);
     read(xml, path+"/Lx", g.Lx);
@@ -389,15 +329,15 @@ void read(XMLReader& xml, const std::string path, info2pt& d)
 }
 
 
-/*
-  Modify the src/snk row structure of passed key to allow a second RowCombo (RC2) to be accessed
-*/
-void makeKeyRC2(Hadron::KeyHadronSUNNPartNPtCorr_t &kRC2, XMLArray::Array<int> &newRC)
-{
-  // newRC2 = db2ptInfo.rows[1]; i.e. an XML::Array<int> object
-  kRC2.npoint[1].irrep.irrep_mom.row = newRC[0]; // new snk row
-  kRC2.npoint[2].irrep.irrep_mom.row = newRC[1]; // new src row
-}
+// /*
+//   Modify the src/snk row structure of passed key to allow a second RowCombo (RC2) to be accessed
+// */
+// void makeKeyRC2(Hadron::KeyHadronSUNNPartNPtCorr_t &kRC2, XMLArray::Array<int> &newRC)
+// {
+//   // newRC2 = db2ptInfo.rows[1]; i.e. an XML::Array<int> object
+//   kRC2.npoint[1].irrep.irrep_mom.row = newRC[0]; // new snk row
+//   kRC2.npoint[2].irrep.irrep_mom.row = newRC[1]; // new src row
+// }
 
 
 /*
@@ -499,7 +439,8 @@ std::vector<std::string> makeDBList(global_t& g, info2pt& I, Hadron::KeyHadronSU
 /*
   Utility to make 3pt db list
 */
-std::vector<std::string> makeDBList(global_t& g, info3pt& I, domain_t& t, Hadron::KeyHadronSUNNPartNPtCorr_t *kTemplate)
+// std::vector<std::string> makeDBList(global_t& g, info3pt& I, domain_t& t, std::vector<K> *kTemplates)
+std::vector<std::string> makeDBList(global_t& g, info3pt& I, domain_t& t)
 {
   std::vector<std::string> s;
   for ( int ti = t.min; ti <= t.max; ti+=t.step )
@@ -530,6 +471,117 @@ std::vector<std::string> makeDBList(global_t& g, info3pt& I, domain_t& t, Hadron
 
 
 /*
+  Make template keys
+*/
+std::vector<std::string> subName(const ADAT::MapObject<std::string, int> cont_ops, const Array<int> &mom)
+{
+  std::vector<std::string> sub_ops;
+  // Iterate continuum names
+  for ( auto it = cont_ops.begin(); it != cont_ops.end(); ++it )
+    {
+      // Register the continuum op
+      auto cont_reg = Redstar::ContHadronOpEnv::TheHadronContOpRegInfoFactory::Instance().at(it->first);
+      int cont_dim = cont_reg.twoJ + 1;
+
+      // Register all subduced versions of continuum operator
+      auto allSubOps = Redstar::ContHadronOpEnv::TheHadronContOpSubducedOpFactory::Instance().at(it->first);
+
+      // Iterate over all subduced operators of continuum operator
+      for ( auto sub_op = allSubOps.begin(); sub_op != allSubOps.end(); ++sub_op )
+	{
+	  // Register this specfic op
+	  auto reg = Redstar::TheSingleHadronOpsRegInfoFactory::Instance().at(sub_op->first);
+	  
+	  // Init this specific op
+	  auto spin_reg = Redstar::SpinObject::SubducedSpinObjRegFactory::Instance().at(reg.spin_id);
+	  auto spin_op  = Redstar::SpinObject::TheSubducedSpinObjFactory::Instance().createObject(reg.spin_id,reg.spin_id);
+	  
+	  std::string lg = Hadron::getIrrepLG(spin_reg.irrep);
+	  int        dim = Hadron::getIrrepDim(Hadron::removeHelicity(spin_reg.irrep));
+
+
+	  // If little group doesn't match with what's induced by momentum, continue
+	  if ( lg != Hadron::generateLittleGroup(mom) ) continue;
+	  std::cout << "     MATCHED! Working w/ LG = " << lg << " and momentum = "
+		    << mom << std::endl;
+	  std::cout << "Sub Op name = " << sub_op->first << std::endl;
+
+	  
+	  sub_ops.push_back(sub_op->first);
+
+	} // sub_op
+    } // it
+  return sub_ops;
+}
+
+std::vector<K> templateKeys(const global_t &g, int npt)
+{
+  // Vector of template keys
+  std::vector<K> tmp;
+
+  Hadron::KeyCGCIrrepMom_t pfIrrepMom(1,g.pf);
+  Hadron::KeyCGCIrrepMom_t piIrrepMom(1,g.pi);
+  Hadron::KeyCGCIrrepMom_t qIrrepMom(1,g.pf-g.pi);
+  
+  /*
+    Inserted op names
+  */
+  // auto subOps = subName(g.ins.cont_names,g.pf-g.pi); // will blow up w/o update to adat (reverting to old DA operator names)
+  std::vector<std::string> insOps;
+  for ( auto it = g.ins.cont_names.begin(); it != g.ins.cont_names.end(); ++it )
+    insOps.push_back(it->first);
+  
+  // Number of template keys set by unique subduced insertions
+  tmp.resize(insOps.size());
+
+  // Fill the keys
+  for ( auto k = tmp.begin(); k != tmp.end(); ++k )
+    {
+      int idx = std::distance(tmp.begin(),k);
+      std::cout << "idx = " << idx << std::endl;
+      // Common
+      for ( int n = 1; n <= npt; ++n )
+	{
+	  k->npoint.resize(3);
+	  k->npoint[n].irrep = g.basic_op;
+	}
+      
+      // Snk
+      k->npoint[1].t_slice              = 4;
+      k->npoint[1].irrep.creation_op    = g.snk.create;
+      k->npoint[1].irrep.smearedP       = g.snk.smear;
+      k->npoint[1].irrep.flavor         = g.snk.cgc;
+      k->npoint[1].irrep.irrep_mom      = pfIrrepMom;
+      k->npoint[1].irrep.op.ops[1] = Hadron::KeyParticleOp_t(subName(g.snk.cont_names,g.pf)[0],
+							     "", Hadron::canonicalOrder(g.pf),
+							     g.snk.disp_list);
+      
+      // Ins
+      k->npoint[2].t_slice = -3;
+      k->npoint[2].irrep.creation_op    = g.ins.create;
+      k->npoint[2].irrep.smearedP       = g.ins.smear;
+      k->npoint[2].irrep.flavor         = g.ins.cgc;
+      k->npoint[2].irrep.irrep_mom      = qIrrepMom;
+      k->npoint[2].irrep.op.ops[1] = Hadron::KeyParticleOp_t(insOps[idx],"",
+							     Hadron::canonicalOrder(g.pf-g.pi),
+							     g.ins.disp_list);
+      
+      // Src
+      k->npoint[3].irrep.creation_op    = g.src.create;
+      k->npoint[3].irrep.smearedP       = g.src.smear;
+      k->npoint[3].irrep.flavor         = g.src.cgc;
+      k->npoint[3].irrep.irrep_mom      = piIrrepMom;
+      k->npoint[3].irrep.op.ops[1] = Hadron::KeyParticleOp_t(subName(g.src.cont_names,g.pi)[0],
+							     "", Hadron::canonicalOrder(g.pi),
+							     g.src.disp_list);
+      
+    }
+
+  return tmp;
+}
+
+
+/*
   Utility to make 2pt key list
 */
 std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> makeKeyList(Hadron::KeyHadronSUNNPartNPtCorr_t &kTemplate)
@@ -556,204 +608,48 @@ std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> makeKeyList(Hadron::KeyHadronSUN
 /*
   Utility to make 3pt key list
 */
-std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> makeKeyList(domain_t& t, Hadron::KeyHadronSUNNPartNPtCorr_t *kTemplate)
+std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> makeKeyList(domain_t& t, std::vector<K> *kTemplates)
 {
   std::vector<Hadron::KeyHadronSUNNPartNPtCorr_t> s;
 
-  // With template 3pt key passed as pointer, iterate over tseps and make remaining 3pt keys
-  for ( int ti = t.min; ti <= t.max; ti+=t.step )
+  for ( auto kTemplate : *kTemplates )
     {
-      // Make a new key from the template
-      Hadron::KeyHadronSUNNPartNPtCorr_t tmp_k = *kTemplate;
-      
-      // Change sink t_slice
-      tmp_k.npoint[1].t_slice=ti;
-      // Push this tmp key
-      s.push_back(tmp_k);
 
-      if ( global.dispNegate )
+      // With template 3pt key passed as pointer, iterate over tseps and make remaining 3pt keys
+      for ( int ti = t.min; ti <= t.max; ti+=t.step )
 	{
-	  // Make a key for opposing displacement, if disp_list != ''
-	  if ( tmp_k.npoint[2].irrep.op.ops[1].disp_list.size() > 0 )
+	  // Make a new key from the template
+	  Hadron::KeyHadronSUNNPartNPtCorr_t tmp_k = kTemplate;
+	  
+	  // Change sink t_slice
+	  tmp_k.npoint[1].t_slice=ti;
+	  // Push this tmp key
+	  s.push_back(tmp_k);
+	  
+	  if ( global.dispNegate )
 	    {
-	      for ( int d = 0; d < tmp_k.npoint[2].irrep.op.ops[1].disp_list.size(); ++d )
+	      // Make a key for opposing displacement, if disp_list != ''
+	      if ( tmp_k.npoint[2].irrep.op.ops[1].disp_list.size() > 0 )
 		{
-		  tmp_k.npoint[2].irrep.op.ops[1].disp_list[d]*=-1;
+		  for ( int d = 0; d < tmp_k.npoint[2].irrep.op.ops[1].disp_list.size(); ++d )
+		    {
+		      tmp_k.npoint[2].irrep.op.ops[1].disp_list[d]*=-1;
+		    }
+		  // insert this key with opposite displacement
+		  s.push_back(tmp_k);
 		}
-	      // insert this key with opposite displacement
-	      s.push_back(tmp_k);
-	    }
-	} // global.dispNegate
-    }
+	    } // global.dispNegate
+	}
+      
+      // Potentially include negated momentum combination
+      if ( global.momNegate )
+	checkKeyMomNegate(s,global);
 
-  // Potentially include negated momentum combination
-  if ( global.momNegate )
-    checkKeyMomNegate(s,global);
+    } // auto kTemplate
+
   std::cout << "  Set all 3pt keys from template key" << std::endl;
   return s;
 }
-
-
-// #if 0
-// void rowAvg(std::vector<corrEquivalence> &tC, ADAT::MapObject<XMLArray::Array<int>, double> &r)
-// {
-//   std::cout << "New corrEquivalence to average" << std::endl;
-//   // Iterate over std::vec components - i.e. time slices
-//   for ( std::vector<corrEquivalence>::iterator it = tC.begin(); it != tC.end(); ++it )
-//     {
-//       // For this tsep, organize keys within each pz/z channel
-//       Hadron::KeyHadronSUNNPartNPtCorr_t kAvg = it->keyCorrMap.begin()->first;
-//       ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, correlators> cAvg;
-
-//       std::cout << "--- Running through this corrEquivalence" << std::endl;
-//       // Hold z's & p's as temporaries
-//       XMLArray::Array<int> _pi, _pf, _q;
-//       std::vector<int> _d;
-//       _pf = kAvg.npoint[1].irrep.irrep_mom.mom;
-//       _q  = kAvg.npoint[2].irrep.irrep_mom.mom;
-//       _pi = kAvg.npoint[3].irrep.irrep_mom.mom;
-//       _d  = kAvg.npoint[2].irrep.op.ops[1].disp_list;
-
-//       // Try to negate momentum & z's, and fetch new keys
-//       for ( int i = 1; i > -2; i-=2 )
-// 	{
-// 	  for ( int j = 1; j > -2; j-=2 )
-// 	    {
-// 	      std::cout << "------ Swap pair = ( " << i << " , " << j << " )" << std::endl;
-// 	      kAvg.npoint[1].irrep.irrep_mom.mom = _pf * i; // allow swap of snk mom
-// 	      kAvg.npoint[2].irrep.irrep_mom.mom = _q * i; // allow swap of ins mom
-// 	      kAvg.npoint[3].irrep.irrep_mom.mom = _pi * i; // allow swap of src mom
-// 	      // Since we are accessing a key from the tc[*].keyCorrMap map (unordered)
-// 	      // We have no guarantee the operator name is correct after setting opposing momenta
-// 	      // So we enforce the correct name here...
-// 	      kAvg.npoint[1].irrep.op.ops[1].name =
-// 		global.opMomXML[shortMom(kAvg.npoint[1].irrep.irrep_mom.mom,"")];
-// 	      kAvg.npoint[3].irrep.op.ops[1].name =
-// 		global.opMomXML[shortMom(kAvg.npoint[3].irrep.irrep_mom.mom,"")];
-	      
-
-// 	      // Allow swap of z
-// 	      for ( int d = 0; d != _d.size(); ++d )
-// 		{ 
-// 		  kAvg.npoint[2].irrep.op.ops[1].disp_list[d] = _d[d] * j;
-// 		}
-
-	      
-// 	      // Collect the correlators to average
-// 	      correlators toAvg(r.size());
-
-// 	      for ( auto rows = r.begin(); rows != r.end(); ++rows )
-// 		{
-// 		  kAvg.npoint[1].irrep.irrep_mom.row = rows->first[0];
-// 		  kAvg.npoint[3].irrep.irrep_mom.row = rows->first[1];
-
-// 		  std::cout << "*****Key = " << kAvg << std::endl;
-
-// 		  // Map matelem btwn lattice LG rows to helicity amplitudes
-// 		  std::complex<double> weight = lgToHelicityAmps(&kAvg);
-
-// 		  std::cout << "*****Weight = " << weight << std::endl;
-// 		  std::cout << "\n\n";
-
-// 		  // // Fetch this correlator, applying weight in line
-// 		  // toAvg.ncor[std::distance(r.begin(),rows)] = rows->second * it->keyCorrMap[kAvg].ncor[0];
-// 		}
-	      
-// 	      // Set row values to "-60" to indicate averaging
-// 	      kAvg.npoint[1].irrep.irrep_mom.row = -60;
-// 	      kAvg.npoint[3].irrep.irrep_mom.row = -60;
-// 	      // Insert this average key and result of merged correlators
-// 	      cAvg.insert(kAvg, mergeCorrelators(toAvg));
-// 	    } // for zswap (j)
-// 	} // for 3-mom swap (i)
-
-//       // With all swapping done, clear std::vector<corrEquivalence>[*it].keyCorrMap and refill it with "cAvg"
-//       it->keyCorrMap.clear();
-//       it->keyCorrMap = cAvg;
-
-//     } // for std::vector<corrEquivalence> iterator
-// }
-// #endif
-
-
-/*
-  Try a new version of rowAvg
-     - this will collapse keyCorrMap member of each corrEquivalence class to a single entry
-     - single entry will have src/snk rows set to '0' (to denote average) and correlators averaged
-     - this Adat MapObject will replace original
-*/
-void rowAvg(std::vector<NCOR::corrEquivalence>& v)
-{
-  for ( auto a = v.begin(); a != v.end(); ++a )
-    {
-      
-      // Access the first key in map to store info
-      Hadron::KeyHadronSUNNPartNPtCorr_t tmp = a->keyCorrMap.begin()->first;
-      
-      // Obtain the snk/src subduction info
-      subduceInfo snkOp(tmp.npoint[1].irrep.op.ops[1].name,tmp.npoint[1].irrep.irrep_mom.mom);
-      subduceInfo srcOp(tmp.npoint[3].irrep.op.ops[1].name,tmp.npoint[3].irrep.irrep_mom.mom);
-      
-
-
-      // Determine if +/-zsep need to be stored
-      int disp2Store(1);
-      if ( ! tmp.npoint[2].irrep.op.ops[1].disp_list.empty() )
-	disp2Store = 2;
-
-      
-      // Collect the correlators to average
-      std::vector<NCOR::VVC> toAvg(snkOp.irrep_dim * srcOp.irrep_dim * disp2Store);
-      
-
-      // For this corrEquivance instance, access each correlator and pack into 'toAvg'
-      for ( auto m = a->keyCorrMap.begin(); m != a->keyCorrMap.end(); ++m )
-	{
-	  int idx = std::distance(a->keyCorrMap.begin(),m);
-
-	  // Get Ioffe-time
-	  int ioffe(0);
-	  if ( ! m->first.npoint[2].irrep.op.ops[1].disp_list.empty() )
-	    ioffe = m->first.npoint[2].irrep.op.ops[1].disp_list.back();
-
-	  // Conjugate if Ioffe-time is negative
-	  NCOR::VVC dum = m->second.ensemble.ens;
-#if 1
-	  if ( ioffe < 0 )
-	    {
-	      std::cout << "Ioffe = " << ioffe << " for key = ";
-	      std::cout << m->first << std::endl;
-	      NCOR::conj(&dum);
-	    }
-#endif
-	    	  
-	  // Pack this correlator
-	  toAvg[idx] = dum;
-	}
-
-
-      // Modify the tmp key to represent final row averaged correlator
-      tmp.npoint[1].irrep.irrep_mom.row = 0;
-      tmp.npoint[3].irrep.irrep_mom.row = 0;
-      
-
-      if ( !tmp.npoint[2].irrep.op.ops[1].disp_list.empty()
-	   && tmp.npoint[2].irrep.op.ops[1].disp_list.back() < 0 )
-	tmp.npoint[2].irrep.op.ops[1].disp_list *= -1;
-
-
-      // Erase the original keyCorrMap
-      a->keyCorrMap.clear();
-      
-      // Remake the keyCorrMap
-      ADAT::MapObject<Hadron::KeyHadronSUNNPartNPtCorr_t, NCOR::correlator> cavg;
-      NCOR::correlator mergeCorr = NCOR::mergeCorrs(toAvg);
-      cavg.insert(tmp, mergeCorr);
-
-      a->keyCorrMap = cavg;
-    }
-}
-
 
 
 /*
@@ -810,6 +706,33 @@ void Reads2pt(std::ifstream &inFile, NCOR::correlator& dum, info2pt& I, Hadron::
 //     }
 // }
 
+/*
+  Register all the ops
+*/
+bool registerAll(void)
+{
+  bool foo = true;
+
+  try
+    {
+      // Operators                                                                                                                                                                                              
+      foo &= Redstar::HadronNptOpEnv::registerAll();
+    }
+  catch(const std::out_of_range& e)
+    {
+      std::cerr << __PRETTY_FUNCTION__ << ": Caught out-of-range exception: " << e.what() << std::endl;
+      exit(1);
+    }
+  catch(...)
+    {
+      std::cerr << __PRETTY_FUNCTION__ << ": caught generic exception" << std::endl;
+      exit(1);
+    }
+
+  return foo;
+}
+
+
 int main(int argc, char *argv[])
 {
   if ( argc != 2 )
@@ -825,10 +748,11 @@ int main(int argc, char *argv[])
   std::cout << "Reading from inixml = " << std::string(argv[1]) << std::endl;
 
 
-  // Register all the necessary factories for relating lattice matrix elements and helicity amplitudes
-  // Hadron::IrrepsCubicHelicityEnv::registerAll();
-  Hadron::SubduceTablesOctEnv::registerAll();
-  Hadron::SubduceTablesLgEnv::registerAll();
+  // Register all the necessary factories
+  bool foo = registerAll();
+  // // Hadron::IrrepsCubicHelicityEnv::registerAll();
+  // Hadron::SubduceTablesOctEnv::registerAll();
+  // Hadron::SubduceTablesLgEnv::registerAll();
 
 
   /*
@@ -870,47 +794,83 @@ int main(int argc, char *argv[])
   } threePt, twoPi, twoPf, twoPtRest;
 
 
-  struct keyTemplate_t
-  {
-    Hadron::KeyHadronSUNNPartNPtCorr_t key;
-  } tempKey3pt, tempKey2Pi, tempKey2Pf, tempKeyRest;
+  // struct keyTemplate_t
+  // {
+  //   Hadron::KeyHadronSUNNPartNPtCorr_t key;
+  // } tempKey2Pi, tempKey2Pf, tempKeyRest;
 
 
-  /*
-    Read the template keys from the ini xml
-  */
-  try {
-    read(xmlSR, "/PGITD/Ops/threePt/keyTemplate", tempKey3pt.key);
-    read(xmlSR, "/PGITD/Ops/twoPt/keyTemplate", tempKey2Pi.key);
-    read(xmlSR, "/PGITD/Ops/twoPtRest/keyTemplate", tempKeyRest.key);
-    tempKey2Pf = tempKey2Pi;
-  } catch ( std::string &e ) {
-    std::cerr << "Unable to access key templates from ini xml " << e << std::endl;
-  }
-  std::cout << "READ THE TEMPLATE KEYS TO FETCH" << std::endl;
+  std::vector<K> tempKey3pt = templateKeys(global,3);
 
   /*
-    Substitute correct momenta and src/snk operator names (based on passed global& global)
-    into template 3pt & 2pt keys
+    All tempKey3pt elems have same npoint[1] & npoint[3]  -->  use these to form 2pt temp keys
   */
-  // setOpsMoms(&tempKey3pt.key, tempKey2Pf.key, tempKey2Pi.key, global);
-  setOpsMoms(&tempKey3pt.key, tempKey2Pf.key, tempKey2Pi.key, tempKeyRest.key, global);
-
+  K tempKey2Pf; tempKey2Pf.npoint.resize(2);
+  K tempKey2Pi; tempKey2Pi.npoint.resize(2);
+  for ( int i = 1; i <= 2; ++i )
+    {
+      tempKey2Pf.npoint[i] = tempKey3pt[0].npoint[1];
+      tempKey2Pi.npoint[i] = tempKey3pt[0].npoint[3];
+    }
+  tempKey2Pf.npoint[1].t_slice = tempKey2Pi.npoint[1].t_slice = -2;
   
+  // Assuming same general structure for a template 2pt rest key as tempKey2Pi
+  K tempKeyRest = tempKey2Pi;
+  tempKeyRest.npoint[1].irrep.op.ops[1].name = "NucleonMG1g1MxD0J0S_J1o2_G1g1";
+  tempKeyRest.npoint[1].irrep.irrep_mom.mom = global.rest;
+  tempKeyRest.npoint[1].irrep.op.ops[1].mom_type = global.rest;
+
+  tempKeyRest.npoint[2] = tempKeyRest.npoint[1];
+  tempKeyRest.npoint[2].t_slice = 0;
+
+
+  for ( int i = 0; i < tempKey3pt.size(); ++i )
+    std::cout << tempKey3pt[i] << std::endl;
+
+  std::cout << tempKey2Pf << std::endl;
+  std::cout << tempKey2Pi << std::endl;
+  std::cout << tempKeyRest << std::endl;
+
+  std::cout << "MADE THE TEMPLATE KEYS TO FETCH" << std::endl;
+
+
+  // /*
+  //   Read the template keys from the ini xml
+  // */
+  // try {
+  //   read(xmlSR, "/PGITD/Ops/threePt/keyTemplate", tempKey3pt.key);
+  //   read(xmlSR, "/PGITD/Ops/twoPt/keyTemplate", tempKey2Pi.key);
+  //   read(xmlSR, "/PGITD/Ops/twoPtRest/keyTemplate", tempKeyRest.key);
+  //   tempKey2Pf = tempKey2Pi;
+  // } catch ( std::string &e ) {
+  //   std::cerr << "Unable to access key templates from ini xml " << e << std::endl;
+  // }
+  // std::cout << "READ THE TEMPLATE KEYS TO FETCH" << std::endl;
+
+  // /*
+  //   Substitute correct momenta and src/snk operator names (based on passed global& global)
+  //   into template 3pt & 2pt keys
+  // */
+  // // setOpsMoms(&tempKey3pt.key, tempKey2Pf.key, tempKey2Pi.key, global);
+  // setOpsMoms(&tempKey3pt.key, tempKey2Pf.key, tempKey2Pi.key, tempKeyRest.key, global);
+
+
+
 
 
   /*   Make the 3pt database structures to search   */
-  threePt.keydbs.dbs    = makeDBList(global, db3ptInfo, temporal3pt, &tempKey3pt.key);
+  threePt.keydbs.dbs    = makeDBList(global, db3ptInfo, temporal3pt); // , &tempKey3pt.key);
   // Make all 3pt keys from templates
-  threePt.keydbs.keys   = makeKeyList(temporal3pt, &tempKey3pt.key);
+  threePt.keydbs.keys   = makeKeyList(temporal3pt, &tempKey3pt);
   // Expand 3pt keys to include all desired row combinations
   expandRowCombinations(threePt.keydbs.keys, db3ptInfo.rows);
   /* Ensure 3pt keys conserve 3-momentum */
   conserveMom3PtKey(threePt.keydbs.keys);
   /* Print the 3pt dbs & keys to read */
   // dumpDBs(threePt.keydbs.dbs);
-  // dumpKeys(threePt.keydbs.keys, 3);
+  dumpKeys(threePt.keydbs.keys, 3);
 
+#if 0
 
   /*
     Access and store all three point functions
@@ -1206,7 +1166,8 @@ int main(int argc, char *argv[])
 	  Pseudo::domain_t * d = new Pseudo::domain_t(0,1,it->first.npoint[1].t_slice-1);
 	  prop_t * props = new prop_t(global.cfgs, *d, it->first);
 	  props->npt     = 3;
-	  props->gamma   = global.chromaGamma;
+#warning "Fix old chromaGamma member!"
+	  props->gamma   = -1; //global.chromaGamma;
 
 	  
 	  // Now construct a new ratio
@@ -1274,7 +1235,8 @@ int main(int argc, char *argv[])
       // --> so covariance/fitting members can be used
       prop_t * xprops = new prop_t(global.cfgs, temporal3pt, ratio[0].key());
       xprops->npt     = 3;
-      xprops->gamma   = global.chromaGamma;
+#warning "Fix old chromaGamma member!"
+      xprops->gamma   = -1 ; //global.chromaGamma;
 
 
       // Construct the single correlator instance 'SR'
@@ -1376,6 +1338,6 @@ int main(int argc, char *argv[])
   writeAmplitudes(&finalAMP,&global,&threePtFitInfo,
 		  &tempKey3pt.key.npoint[2].irrep.op.ops[1].disp_list);
   
-
+#endif
   return 0;
 }
