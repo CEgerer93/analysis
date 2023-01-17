@@ -21,6 +21,7 @@ namespace Pseudo
     int cfgs, nvec, Lt, Lx;
     int t2ptRows; // 1, 2, -or- 0 (for both 1 & 2)
     XMLArray::Array<int> pi, pf, rest; // lazy me
+    std::vector<int> disp_list;
 
 
     /* projections::projSelect projector; // Don't want to mess w/ making enum reader */
