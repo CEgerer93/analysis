@@ -17,6 +17,11 @@ namespace Pseudo
 
   int operator*(const XMLArray::Array<int>& l, const XMLArray::Array<int>& r);
 
+  // Scale an XMLArray::Array<T1>
+  /* template<typename T> */
+  /*   XMLArray::Array<T> operator*(T scale, const XMLArray::Array<int>& a1); */
+  XMLArray::Array<double> operator*(double scale, const XMLArray::Array<int>& a);
+
 
   template<typename T> std::ostream& operator<<(std::ostream& os, const XMLArray::Array<T>& x)
     {
