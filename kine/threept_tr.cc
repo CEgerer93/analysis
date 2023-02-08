@@ -599,16 +599,16 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 
   // Average four-momentum
   XMLArray::Array<double> avgP(4);
-  avgP[0] = 0.5*(fin->getMom()[0] + ini->getMom()[0]);
-  avgP[1] = 0.5*(fin->getMom()[1] + ini->getMom()[1]);
-  avgP[2] = 0.5*(fin->getMom()[2] + ini->getMom()[2]);
+  avgP[0] = 0.5*(fin->getPhysMom()[0] + ini->getPhysMom()[0]);
+  avgP[1] = 0.5*(fin->getPhysMom()[1] + ini->getPhysMom()[1]);
+  avgP[2] = 0.5*(fin->getPhysMom()[2] + ini->getPhysMom()[2]);
   avgP[3] = 0.5*(fin->getE() + ini->getE());
 
   // Difference four-momentum
   XMLArray::Array<double> Rmu(4);
-  Rmu[0] = ini->getMom()[0] - fin->getMom()[0];
-  Rmu[1] = ini->getMom()[1] - fin->getMom()[1];
-  Rmu[2] = ini->getMom()[2] - fin->getMom()[2];
+  Rmu[0] = ini->getPhysMom()[0] - fin->getPhysMom()[0];
+  Rmu[1] = ini->getPhysMom()[1] - fin->getPhysMom()[1];
+  Rmu[2] = ini->getPhysMom()[2] - fin->getPhysMom()[2];
   Rmu[3] = ini->getE() - fin->getE();
 
   // Convenient disp
@@ -649,7 +649,7 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 	} // nu
       //-------------------------------
 
-#if 0
+#ifdef MYDECOMP
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	          UBAR' \GAMMA_MU U
@@ -690,7 +690,7 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 	       - (P'+P)^MU/2M  UBAR' U
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      mat(r->first,3) = zeroFuzz( (-avgP[mu-1]/mass)*ubaru );
+      mat(r->first,3) = zeroFuzz( (-1.0*avgP[mu-1]/mass)*ubaru );
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	          R^MU/2M  UBAR' U
@@ -715,9 +715,9 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
       mat(r->first,7) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*zmu[mu-1]);
+#endif
 
-#else
-
+#ifdef ARDECOMP
 
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -759,7 +759,7 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 	- (P'+P)^MU/2M  UBAR' U
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      mat(r->first,2) = zeroFuzz( (-avgP[mu-1]/mass)*ubaru );
+      mat(r->first,2) = zeroFuzz( (-1.0*avgP[mu-1]/mass)*ubaru );
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	          R^MU/2M  UBAR' U
@@ -778,14 +778,93 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
       mat(r->first,5) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*Rmu[mu-1]);
-      // /*
-      // 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-      //       {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * Z^MU
-      // 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-      // */
-      // mat(r->first,6) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*zmu[mu-1]);
-
 #endif
+
+
+#ifdef MARTHADECOMP
+      res = _ZERO_;
+      std::complex<double> sigMuZ(0.0,0.0);
+      std::complex<double> sigMuDelta(0.0,0.0);
+      std::complex<double> sigZDelta(0.0,0.0);
+      for ( int nu = 1; nu <= 4; ++nu )
+	{
+	  utu_t sig(mu,nu,MINK);
+	  res = sig.eval(&(fin->subduced.twoJz[r->second.first]),
+			 &(ini->subduced.twoJz[r->second.second]));
+	  for ( int rho = 1; rho <= 4; ++rho )
+	    {
+	      sigMuZ += res*zmu[rho-1]*metric(nu%4,rho%4);
+	      sigMuDelta -= res*Rmu[rho-1]*metric(nu%4,rho%4);
+	    }
+	} // nu
+      //DeBUG
+      std::cout << "sigMuDelta [mu=" << mu << "] = " << sigMuDelta << std::endl;
+
+      res = _ZERO_;
+
+      for ( int a = 1; a <= 4; ++a )
+	{
+	  for ( int b = 1; b <= 4; ++b )
+	    {
+	      utu_t sig(a,b,MINK);
+	      res = sig.eval(&(fin->subduced.twoJz[r->second.first]),
+			     &(ini->subduced.twoJz[r->second.second]));
+
+	      for ( int rho = 1; rho <= 4; ++rho )
+		{
+		  for ( int lambda = 1; lambda <= 4; ++lambda )
+		    sigZDelta -= res*metric(a%4,rho%4)*zmu[rho-1]*metric(b%4,lambda%4)*Rmu[lambda-1];
+		} // rho
+	    } // b 
+	} // a
+
+      /*
+	(P'+P)^MU/2m
+      */
+      mat(r->first,0) = zeroFuzz(ubaru*(avgP[mu-1]/mass));
+
+      /*
+	m Z^\MU
+      */
+      mat(r->first,1) = zeroFuzz(ubaru*mass*zmu[mu-1]);
+
+      /*
+	(P'-P)^MU/m
+      */
+#if 1
+#warning "************** Intentionally NOT killing A3 term for z = 0 tests!************** "
+      mat(r->first,2) = zeroFuzz(ubaru*(-1.0*Rmu[mu-1]/mass));
+#else
+#warning "************** Intentionally killing A3 term for z = 0 tests!************** "
+      mat(r->first,2) = _ZERO_;
+#endif
+
+      /*
+	im\sigma^{\MU\NU}Z_\NU
+      */
+      mat(r->first,3) = zeroFuzz( _I_*mass*sigMuZ );
+
+      /*
+	(i/m)\sigma^{\MU\NU}Delta_\NU
+      */
+      // mat(r->first,4) = zeroFuzz( (_I_/mass)*sigMuDelta );
+      mat(r->first,4) = zeroFuzz( (_I_/(2*mass))*sigMuDelta );
+
+      /*
+	(P'+P)^\MU/2m i\sigma^{\a\b}z_aDelta_b
+      */
+      mat(r->first,5) = zeroFuzz( (avgP[mu-1]/mass)*_I_*sigZDelta );
+
+      /*
+	A7
+      */
+      mat(r->first,6) = zeroFuzz( mass*zmu[mu-1]*_I_*sigZDelta );
+      
+      /*
+	(P'-P)^\MU/m i\sigma^{\a\b}z_aDelta_b
+      */
+      mat(r->first,7) = zeroFuzz( (-1.0*Rmu[mu-1]/mass)*_I_*sigZDelta );
+#endif      
 
 
     } // auto r
@@ -841,11 +920,11 @@ void contractHandler::vectorContract(int mu, int nu, int lambda, int beta,
 		<< std::endl;
       std::cout << metric(mu%4,lambda%4) << std::endl;
       std::cout << polVecEvals[nu-1] << std::endl;
-      std::cout << ini->getMom()[beta-1] << std::endl;
-      foo = metric(mu%4,lambda%4)*polVecEvals[nu-1]*ini->getMom()[beta-1]
-	- metric(mu%4,beta%4)*polVecEvals[nu-1]*ini->getMom()[lambda-1]
-	- metric(nu%4,lambda%4)*polVecEvals[mu-1]*ini->getMom()[beta-1]
-	+ metric(nu%4,beta%4)*polVecEvals[mu-1]*ini->getMom()[lambda-1];
+      std::cout << ini->getPhysMom()[beta-1] << std::endl;
+      foo = metric(mu%4,lambda%4)*polVecEvals[nu-1]*ini->getPhysMom()[beta-1]
+	- metric(mu%4,beta%4)*polVecEvals[nu-1]*ini->getPhysMom()[lambda-1]
+	- metric(nu%4,lambda%4)*polVecEvals[mu-1]*ini->getPhysMom()[beta-1]
+	+ metric(nu%4,beta%4)*polVecEvals[mu-1]*ini->getPhysMom()[lambda-1];
       mat(r->first,0) = zeroFuzz(foo);
       foo = _ZERO_;
       /*
@@ -853,10 +932,10 @@ void contractHandler::vectorContract(int mu, int nu, int lambda, int beta,
 	  g_{ml}p_as_b - g_{mb}p_as_l - g_{al}p_ms_b + g_{ab}p_ms_l
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      foo = metric(mu%4,lambda%4)*ini->getMom()[nu-1]*polVecEvals[beta-1]
-	- metric(mu%4,beta%4)*ini->getMom()[nu-1]*polVecEvals[lambda-1]
-	- metric(nu%4,lambda%4)*ini->getMom()[mu-1]*polVecEvals[beta-1]
-	+ metric(nu%4,beta%4)*ini->getMom()[mu-1]*polVecEvals[lambda-1];
+      foo = metric(mu%4,lambda%4)*ini->getPhysMom()[nu-1]*polVecEvals[beta-1]
+	- metric(mu%4,beta%4)*ini->getPhysMom()[nu-1]*polVecEvals[lambda-1]
+	- metric(nu%4,lambda%4)*ini->getPhysMom()[mu-1]*polVecEvals[beta-1]
+	+ metric(nu%4,beta%4)*ini->getPhysMom()[mu-1]*polVecEvals[lambda-1];
       mat(r->first,1) = zeroFuzz(foo);
       foo = _ZERO_;
       /*
@@ -886,8 +965,8 @@ void contractHandler::vectorContract(int mu, int nu, int lambda, int beta,
 	                  [p_m,s_a][p_l,z_b]
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      foo = (ini->getMom()[mu-1]*polVecEvals[nu-1] - ini->getMom()[nu-1]*polVecEvals[mu-1])*
-	(ini->getMom()[lambda-1]*Z[beta-1] - ini->getMom()[beta-1]*Z[lambda-1]);
+      foo = (ini->getPhysMom()[mu-1]*polVecEvals[nu-1] - ini->getPhysMom()[nu-1]*polVecEvals[mu-1])*
+	(ini->getPhysMom()[lambda-1]*Z[beta-1] - ini->getPhysMom()[beta-1]*Z[lambda-1]);
       mat(r->first,4) = zeroFuzz(foo);
       foo = _ZERO_;
       /*
@@ -895,8 +974,8 @@ void contractHandler::vectorContract(int mu, int nu, int lambda, int beta,
 	                  [p_m,z_a][p_l,s_b]
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      foo = (ini->getMom()[mu-1]*Z[nu-1] - ini->getMom()[nu-1]*Z[mu-1])*
-	(ini->getMom()[lambda-1]*polVecEvals[beta-1] - ini->getMom()[beta-1]*polVecEvals[lambda-1]);
+      foo = (ini->getPhysMom()[mu-1]*Z[nu-1] - ini->getPhysMom()[nu-1]*Z[mu-1])*
+	(ini->getPhysMom()[lambda-1]*polVecEvals[beta-1] - ini->getPhysMom()[beta-1]*polVecEvals[lambda-1]);
       mat(r->first,5) = zeroFuzz(foo);
       foo = _ZERO_;
       /*
@@ -905,7 +984,7 @@ void contractHandler::vectorContract(int mu, int nu, int lambda, int beta,
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
       foo = (polVecEvals[mu-1]*Z[nu-1] - polVecEvals[nu-1]*Z[mu-1])*
-	(ini->getMom()[lambda-1]*Z[beta-1] - ini->getMom()[beta-1]*Z[lambda-1]);
+	(ini->getPhysMom()[lambda-1]*Z[beta-1] - ini->getPhysMom()[beta-1]*Z[lambda-1]);
       mat(r->first,6) = zeroFuzz(foo);
       foo = _ZERO_;
       /*
@@ -913,7 +992,7 @@ void contractHandler::vectorContract(int mu, int nu, int lambda, int beta,
 	                  [p_m,z_a][s_l,z_b]
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      foo = (ini->getMom()[mu-1]*Z[nu-1] - ini->getMom()[nu-1]*Z[mu-1])*
+      foo = (ini->getPhysMom()[mu-1]*Z[nu-1] - ini->getPhysMom()[nu-1]*Z[mu-1])*
 	(polVecEvals[lambda-1]*Z[beta-1] - polVecEvals[beta-1]*Z[lambda-1]);
       mat(r->first,7) = zeroFuzz(foo);
       foo = _ZERO_;
@@ -922,10 +1001,10 @@ void contractHandler::vectorContract(int mu, int nu, int lambda, int beta,
 	  (sz)(g_{ml}p_ap_b - g_{mb}p_ap_l - g_{al}p_mp_b + g_{ab}p_mp_l
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      foo = metric(mu%4,lambda%4)*ini->getMom()[nu-1]*ini->getMom()[beta-1]-
-	metric(mu%4,beta%4)*ini->getMom()[nu-1]*ini->getMom()[lambda-1]-
-	metric(nu%4,lambda%4)*ini->getMom()[mu-1]*ini->getMom()[beta-1]+
-	metric(nu%4,beta%4)*ini->getMom()[mu-1]*ini->getMom()[lambda-1];
+      foo = metric(mu%4,lambda%4)*ini->getPhysMom()[nu-1]*ini->getPhysMom()[beta-1]-
+	metric(mu%4,beta%4)*ini->getPhysMom()[nu-1]*ini->getPhysMom()[lambda-1]-
+	metric(nu%4,lambda%4)*ini->getPhysMom()[mu-1]*ini->getPhysMom()[beta-1]+
+	metric(nu%4,beta%4)*ini->getPhysMom()[mu-1]*ini->getPhysMom()[lambda-1];
       mat(r->first,8) = zeroFuzz(sDotZ*foo);
       foo = _ZERO_;
       /*
@@ -944,10 +1023,10 @@ void contractHandler::vectorContract(int mu, int nu, int lambda, int beta,
 	  (sz)(g_{ml}z_ap_b - g_{mb}z_ap_l - g_{al}z_mp_b + g_{ab}z_mp_l
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      foo = metric(mu%4,lambda%4)*Z[nu-1]*ini->getMom()[beta-1]-
-	metric(mu%4,beta%4)*Z[nu-1]*ini->getMom()[lambda-1]-
-	metric(nu%4,lambda%4)*Z[mu-1]*ini->getMom()[beta-1]+
-	metric(nu%4,beta%4)*Z[mu-1]*ini->getMom()[lambda-1];
+      foo = metric(mu%4,lambda%4)*Z[nu-1]*ini->getPhysMom()[beta-1]-
+	metric(mu%4,beta%4)*Z[nu-1]*ini->getPhysMom()[lambda-1]-
+	metric(nu%4,lambda%4)*Z[mu-1]*ini->getPhysMom()[beta-1]+
+	metric(nu%4,beta%4)*Z[mu-1]*ini->getPhysMom()[lambda-1];
       mat(r->first,10) = zeroFuzz(sDotZ*foo);
       foo = _ZERO_;
       /*
@@ -955,10 +1034,10 @@ void contractHandler::vectorContract(int mu, int nu, int lambda, int beta,
 	  (sz)(g_{ml}p_az_b - g_{mb}p_az_l - g_{al}p_mz_b + g_{ab}p_mz_l
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      foo = metric(mu%4,lambda%4)*ini->getMom()[nu-1]*Z[beta-1]-
-	metric(mu%4,beta%4)*ini->getMom()[nu-1]*Z[lambda-1]-
-	metric(nu%4,lambda%4)*ini->getMom()[mu-1]*Z[beta-1]+
-	metric(nu%4,beta%4)*ini->getMom()[mu-1]*Z[lambda-1];
+      foo = metric(mu%4,lambda%4)*ini->getPhysMom()[nu-1]*Z[beta-1]-
+	metric(mu%4,beta%4)*ini->getPhysMom()[nu-1]*Z[lambda-1]-
+	metric(nu%4,lambda%4)*ini->getPhysMom()[mu-1]*Z[beta-1]+
+	metric(nu%4,beta%4)*ini->getPhysMom()[mu-1]*Z[lambda-1];
       mat(r->first,11) = zeroFuzz(sDotZ*foo);
       foo = _ZERO_;
       /*
@@ -966,8 +1045,8 @@ void contractHandler::vectorContract(int mu, int nu, int lambda, int beta,
 	                   (sz)[p_m,z_a][p_l,z_b]
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      foo = (ini->getMom()[mu-1]*Z[nu-1] - ini->getMom()[nu-1]*Z[mu-1])*
-	(ini->getMom()[lambda-1]*Z[beta-1] - ini->getMom()[beta-1]*Z[lambda-1]);
+      foo = (ini->getPhysMom()[mu-1]*Z[nu-1] - ini->getPhysMom()[nu-1]*Z[mu-1])*
+	(ini->getPhysMom()[lambda-1]*Z[beta-1] - ini->getPhysMom()[beta-1]*Z[lambda-1]);
       mat(r->first,12) = zeroFuzz(sDotZ*foo);
       foo = _ZERO_;
       /*
@@ -1016,7 +1095,7 @@ void contractHandler::axialContract(int mu, bool MINK, double mass, Spinor *fin,
 	    polVecEval += metric(nu%4,rho%4)*disp[rho-1]*foo;
 	}
 
-      double pMu = ( mu < 4 ) ? ini->getMom()[mu-1] : ini->getE();
+      double pMu = ( mu < 4 ) ? ini->getPhysMom()[mu-1] : ini->getE();
 
       // Forcing prefactor of R to zero
       mat(r->first,1) = std::complex<double>(0.0,0.0);
@@ -1036,8 +1115,8 @@ void contractHandler::tensorContract(int mu, int nu, bool MINK, double mass, Spi
   // The polarization vector associated with mu, nu
   polVec_t Smu(mu,MINK), Snu(nu,MINK);
 
-  double pMu = ( mu < 4 ) ? ini->getMom()[mu-1] : ini->getE();
-  double pNu = ( nu < 4 ) ? ini->getMom()[nu-1] : ini->getE();
+  double pMu = ( mu < 4 ) ? ini->getPhysMom()[mu-1] : ini->getE();
+  double pNu = ( nu < 4 ) ? ini->getPhysMom()[nu-1] : ini->getE();
 
   std::complex<double> prefactor(0.0,0.0);
   std::complex<double> polVecEvalMu(0.0,0.0), polVecEvalNu(0.0,0.0);
@@ -1186,10 +1265,17 @@ void kinMatGPD_t::assemble(bool MINK, double mass, Spinor *fin, Spinor *ini)
   std::map<int, std::pair<int,int> > rowMap;
 
   // Off-forward case we need all four row combinations
+#if ROWONE
+  rowMap[0] = std::make_pair(fin->getTwoJ(),ini->getTwoJ());
+#elif DIAGMATS
+  rowMap[0] = std::make_pair(fin->getTwoJ(),ini->getTwoJ());
+  rowMap[1] = std::make_pair(-fin->getTwoJ(),-ini->getTwoJ());
+#else
   rowMap[0] = std::make_pair(fin->getTwoJ(),ini->getTwoJ());
   rowMap[1] = std::make_pair(fin->getTwoJ(),-ini->getTwoJ());
   rowMap[2] = std::make_pair(-fin->getTwoJ(),ini->getTwoJ());
   rowMap[3] = std::make_pair(-fin->getTwoJ(),-ini->getTwoJ());
+#endif
 
   switch(TYPE)
     {
@@ -1245,7 +1331,7 @@ void kinMat3_t::assembleBig(int mu, bool MINK, double mass, Spinor *s, const std
 	    polVecEval += metric(nu%4,rho%4)*disp[rho-1]*foo;
 	}
 
-      double pMu = ( mu < 4 ) ? s->getMom()[mu-1] : s->getE();
+      double pMu = ( mu < 4 ) ? s->getPhysMom()[mu-1] : s->getE();
 
       mat(r->first,1) = zeroFuzz(polVecEval*std::complex<double>(0.0,-2*mass*pMu));
       mat(r->first,2) = zeroFuzz(polVecEval*std::complex<double>(2*pow(mass,3)*disp[mu-1]));
@@ -1576,9 +1662,19 @@ void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT
 }
 
 //--------- Unpol. GPD
+#if ROWONE
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 3, 1> > * MAT,
+		   std::vector<kinMatGPD_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP)
+#elif DIAGMATS
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 6, 1> > * MAT,
+		   std::vector<kinMatGPD_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP)
+#else
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 12, 1> > * MAT,
 		   std::vector<kinMatGPD_t> * KIN,
-		   std::vector<Eigen::Matrix<std::complex<double>, 6, 1> > * AMP)
+		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP)
+#endif
 {
   for ( auto a = AMP->begin(); a != AMP->end(); ++a )
     {

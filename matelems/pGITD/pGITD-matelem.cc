@@ -69,7 +69,8 @@ using namespace NCOR;
 
 typedef XMLArray::Array<XMLArray::Array<int> > XML2D;
 typedef Hadron::KeyHadronSUNNPartNPtCorr_t       K;
-typedef ENSEM::VectorComplex                     V;
+// typedef ENSEM::VectorComplex                     V;
+typedef std::vector<std::complex<double> > V;
 
 
 // Define a struct for global props
@@ -100,8 +101,6 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
   // std::vector<NCOR::corrEquivalence> ret( temporal3pt.numT() );
 
 
-  // NEW
-  std::vector<NCOR::corrEquivalence> RET(4);
 
 
   // Order types of keys based on insertion
@@ -120,18 +119,6 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
       (*k).key() = fetch[cnt]; // set the key
 
 
-      // Check if we've seen this type of inserted current before
-      // Create a new std::vector<NCOR::corrEquivalence>, if not
-      std::string insertedOp = k->key().npoint[2].irrep.op.ops[1].name
-	+ "_row" + std::to_string(k->key().npoint[2].irrep.irrep_mom.row);
-
-      if ( insKeysMap.count(insertedOp) == 0 )
-	insKeysMap.insert(std::pair<std::string,
-			  std::vector<NCOR::corrEquivalence> >(insertedOp,
-							       std::vector<NCOR::corrEquivalence> (4)));
-
-      std::cout << "InsertedOp = " << insertedOp << std::endl;
-
 
 
       int ret;
@@ -149,7 +136,63 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
 	      exit(1);
 	    }
 
-	  ret = database.get(*k,dataFetch[cnt]);
+
+	  // If inserted operator name is 'gamma_x' or 'gamma_y' then linear combinations
+	  // ..of rho_rhoxDA__J1_T1mP are needed
+	  if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_x" ||
+	       k->key().npoint[2].irrep.op.ops[1].name == "gamma_y" )
+	    {
+	      
+	      ADATIO::SerialDBKey<K> rhoOpRow = *k;
+	      std::vector<ADATIO::SerialDBData<V> > rhoDatRow1Fetch;
+	      std::vector<ADATIO::SerialDBData<V> > rhoDatRow3Fetch;
+	      // std::vector< std::vector< std::complex<double> > > rhoDatRow1Fetch, rhoDatRow3Fetch;
+	      
+	      rhoOpRow.key().npoint[2].irrep.op.ops[1].name = "rho_rhoxDA__J1_T1mP";
+	      rhoOpRow.key().npoint[2].irrep.irrep_mom.row  = 1;
+
+	      // rhoDatRow1Fetch = database[rhoOpRow];
+	      ret = database.get(rhoOpRow,rhoDatRow1Fetch);
+	      
+	      rhoOpRow.key().npoint[2].irrep.irrep_mom.row  = 3;
+	      ret = database.get(rhoOpRow,rhoDatRow3Fetch);
+#if 1	      
+#warning "Trying arithmetic"
+	      // Try some arithmetic
+	      for ( int g = 0; g < rhoDatRow1Fetch.size(); ++g )
+		{
+		  std::vector<std::complex<double> > foo;
+		  if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_x" )
+		    {
+		      // foo = rhoDatRow1Fetch[g].data() - rhoDatRow3Fetch[g].data();
+		      foo = rhoDatRow3Fetch[g].data() - rhoDatRow1Fetch[g].data();
+		      foo *= (1/sqrt(2));
+		    }
+		  if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_y" )
+		    {
+		      foo = rhoDatRow1Fetch[g].data() + rhoDatRow3Fetch[g].data();
+		      foo *= (_I_/sqrt(2));
+		    }
+
+		  ADATIO::SerialDBData<V> fooDBData;
+		  fooDBData.data() = foo;
+		  
+		  dataFetch[cnt].push_back(fooDBData);
+		}
+#endif
+
+	      // // Linear Combination
+	      // if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_x" ) // i/sqrt(2) missing
+	      // 	dataFetch[cnt] = (rhoDatRow1Fetch.data() - rhoDatRow3Fetch.data());
+	      // if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_y" )
+	      // 	dataFetch[cnt] = (rhoDatRow1Fetch.data() + rhoDatRow3Fetch.data());
+	    }
+	  else
+	    {
+	      ret = database.get(*k,dataFetch[cnt]);
+	    }
+
+
 	  // Attempt to access the key in the current dbase
 	  if ( ret == 0 )
 	    {
@@ -161,6 +204,8 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
 	    continue;
 	  database.close();
 	} // end dbase
+
+      std::cout << "DataFetch[cnt].size = " << dataFetch[cnt].size() << std::endl;
 
 
       // Abort if all dbs have been searched and current key has not been found
@@ -189,16 +234,20 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
       for ( int g = 0; g < dataFetch[k].size(); ++g )
 	{
 	  // Loop over the data elems for the config of this key
-	  for ( int dd = 0; dd < dataFetch[k][g].data().numElem(); ++dd )
+	  for ( int dd = 0; dd < dataFetch[k][g].data().size(); ++dd )
 	    {
+	  // // Loop over the data elems for the config of this key
+	  // for ( int dd = 0; dd < dataFetch[k][g].data().numElem(); ++dd )
+	  //   {
 	      double r_, i_;
-	      sIn << ENSEM::peekObs(ENSEM::real(dataFetch[k][g].data()),dd);
-	      sIn >> r_; sIn.clear(); sIn.str(std::string());
-	      sIn << ENSEM::peekObs(ENSEM::imag(dataFetch[k][g].data()),dd);
-	      sIn >> i_; sIn.clear(); sIn.str(std::string());
 
-	      
-	      std::complex<double> dc(r_,i_);
+	      std::complex<double> dc = dataFetch[k][g].data()[dd];
+
+	      // sIn << ENSEM::peekObs(ENSEM::real(dataFetch[k][g].data()),dd);
+	      // sIn >> r_; sIn.clear(); sIn.str(std::string());
+	      // sIn << ENSEM::peekObs(ENSEM::imag(dataFetch[k][g].data()),dd);
+	      // sIn >> i_; sIn.clear(); sIn.str(std::string());
+	      // std::complex<double> dc(r_,i_);
 
 	      ensAdat.ensemble.ens[g].push_back(dc);
 		// .real[g].push_back(r_);
@@ -213,8 +262,15 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
       // NEW - Something hacky
       Hadron::KeyHadronSUNNPartNPtCorr_t tmp = keyFetch[k].key(); //convenience
       
-      std::string insertedOp = tmp.npoint[2].irrep.op.ops[1].name + "_row" +
-	std::to_string(tmp.npoint[2].irrep.irrep_mom.row);
+      std::string insertedOp = tmp.npoint[2].irrep.op.ops[1].name;
+
+
+      // Insert new key-value pair if insertedOp doesn't yet exist
+      if ( insKeysMap.count(insertedOp) == 0 )
+	insKeysMap.insert(std::pair<std::string, std::vector<NCOR::corrEquivalence> >
+			  (insertedOp,std::vector<NCOR::corrEquivalence> (4)));
+
+
       if ( tmp.npoint[1].irrep.irrep_mom.row == 1 && tmp.npoint[3].irrep.irrep_mom.row == 1 )
 	insKeysMap[insertedOp][0].keyCorrMap.insert(keyFetch[k].key(),ensAdat);
       if ( tmp.npoint[1].irrep.irrep_mom.row == 1 && tmp.npoint[3].irrep.irrep_mom.row == 2 )
@@ -223,7 +279,6 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
 	insKeysMap[insertedOp][2].keyCorrMap.insert(keyFetch[k].key(),ensAdat);
       if ( tmp.npoint[1].irrep.irrep_mom.row == 2 && tmp.npoint[3].irrep.irrep_mom.row == 2 )
 	insKeysMap[insertedOp][3].keyCorrMap.insert(keyFetch[k].key(),ensAdat);
-      
     } // keyFetch iterator
 
   return insKeysMap;
@@ -554,7 +609,7 @@ std::vector<K> templateKeys(const global_t &g, int npt)
   for ( auto it = g.ins.cont_names.begin(); it != g.ins.cont_names.end(); ++it )
     insOps.push_back(it->first);
   // Manually duplicate rho entry
-  insOps.push_back("rho_rhoxDA__J1_T1mP");
+  // insOps.push_back("rho_rhoxDA__J1_T1mP");
 
   
   // Number of template keys set by unique subduced insertions
@@ -836,6 +891,7 @@ int main(int argc, char *argv[])
 
 
   std::vector<K> tempKey3pt = templateKeys(global,3);
+  
 
   /*
     All tempKey3pt elems have same npoint[1] & npoint[3]  -->  use these to form 2pt temp keys
@@ -860,37 +916,14 @@ int main(int argc, char *argv[])
   tempKeyRest.npoint[2].t_slice = 0;
 
 
-  for ( int i = 0; i < tempKey3pt.size(); ++i )
-    std::cout << tempKey3pt[i] << std::endl;
+  for ( auto a : tempKey3pt )
+    std::cout << a << std::endl;
 
   std::cout << tempKey2Pf << std::endl;
   std::cout << tempKey2Pi << std::endl;
   std::cout << tempKeyRest << std::endl;
 
   std::cout << "MADE THE TEMPLATE KEYS TO FETCH" << std::endl;
-
-
-  // /*
-  //   Read the template keys from the ini xml
-  // */
-  // try {
-  //   read(xmlSR, "/PGITD/Ops/threePt/keyTemplate", tempKey3pt.key);
-  //   read(xmlSR, "/PGITD/Ops/twoPt/keyTemplate", tempKey2Pi.key);
-  //   read(xmlSR, "/PGITD/Ops/twoPtRest/keyTemplate", tempKeyRest.key);
-  //   tempKey2Pf = tempKey2Pi;
-  // } catch ( std::string &e ) {
-  //   std::cerr << "Unable to access key templates from ini xml " << e << std::endl;
-  // }
-  // std::cout << "READ THE TEMPLATE KEYS TO FETCH" << std::endl;
-
-  // /*
-  //   Substitute correct momenta and src/snk operator names (based on passed global& global)
-  //   into template 3pt & 2pt keys
-  // */
-  // // setOpsMoms(&tempKey3pt.key, tempKey2Pf.key, tempKey2Pi.key, global);
-  // setOpsMoms(&tempKey3pt.key, tempKey2Pf.key, tempKey2Pi.key, tempKeyRest.key, global);
-
-
 
 
 
@@ -932,7 +965,21 @@ int main(int argc, char *argv[])
     }
 
 
-  /*p
+
+  // std::unordered_map<std::string, std::vector<NCOR::corrEquivalence> > funcs3pt;
+  // for ( auto f : funcs3pt )
+  //   {
+  //     if ( f->first == "b_b0xDA__J0_A1pP" )
+  // 	funcs3pt[f->first] = f->second;
+      
+  //     // gamma_x = (I/sqrt(2)) x ( rho_rhoxDA__J1_T1mP_row1 - rho_rhoxDA__J1_T1mP_row3 )
+
+  //     // gamma_y = (1/sqrt(2)) x ( rho_rhoxDA__J1_T1mP_row1 + rho_rhoxDA__J1_T1mP_row3 )
+
+  //   }
+
+
+  /*
     Do some checks of the three-pt functions
   */
 #if 0
@@ -947,8 +994,6 @@ int main(int argc, char *argv[])
 	}
     }
      
-#warning "This is currently placing rho & b_b0 ops for a given rf/ri combo & all tsinks (i.e. 18 total); but row of insertion if jumbled between 4 pairs of 18 keys."
-
   std::cout << "Number of tseps 3pt funcs are stored for = " << funcs3pt.size() << std::endl;
 #if 0
   parseCheck(funcs3pt); std::cout << "\n";
@@ -1113,9 +1158,18 @@ int main(int argc, char *argv[])
 
 
   // Global properties
+#if ROWONE
+  const int NUM_MATS           = 3;
+  const int MATS_PER_INSERTION = 1; 
+#elif DIAGMATS
+  const int NUM_MATS           = 6;
+  const int MATS_PER_INSERTION = 2;
+#else
   const int NUM_MATS           = 12;
-  const int GPD_RANK           = 6;
   const int MATS_PER_INSERTION = 4;
+#endif
+  const int GPD_RANK           = 8;
+
   const std::vector<int> DISP  = shortZ(global.disp_list);
 
 
@@ -1137,6 +1191,63 @@ int main(int argc, char *argv[])
       // Build the spinors
       finSpin.buildSpinors();
       iniSpin.buildSpinors();
+#if 0
+#warning "Some test!"
+      u1u_t idCHECK(true);
+
+      std::cout << "ID[11]" << idCHECK.eval(&finSpin.subduced.twoJz[1],
+					    &iniSpin.subduced.twoJz[1]) << std::endl;
+      std::cout << "ID[12]" << idCHECK.eval(&finSpin.subduced.twoJz[1],
+					    &iniSpin.subduced.twoJz[-1]) << std::endl;
+      std::cout << "ID[21]" << idCHECK.eval(&finSpin.subduced.twoJz[-1],
+					    &iniSpin.subduced.twoJz[1]) << std::endl;
+      std::cout << "ID[22]" << idCHECK.eval(&finSpin.subduced.twoJz[-1],
+					    &iniSpin.subduced.twoJz[-1]) << std::endl;
+
+      ugu_t G4(4,true);
+      std::cout << "G4[11]" << G4.eval(&finSpin.subduced.twoJz[1],
+				      &iniSpin.subduced.twoJz[1]) << std::endl;
+      std::cout << "G4[12]" << G4.eval(&finSpin.subduced.twoJz[1],
+				      &iniSpin.subduced.twoJz[-1]) << std::endl;
+      std::cout << "G4[21]" << G4.eval(&finSpin.subduced.twoJz[-1],
+				      &iniSpin.subduced.twoJz[1]) << std::endl;
+      std::cout << "G4[22]" << G4.eval(&finSpin.subduced.twoJz[-1],
+				      &iniSpin.subduced.twoJz[-1]) << std::endl;
+
+
+      ugu_t Gy(2,true);
+      std::cout << "Gy[11]" << Gy.eval(&finSpin.subduced.twoJz[1],
+				       &iniSpin.subduced.twoJz[1]) << std::endl;
+      std::cout << "Gy[12]" << Gy.eval(&finSpin.subduced.twoJz[1],
+				       &iniSpin.subduced.twoJz[-1]) << std::endl;
+      std::cout << "Gy[21]" << Gy.eval(&finSpin.subduced.twoJz[-1],
+				       &iniSpin.subduced.twoJz[1]) << std::endl;
+      std::cout << "Gy[22]" << Gy.eval(&finSpin.subduced.twoJz[-1],
+				       &iniSpin.subduced.twoJz[-1]) << std::endl;
+      
+
+      ugu_t Gz(3,true);
+      std::cout << "Gz[11]" << Gz.eval(&finSpin.subduced.twoJz[1],
+				       &iniSpin.subduced.twoJz[1]) << std::endl;
+      std::cout << "Gz[12]" << Gz.eval(&finSpin.subduced.twoJz[1],
+				       &iniSpin.subduced.twoJz[-1]) << std::endl;
+      std::cout << "Gz[21]" << Gz.eval(&finSpin.subduced.twoJz[-1],
+				       &iniSpin.subduced.twoJz[1]) << std::endl;
+      std::cout << "Gz[22]" << Gz.eval(&finSpin.subduced.twoJz[-1],
+				       &iniSpin.subduced.twoJz[-1]) << std::endl;
+
+      
+      std::cout << "GAMMA4: " << G4.d.gamma << "\n\n" << std::endl;
+      std::cout << "GAMMAY: " << Gy.d.gamma << "\n\n" << std::endl;
+      std::cout << "GAMMAZ: " << Gz.d.gamma << "\n\n" << std::endl;
+
+
+      std::cout << "dE = " << finSpin.getE() - iniSpin.getE() << std::endl;
+      std::cout << "Momentum diff = " << finSpin.getPhysMom() - iniSpin.getPhysMom() << std::endl;
+      exit(10);
+#endif
+
+
 
       // Constant MASS variable for convenience
       const double MASS = rest2pt.res.params["E0"][j];
@@ -1155,28 +1266,19 @@ int main(int argc, char *argv[])
       // Concatenate GPD_4,1,2 matrices into one large one for SVD
       // Eigen::Matrix<std::complex<double>, 3*MATS_PER_INSERTION, GPD_RANK> GPD;
       Eigen::MatrixXcd GPD(3*MATS_PER_INSERTION, GPD_RANK);
-      std::cout << "GPD = " << GPD << std::endl;
+
       
-      // Push GPD_4.mat into GPD
+      // Push GPD_4.mat, GPD_1.mat, GPD_2.mat into GPD
       for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
+      for ( int i = MATS_PER_INSERTION; i < 2*MATS_PER_INSERTION; ++i )
+	GPD.row(i) << GPD_1.mat.row(i-MATS_PER_INSERTION);
+      for ( int i = 2*MATS_PER_INSERTION; i < 3*MATS_PER_INSERTION; ++i )
+	GPD.row(i) << GPD_2.mat.row(i-2*MATS_PER_INSERTION);
       
-      std::cout << "GPD = " << GPD << std::endl;
-      // Form m=+/-1 components of \gamma_j's in circular basis
-      for ( int m = 1; m >= -1; m-=2 )
-	{
-	  Eigen::Matrix<std::complex<double>, MATS_PER_INSERTION, GPD_RANK> TMP;
-	  TMP = _I_*( BASIS.cirq(m)(0)*GPD_1.mat + BASIS.cirq(m)(1)*GPD_2.mat );
-
-	  std::cout << "TMP = " << TMP << std::endl;
-
-	  int offset = ( m > 0 ) ? 1 : 2; // ensure rows are mapped correctly w/ 'm'
-	  for ( int i = offset*GPD_4.mat.rows(); i < (1+offset)*GPD_4.mat.rows(); ++i )
-	    // Push TMP rows into GPD
-	    GPD.row(i) << TMP.row(i - offset*GPD_4.mat.rows() );
-	}
 
       std::cout << "FINAL GPD = " << GPD << std::endl;
       getSVs(&GPD);
+      getSingVecs(&GPD);
 
       
       // Fill KIN matrix for this jackknife sample
@@ -1187,16 +1289,24 @@ int main(int argc, char *argv[])
 
 
 
+
   /*
     Map the snk/src row combinations to a given element of correlator column vector
   */
   std::map<std::pair<int,int>, int> matIDX;
   std::pair<int,int> rfri;
   
+#if ROWONE
+  rfri = std::make_pair(1,1); matIDX[rfri] = 0;
+#elif DIAGMATS
+  rfri = std::make_pair(1,1); matIDX[rfri] = 0;
+  rfri = std::make_pair(2,2); matIDX[rfri] = 1;
+#else
   rfri = std::make_pair(1,1); matIDX[rfri] = 0;
   rfri = std::make_pair(1,2); matIDX[rfri] = 1;
   rfri = std::make_pair(2,1); matIDX[rfri] = 2;
   rfri = std::make_pair(2,2); matIDX[rfri] = 3;
+#endif
 
 
   /*
@@ -1204,9 +1314,13 @@ int main(int argc, char *argv[])
   */
   std::unordered_map<std::string, int> currentInMATOrder =
     {
-      { "b_b0xDA__J0_A1pP_row1", 0 },
-      { "rho_rhoxDA__J1_T1mP_row1", 4 },
-      { "rho_rhoxDA__J1_T1mP_row3", 8 },
+#if ROWONE
+      { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 1 }, { "gamma_y", 2 },
+#elif DIAGMATS
+      { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 2 }, { "gamma_y", 4 },
+#else
+      { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 4 }, { "gamma_y", 8 },
+#endif
     };
 
 
@@ -1228,6 +1342,11 @@ int main(int argc, char *argv[])
 	  // Convenience
 	  int rowf = tsepItr->keyCorrMap.begin()->first.npoint[1].irrep.irrep_mom.row;
 	  int rowi = tsepItr->keyCorrMap.begin()->first.npoint[3].irrep.irrep_mom.row;
+#if ROWONE
+	  if ( rowf != 1 || rowi != 1 ) continue;
+#elif DIAGMATS
+	  if ( rowf != rowi ) continue;
+#endif
 
       
 	  /*
@@ -1251,8 +1370,8 @@ int main(int argc, char *argv[])
 	      Pseudo::domain_t * d = new Pseudo::domain_t(0,1,it->first.npoint[1].t_slice-1);
 	      prop_t * props = new prop_t(global.cfgs, *d, it->first);
 	      props->npt     = 3;
-#warning "Fix old chromaGamma member!"
-	      props->gamma   = -1; //global.chromaGamma;
+// #warning "Fix old chromaGamma member!"
+// 	      props->gamma   = -1; //global.chromaGamma;
 	      
 	      
 	      // Now construct a new ratio
@@ -1317,8 +1436,8 @@ int main(int argc, char *argv[])
 	  // --> so covariance/fitting members can be used
 	  prop_t * xprops = new prop_t(global.cfgs, temporal3pt, ratio[0].key());
 	  xprops->npt     = 3;
-#warning "Fix old chromaGamma member!"
-	  xprops->gamma   = -1 ; //global.chromaGamma;
+// #warning "Fix old chromaGamma member!"
+// 	  xprops->gamma   = -1 ; //global.chromaGamma;
 
 
 	  // Construct the single correlator instance 'SR'

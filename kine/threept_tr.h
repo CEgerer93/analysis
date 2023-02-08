@@ -135,9 +135,16 @@ struct projector_t
 const Eigen::Matrix4i metric
 { {1, 0, 0, 0}, {0, -1, 0, 0}, {0, 0, -1, 0}, {0, 0, 0, -1} };
 
+/* const Eigen::Matrix4i metric */
+/* { {1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1} }; */
+
+
+
+
 struct leviCivita
 {
   int at(int i, int j, int k, int l);
+  int operator()(int i, int j, int k, int l);
 };
 
 struct polVecBasis_t
@@ -313,6 +320,7 @@ class Spinor
   double               getE()        const { return E; }
   double               getM()        const { return m; }
   XMLArray::Array<int> getMom()      const { return mom; }
+  XMLArray::Array<double> getPhysMom() const { return (2*PI/getL())*getMom(); }
   double               absMom()      const { return sqrt(1.0*(mom*mom)); }
   int                  getIrrepDim() const { return subductInfo.irrep_dim; }
 
@@ -655,9 +663,20 @@ void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT
 		   std::vector<kinMatPDF_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP);
 //--------- Unpol. GPD
+#if ROWONE
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 3, 1> > * MAT,
+		   std::vector<kinMatGPD_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP);
+#elif DIAGMATS
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 6, 1> > * MAT,
+		   std::vector<kinMatGPD_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP);
+#else
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 12, 1> > * MAT,
 		   std::vector<kinMatGPD_t> * KIN,
-		   std::vector<Eigen::Matrix<std::complex<double>, 6, 1> > * AMP);
+		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP);
+#endif
+
 //---------
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
 		   std::vector<kinMat3_t> * KIN,
