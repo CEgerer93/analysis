@@ -130,6 +130,43 @@ namespace NCOR
     return v1;
   }
 
+
+  std::vector<std::complex<double> > operator-(std::vector<std::complex<double> >& v1,
+					       std::vector<std::complex<double> >& v2)
+  {
+    // Check dimensions of vectors are equal
+    if ( v1.size() != v2.size() )
+      {
+	std::cout << "Vectors of unequal size!" << std::endl;
+	exit(2);
+      }
+    
+    // Returned vector
+    std::vector<std::complex<double> > r(v1.size(), std::complex<double>(0,0));
+    for ( int n = 0; n < v1.size(); ++n )
+      r[n] = v1[n] - v2[n];
+
+    return r;
+  }
+
+  std::vector<std::complex<double> > operator+(std::vector<std::complex<double> >& v1,
+					       std::vector<std::complex<double> >& v2)
+  {
+    // Check dimensions of vectors are equal
+    if ( v1.size() != v2.size() )
+      {
+	std::cout << "Vectors of unequal size!" << std::endl;
+	exit(2);
+      }
+    
+    // Returned vector
+    std::vector<std::complex<double> > r(v1.size(), std::complex<double>(0,0));
+    for ( int n = 0; n < v1.size(); ++n )
+      r[n] = v1[n] + v2[n];
+
+    return r;
+  }
+
   std::ostream& operator<<(std::ostream& os, correlator &c)
   {
     os << "{cfgs, Nt} = {" << c.getCfgs() << ", " << c.getNt() << "}\n";
@@ -810,7 +847,6 @@ namespace NCOR
 
     // Define the datatypes that will be written
     PredType DTYPE(PredType::IEEE_F64LE);
-
     // Some helpers
     const char * const collections[] = {"mean", "bins"};
     const char * const components[]  = {"real", "imag"};
@@ -818,7 +854,6 @@ namespace NCOR
     
     std::string DATASET = "tfit_" + std::to_string(fitInfo->range.min) + "-" +
       std::to_string(fitInfo->range.max);
-
 
 
     std::map<std::string, std::vector<std::complex<double> > > amps;
@@ -832,10 +867,11 @@ namespace NCOR
       }
     else
       {
-	ampNames[0] = "M"; ampNames[1] = "L"; ampNames[2] = "R";
-	ampNames[3] = "Z2";
+	for ( int i = 0; i < (*A)[0].size(); ++i )
+	  ampNames[i] = "A"+std::to_string(i+1);
       }
     //-----------------------------------------------------------------------------
+
 
     for ( int r = 0; r < (*A)[0].size(); ++r )
       {
@@ -849,6 +885,10 @@ namespace NCOR
 	amps.insert(foo);
       }
 
+
+    std::cout << "Spitting amps!" << std::endl;
+    for ( auto xx = amps.begin(); xx != amps.end(); ++xx )
+      std::cout << ">>> " << xx->first << " " << xx->second << std::endl;
 
     
     // Make root groups based on named amplitude
@@ -925,7 +965,9 @@ namespace NCOR
 	    
 	    double MEAN[2] = {0.0, 0.0};
 	    double BINS[global->cfgs];
-	    
+
+
+	    std::cout << ">>>> OTHER CHECKS = " << a->second.size() << " " << global->cfgs << std::endl;
 	    
 	    // Would like a more elegant way to segregate real/imag components...
 	    for ( int j = 0; j < a->second.size(); ++j )
@@ -948,6 +990,9 @@ namespace NCOR
 		  MEAN[1] += pow( a->second[j].imag() - MEAN[0], 2 );
 	      }
 	    MEAN[1] = sqrt( (( global->cfgs - 1 )/(1.0*global->cfgs)) * MEAN[1] );
+
+	    
+	    std::cout << ">>>>>>>>>>>>> WRITING MEAN = " << MEAN[0] << " " << MEAN[1] << std::endl;
 
 
 	    DataSet bin, mean;

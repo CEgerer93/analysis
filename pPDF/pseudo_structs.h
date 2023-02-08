@@ -13,6 +13,9 @@
 
 namespace Pseudo
 {
+  // Enum for types of current insertions
+  enum currTypes { b_b0xDA__J0_A1pP, gamma_x, gamma_y };
+
   typedef XMLArray::Array<XMLArray::Array<int> > XMLInt2D;
   // Define a struct for global props
   struct global_t
@@ -89,6 +92,8 @@ namespace Pseudo
     int cfgs;
     int npt;
     int Nt;
+
+    currTypes adatCurrent;
     int gamma = -1;
 
     Hadron::KeyHadronSUNNPartNPtCorr_t key;
@@ -107,6 +112,32 @@ namespace Pseudo
     {
       cfgs = c_; domain = d_; key = k;
       Nt = domain.numT();
+
+      if ( k.npoint[2].irrep.op.ops[1].name == "b_b0xDA__J0_A1pP" )
+	adatCurrent = currTypes::b_b0xDA__J0_A1pP;
+      if ( k.npoint[2].irrep.op.ops[1].name == "gamma_x" )
+	adatCurrent = currTypes::gamma_x;
+      if ( k.npoint[2].irrep.op.ops[1].name == "gamma_y" )
+	adatCurrent = currTypes::gamma_y;
+      
+      // If we are dealing w/ a 3pt function, set the gamma int based on npoint[2] name
+      if ( k.npoint.size() > 2 )
+	{
+	  switch(adatCurrent)
+	    {
+	    case b_b0xDA__J0_A1pP:
+	      gamma = 8; break;
+	    case gamma_x:
+	      gamma = 1; break;
+	    case gamma_y:
+	      gamma = 2; break;
+	    default:
+	      std::cerr << "Expected b_b0xDA__J0_A1pP, gamma_x, or gamma_y insertions!" << std::endl;
+	      std::cerr << "You provided op = " << k.npoint[2].irrep.op.ops[1].name << std::endl;
+	      exit(2);
+	    }
+	} // if k.npoint.size() > 2
+
     };
   };
 

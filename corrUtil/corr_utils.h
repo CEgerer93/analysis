@@ -65,6 +65,14 @@ namespace NCOR
   std::vector<std::complex<T> > operator-=(std::vector<std::complex<T> >& v1,
 					   std::vector<std::complex<T> >& v2);
 
+ 
+  std::vector<std::complex<double> > operator-(std::vector<std::complex<double> >& v1,
+					       std::vector<std::complex<double> >& v2);
+
+  std::vector<std::complex<double> > operator+(std::vector<std::complex<double> >& v1,
+					       std::vector<std::complex<double> >& v2);
+
+
 
   typedef std::vector<std::vector<std::complex<double> > > VVC;
 

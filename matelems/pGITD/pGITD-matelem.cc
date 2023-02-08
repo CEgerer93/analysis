@@ -1206,7 +1206,7 @@ int main(int argc, char *argv[])
     {
       { "b_b0xDA__J0_A1pP_row1", 0 },
       { "rho_rhoxDA__J1_T1mP_row1", 4 },
-      { "rho_rhoxDA__J1_T1mP_row1", 8 },
+      { "rho_rhoxDA__J1_T1mP_row3", 8 },
     };
 
 
@@ -1401,14 +1401,18 @@ int main(int argc, char *argv[])
   // Do the SVD per jackknife ensemble avg to extract amplitudes
   extAmplitudes(&MAT,&KIN,&AMP);
   std::cout << "What do these solutions look like?\n";
-  
+  std::cout << "We have " << AMP.size() << " amplitudes" << std::endl;
   // Put AMP results into a VectorXcd so writeAmplitudes can be reused
   std::vector<Eigen::VectorXcd> finalAMP(global.cfgs,Eigen::VectorXcd(GPD_RANK));
   for ( auto itr = AMP.begin(); itr != AMP.end(); ++itr )
     {
       int idx = std::distance(AMP.begin(), itr);
-      std::cout << "A" << idx+1 << " = "  << (*itr)(idx) << "    ";
-      // finalAMP[idx](idx) = (*itr)(idx);
+      for ( auto amp = 0; amp < itr->size(); ++amp )
+	{
+	  std::cout << "A" << amp+1 << " = "  << (*itr)(amp) << "    ";
+	  finalAMP[idx](amp) = (*itr)(amp);
+	}
+      std::cout << "\n";
     }
   std::cout << "\n";
 
@@ -1431,12 +1435,11 @@ int main(int argc, char *argv[])
   //   }
 
 
-#if 0
+#if 1
   // Write the extracted amplitudes to h5
   // -->clunky way to pass displacement
-  writeAmplitudes(&finalAMP,&global,&threePtFitInfo,
-		  &tempKey3pt.key.npoint[2].irrep.op.ops[1].disp_list);
-  
+  writeAmplitudes(&finalAMP,&global,&threePtFitInfo,&global.disp_list);
 #endif
+
   return 0;
 }
