@@ -42,6 +42,8 @@ namespace LinAlg
   */
   // Get singular values of a complex-valued matrix (Eigen)
   void getSVs(Eigen::MatrixXcd *h);
+  // Get left/right singular vectors of a complex-valued matrix (Eigen)
+  void getSingVecs(Eigen::MatrixXcd *h);
   
   /*
     EXTRACT INVARIANT AMPLTUDES USING (IN GENERAL) AN SVD DECOMPOSITION
