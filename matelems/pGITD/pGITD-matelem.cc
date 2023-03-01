@@ -164,14 +164,39 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
 		  std::vector<std::complex<double> > foo;
 		  if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_x" )
 		    {
+		      // /*
+		      // 	i \times polvec \cdot \gamma
+		      //  */
 		      // foo = rhoDatRow1Fetch[g].data() - rhoDatRow3Fetch[g].data();
+		      // foo *= (_I_/sqrt(2));
+		      /*
+			polvec \cdot \gamma
+		       */
+		      // foo = rhoDatRow3Fetch[g].data() - rhoDatRow1Fetch[g].data();
+		      // foo *= (1/sqrt(2));
+		      /*
+			dagger polvec \cdot \gamma^\dagger (Euc. gammas hermitian)
+		      */
 		      foo = rhoDatRow3Fetch[g].data() - rhoDatRow1Fetch[g].data();
 		      foo *= (1/sqrt(2));
 		    }
 		  if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_y" )
 		    {
+		      /*
+			i \times polvec \cdot \gamma
+		       */
+		      // foo = rhoDatRow1Fetch[g].data() + rhoDatRow3Fetch[g].data();
+		      // foo *= (1/sqrt(2));
+		      /*
+			polvec \cdot \gamma
+		       */
+		      // foo = rhoDatRow1Fetch[g].data() + rhoDatRow3Fetch[g].data();
+		      // foo *= (_I_/sqrt(2));
+		      /*
+			dagger polvec \cdot \gamma^\dagger (Euc. gammas hermitian)
+		      */
 		      foo = rhoDatRow1Fetch[g].data() + rhoDatRow3Fetch[g].data();
-		      foo *= (_I_/sqrt(2));
+		      foo *= (_mI_/sqrt(2));
 		    }
 
 		  ADATIO::SerialDBData<V> fooDBData;
@@ -264,11 +289,11 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
       
       std::string insertedOp = tmp.npoint[2].irrep.op.ops[1].name;
 
-
+#if 1
       // Insert new key-value pair if insertedOp doesn't yet exist
       if ( insKeysMap.count(insertedOp) == 0 )
 	insKeysMap.insert(std::pair<std::string, std::vector<NCOR::corrEquivalence> >
-			  (insertedOp,std::vector<NCOR::corrEquivalence> (4)));
+			  (insertedOp,std::vector<NCOR::corrEquivalence> (db3ptInfo.rows.size())));
 
 
       if ( tmp.npoint[1].irrep.irrep_mom.row == 1 && tmp.npoint[3].irrep.irrep_mom.row == 1 )
@@ -279,6 +304,22 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
 	insKeysMap[insertedOp][2].keyCorrMap.insert(keyFetch[k].key(),ensAdat);
       if ( tmp.npoint[1].irrep.irrep_mom.row == 2 && tmp.npoint[3].irrep.irrep_mom.row == 2 )
 	insKeysMap[insertedOp][3].keyCorrMap.insert(keyFetch[k].key(),ensAdat);
+#else
+#warning "Trying Robert's idea"
+      // Insert new key-value pair if insertedOp doesn't yet exist
+      if ( insKeysMap.count(insertedOp) == 0 )
+	insKeysMap.insert(std::pair<std::string, std::vector<NCOR::corrEquivalence> >
+			  (insertedOp,std::vector<NCOR::corrEquivalence> (2)));
+
+
+      if ( tmp.npoint[1].irrep.irrep_mom.row == 1 && tmp.npoint[3].irrep.irrep_mom.row == 1 )
+	insKeysMap[insertedOp][0].keyCorrMap.insert(keyFetch[k].key(),ensAdat);
+      else if ( tmp.npoint[1].irrep.irrep_mom.row == 2 && tmp.npoint[3].irrep.irrep_mom.row == 2 )
+	insKeysMap[insertedOp][1].keyCorrMap.insert(keyFetch[k].key(),ensAdat);
+      else
+	continue;
+
+#endif
     } // keyFetch iterator
 
   return insKeysMap;
@@ -952,48 +993,32 @@ int main(int argc, char *argv[])
   std::cout << "...........3pt Correlators   ---   SUCCESS!" << std::endl;
 
 
-
-  for ( auto it = funcs3pt.begin(); it != funcs3pt.end(); ++it )
-    {
-      std::cout << "   Key = " << it->first << std::endl;
-      // for ( auto h = it->second.begin(); h != it->second.end(); ++h )
-      // 	{
-
-      // 	  std::cout << "       Vec = " << h->keyCorrMap << std::endl;
-      // 	  std::cout << "         corr = " << h->second << std::endl;
-      // 	}
-    }
-
-
-
-  // std::unordered_map<std::string, std::vector<NCOR::corrEquivalence> > funcs3pt;
-  // for ( auto f : funcs3pt )
-  //   {
-  //     if ( f->first == "b_b0xDA__J0_A1pP" )
-  // 	funcs3pt[f->first] = f->second;
-      
-  //     // gamma_x = (I/sqrt(2)) x ( rho_rhoxDA__J1_T1mP_row1 - rho_rhoxDA__J1_T1mP_row3 )
-
-  //     // gamma_y = (1/sqrt(2)) x ( rho_rhoxDA__J1_T1mP_row1 + rho_rhoxDA__J1_T1mP_row3 )
-
-  //   }
-
-
   /*
     Do some checks of the three-pt functions
   */
 #if 0
+  // for ( std::unordered_map<std::string, std::vector<NCOR::corrEquivalence> >::iterator m = funcs3pt.begin(); m != funcs3pt.end(); ++m )
   for ( auto m = funcs3pt.begin(); m != funcs3pt.end(); ++m )
     {
+      // for ( std::vector<NCOR::corrEquivalence>::iterator i = m->second.begin(); i != m->second.end(); ++i )
       for ( auto i = m->second.begin(); i != m->second.end(); ++i )
 	{
 	  std::cout << " This {op,abs(z),abs(p)} corr type has " << i->keyCorrMap.size() << " keys" << std::endl;
-	  
 	  for ( auto it = i->keyCorrMap.begin(); it != i->keyCorrMap.end(); ++it )
-	    std::cout << it->first << std::endl;
+	    {
+	      std::cout << it->first << std::endl;
+	      std::cout << it->second << std::endl;
+	      // std::cout << it->second.getSrc().second << std::endl;
+	      // std::cout << it->second.ensemble.ens << std::endl;
+
+	      // toMerge[i-1].push_back(thisCorr.ensemble.ens);
+	      // NCOR::correlator mergeCorr = NCOR::mergeCorrs(toMerge[j+i*srcOp.irrep_dim]);
+
+	    }
 	}
     }
-     
+
+
   std::cout << "Number of tseps 3pt funcs are stored for = " << funcs3pt.size() << std::endl;
 #if 0
   parseCheck(funcs3pt); std::cout << "\n";
@@ -1002,6 +1027,44 @@ int main(int argc, char *argv[])
 #endif
 
 
+  /*
+    TRY ROWS 11/22 AVERAGING ONCE AGAIN!
+  */
+  // // Uniquify
+  // std::unordered_map<std::string, NCOR::corrEquivalence> uniq;
+  // for ( auto m = funcs3pt.begin(); m != funcs3pt.end(); ++m ) // map
+  //   {
+  //     // I know first element is row1-row1 combo
+  //     std::pair<std::string, NCOR::corrEquivalence> u = std::make_pair(m->first, m->second[0]);
+  //     uniq.insert(u);
+
+  //     // Loop over corrEquivalence keys - this is loop over rows
+  //     for ( auto it = m->second[0].begin(); it != m->second[0].end(); ++it )
+  // 	{
+	  
+  // 	  std::vector<NCOR::VVC> toAvg(2);
+  // 	  toAvg[0] = it->second
+
+
+  //     for ( auto it = uniq[m->first].keyCorrMap.begin();
+  // 	    it != uniq[m->first].keyCorrMap.end(); ++it )
+  // 	{
+  // 	  std::vector<NCOR::VVC> toAvg(2);
+
+  // 	  toAvg[0] = m->second[0].keyCorrMap[it->first].ensemble.ens;
+  // 	  toAvg[1] = m->second[3].keyCorrMap[it->first].ensemble.ens;
+  // 	  // K keyToAvg = it->first;
+
+  // 	  it->second = mergeCorrs(toAvg);
+	  
+  // 	  // it->second.ensemble.ens = mergeCorrs(it->second.ensemble.ens, it->second.ensemble.ens);
+  // 	  // // mergeCorrs(it->second.ensemble.ens, m->second[3].keyCorrMap
+  // 	}
+  //   }
+  // exit(3);
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  
+  
 
   /*
     NOW LOAD THE 2PT FUNCTIONS
@@ -1158,27 +1221,30 @@ int main(int argc, char *argv[])
 
 
   // Global properties
-#if ROWONE
-  const int NUM_MATS           = 3;
-  const int MATS_PER_INSERTION = 1; 
-#elif DIAGMATS
-  const int NUM_MATS           = 6;
-  const int MATS_PER_INSERTION = 2;
-#else
-  const int NUM_MATS           = 12;
+// #if ROWONE
+//   const int NUM_MATS           = 3;
+//   const int MATS_PER_INSERTION = 1; 
+// #elif DIAGMATS
+//   const int NUM_MATS           = 6;
+//   const int MATS_PER_INSERTION = 2;
+// #else
+//   const int NUM_MATS           = 12;
+//   const int MATS_PER_INSERTION = 4;
+// #endif
+  const int NUM_MATS = 4;
   const int MATS_PER_INSERTION = 4;
-#endif
   const int GPD_RANK           = 8;
 
   const std::vector<int> DISP  = shortZ(global.disp_list);
 
 
-  // Circular polarization vector
-  polVecBasis_t BASIS;
+
 
   std::vector<Eigen::Matrix<std::complex<double>, NUM_MATS, 1> > MAT(global.cfgs);
   std::vector<kinMatGPD_t> KIN(global.cfgs,
-			       kinMatGPD_t(3*MATS_PER_INSERTION, GPD_RANK, current::VECTOR, DISP));
+  			       kinMatGPD_t(MATS_PER_INSERTION, GPD_RANK, current::VECTOR, DISP));
+  // std::vector<kinMatGPD_t> KIN(global.cfgs,
+  // 			       kinMatGPD_t(3*MATS_PER_INSERTION, GPD_RANK, current::VECTOR, DISP));
   for ( auto k = KIN.begin(); k != KIN.end(); ++k )
     {
       int j = std::distance(KIN.begin(),k);
@@ -1258,22 +1324,28 @@ int main(int argc, char *argv[])
       kinMatGPD_t GPD_1(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,1,DISP);
       kinMatGPD_t GPD_2(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,2,DISP);
       // Assemble the kinematic matrices
-      GPD_4.assemble(true,MASS,&finSpin,&iniSpin);
-      GPD_1.assemble(true,MASS,&finSpin,&iniSpin);
-      GPD_2.assemble(true,MASS,&finSpin,&iniSpin);
+      GPD_4.assemble(false,MASS,&finSpin,&iniSpin);
+      GPD_1.assemble(false,MASS,&finSpin,&iniSpin);
+      GPD_2.assemble(false,MASS,&finSpin,&iniSpin);
 
       
       // Concatenate GPD_4,1,2 matrices into one large one for SVD
       // Eigen::Matrix<std::complex<double>, 3*MATS_PER_INSERTION, GPD_RANK> GPD;
-      Eigen::MatrixXcd GPD(3*MATS_PER_INSERTION, GPD_RANK);
+      Eigen::MatrixXcd GPD(MATS_PER_INSERTION, GPD_RANK);
+      // Eigen::MatrixXcd GPD(3*MATS_PER_INSERTION, GPD_RANK);
+
+
+      // for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
+      for ( int i = 0; i < GPD_1.mat.rows(); ++i ) GPD.row(i) << GPD_1.mat.row(i);
+      // for ( int i = 0; i < GPD_2.mat.rows(); ++i ) GPD.row(i) << GPD_2.mat.row(i);
 
       
-      // Push GPD_4.mat, GPD_1.mat, GPD_2.mat into GPD
-      for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
-      for ( int i = MATS_PER_INSERTION; i < 2*MATS_PER_INSERTION; ++i )
-	GPD.row(i) << GPD_1.mat.row(i-MATS_PER_INSERTION);
-      for ( int i = 2*MATS_PER_INSERTION; i < 3*MATS_PER_INSERTION; ++i )
-	GPD.row(i) << GPD_2.mat.row(i-2*MATS_PER_INSERTION);
+      // // Push GPD_4.mat, GPD_1.mat, GPD_2.mat into GPD
+      // for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
+      // for ( int i = MATS_PER_INSERTION; i < 2*MATS_PER_INSERTION; ++i )
+      // 	GPD.row(i) << GPD_1.mat.row(i-MATS_PER_INSERTION);
+      // for ( int i = 2*MATS_PER_INSERTION; i < 3*MATS_PER_INSERTION; ++i )
+      // 	GPD.row(i) << GPD_2.mat.row(i-2*MATS_PER_INSERTION);
       
 
       std::cout << "FINAL GPD = " << GPD << std::endl;
@@ -1312,17 +1384,21 @@ int main(int argc, char *argv[])
   /*
     How each current should be organized into "MAT"
   */
-  std::unordered_map<std::string, int> currentInMATOrder =
-    {
-#if ROWONE
-      { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 1 }, { "gamma_y", 2 },
-#elif DIAGMATS
-      { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 2 }, { "gamma_y", 4 },
-#else
-      { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 4 }, { "gamma_y", 8 },
-#endif
-    };
+//   std::unordered_map<std::string, int> currentInMATOrder =
+//     {
+// #if ROWONE
+//       { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 1 }, { "gamma_y", 2 },
+// #elif DIAGMATS
+//       { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 2 }, { "gamma_y", 4 },
+// #else
+//       { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 4 }, { "gamma_y", 8 },
+// #endif
+//     };
 
+  // std::unordered_map<std::string, int> currentInMATOrder = { { "b_b0xDA__J0_A1pP", 0 } };
+  std::unordered_map<std::string, int> currentInMATOrder = { { "gamma_x", 0 } };
+  // std::unordered_map<std::string, int> currentInMATOrder = { { "gamma_y", 0 } };
+ 
 
 
   /*
