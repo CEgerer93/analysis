@@ -51,6 +51,8 @@ namespace NCOR
 							    {"LIN", fitFuncs::LIN},
 							    {"LIN_TEXP", fitFuncs::LIN_TEXP} };
 
+  typedef std::vector<std::vector<std::complex<double> > > VVC;
+
   /* template<typename T> */
   std::vector<std::complex<double> > operator*=(std::vector<std::complex<double> >& v, double d);
 
@@ -74,7 +76,10 @@ namespace NCOR
 
 
 
-  typedef std::vector<std::vector<std::complex<double> > > VVC;
+
+
+
+
 
   // Data hold cfgs x Nt
   struct dat_t
@@ -564,6 +569,9 @@ namespace NCOR
   */
   void read( std::ifstream& input, std::string& file, dat_t& corr);
 
+  // Average precisely two VVC's
+  void mergeCorrs(VVC &v1, VVC v2);
+  // Average multiple VVC's
   correlator mergeCorrs(std::vector<VVC>& v);
 
   void conj(VVC* c);

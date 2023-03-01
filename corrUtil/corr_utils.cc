@@ -449,6 +449,27 @@ namespace NCOR
   } // read
 
 
+
+  // Average precisely two VVC's
+  VVC mergeCorrs(const VVC v1, const VVC v2)
+  {
+#if 0
+    int g(v1.size());
+    int t(v1[0].size());
+
+    // dat_t datMerge
+
+    for ( int gg = 0; gg < g; ++gg )
+      {
+	for ( int tt = 0; tt < t; ++tt )
+	  {
+	    v1[gg][tt] += v2[gg][tt];
+	    v1[gg][tt] *= 0.5;
+	  }
+      }
+#endif	
+  }
+
   correlator mergeCorrs(std::vector<VVC>& v)
   {
     int n(v.size());
