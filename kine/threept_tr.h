@@ -304,6 +304,9 @@ class Spinor
   // Euler Rotation for spin=1/2
   gmc * eulerRefRot;
   gmc * eulerLatRot;
+
+  // Wigner-D for spin=1/2
+  gmc * WignerD;
   
   // Subduction coefficients
   gmc * coeffS;
@@ -324,10 +327,14 @@ class Spinor
   double               absMom()      const { return sqrt(1.0*(mom*mom)); }
   int                  getIrrepDim() const { return subductInfo.irrep_dim; }
 
+  Hadron::CubicCanonicalRotation_t getRefRot() { return refRot; }
+  Hadron::CubicCanonicalRotation_t getLatRot() { return latRot; }
+
   /*
     Public Methods
   */
   void initSubduce(const std::string& s);
+  void buildWigner();
   void buildSpinors();
   // Evaluate \sum_s u(p,s)\bar{u}(p,s)
   void projector(); 
@@ -339,6 +346,7 @@ class Spinor
     {
       gsl_matrix_complex_free(eulerRefRot);
       gsl_matrix_complex_free(eulerLatRot);
+      gsl_matrix_complex_free(WignerD);
       gsl_matrix_complex_free(coeffS);
     }
 
@@ -368,8 +376,12 @@ class Spinor
     // Get the Euler rotation matrix
     eulerRefRot = Rotations::eulerRotMat2(refRot.alpha, refRot.beta, refRot.gamma);
     eulerLatRot = Rotations::eulerRotMat2(latRot.alpha, latRot.beta, latRot.gamma);
+
+
     // Build subductions
     initSubduce(name);
+    // Build Wigner-D
+    buildWigner();
   }
 };
 
@@ -672,9 +684,12 @@ void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 6, 1> > * MAT
 		   std::vector<kinMatGPD_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP);
 #else
-void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 12, 1> > * MAT,
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
 		   std::vector<kinMatGPD_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP);
+/* void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 12, 1> > * MAT, */
+/* 		   std::vector<kinMatGPD_t> * KIN, */
+/* 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP); */
 #endif
 
 //---------

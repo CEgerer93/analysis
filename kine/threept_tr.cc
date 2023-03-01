@@ -690,13 +690,107 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 	       - (P'+P)^MU/2M  UBAR' U
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      mat(r->first,3) = zeroFuzz( (-1.0*avgP[mu-1]/mass)*ubaru );
+      if ( mu == 4 ) mat(r->first,3) = zeroFuzz( (-1.0*avgP[mu-1]/mass)*ubaru );
+      else mat(r->first,3) = zeroFuzz( (-1.0*avgP[mu-1]/mass)*ubaru*_mI_ );
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	          R^MU/2M  UBAR' U
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
+#if 0
+#warning "************** Intentionally NOT killing A5 term for z = 0 tests!************** "
       mat(r->first,4) = zeroFuzz( (Rmu[mu-1]/(2*mass))*ubaru );
+#else
+#warning "************** Intentionally killing A5 term for z = 0 tests!************** "
+      mat(r->first,4) = _ZERO_;
+#endif
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	 {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * (P'+P)^MU/2
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,5) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*avgP[mu-1]);
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * R^MU
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,6) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*Rmu[mu-1]);
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * Z^MU
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,7) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*zmu[mu-1]);
+#endif
+
+#ifdef MYDECOMP2
+#warning "\n*******************USING ABSOLUTE SPINORS FOR MYDECOMP2\n"
+      res = ugu.eval(&(fin->absolute.twoJz[r->second.first]),
+		     &(ini->absolute.twoJz[r->second.second]));
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	          UBAR' \GAMMA_MU U
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,0) = zeroFuzz(res);
+      res = _ZERO_;
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	            Z^MU  UBAR' U
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      mat(r->first,1) = zeroFuzz( zmu[mu-1]*ubaru );
+
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	    UBAR'  i SIGMA^\MU\NU Z_NU  U
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      std::complex<double> sigMuZ(0.0,0.0);
+      for ( int nu = 1; nu <= 4; ++nu )
+	{
+	  utu_t sig(mu,nu,MINK);
+	  res = sig.eval(&(fin->absolute.twoJz[r->second.first]),
+			 &(ini->absolute.twoJz[r->second.second]));
+	  for ( int rho = 1; rho <= 4; ++rho )
+	    sigMuZ += res*zmu[rho-1]*metric(nu%4,rho%4);
+	} // nu
+
+      // Force i sigma^\mu\nu z_nu term to zero in forward case
+      if ( fin->getMom() == ini->getMom() )
+	mat(r->first,2) = _ZERO_;
+      else
+	mat(r->first,2) = zeroFuzz( _I_*sigMuZ );
+
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	  UBAR'  (i/2m) SIGMA^\MU\NU DELTA_\NU   U
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+      res = _ZERO_;
+      std::complex<double> sigMuDelta(0.0,0.0);
+      for ( int nu = 1; nu <= 4; ++nu )
+	{
+	  utu_t sig(mu,nu,MINK);
+	  res = sig.eval(&(fin->absolute.twoJz[r->second.first]),
+			 &(ini->absolute.twoJz[r->second.second]));
+	  for ( int rho = 1; rho <= 4; ++rho )
+	    sigMuDelta -= res*Rmu[rho-1]*metric(nu%4,rho%4);
+	} // nu
+      mat(r->first,3) = zeroFuzz( (_I_/(2*mass))*sigMuDelta );
+      /*
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	          R^MU/2M  UBAR' U
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      */
+#if 0
+#warning "************** Intentionally NOT killing A5 term for z = 0 tests!************** "
+      mat(r->first,4) = zeroFuzz( (Rmu[mu-1]/(2*mass))*ubaru );
+#else
+#warning "************** Intentionally killing A5 term for z = 0 tests!************** "
+      mat(r->first,4) = _ZERO_;
+#endif
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	 {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * (P'+P)^MU/2
@@ -831,7 +925,7 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
       /*
 	(P'-P)^MU/m
       */
-#if 1
+#if 0
 #warning "************** Intentionally NOT killing A3 term for z = 0 tests!************** "
       mat(r->first,2) = zeroFuzz(ubaru*(-1.0*Rmu[mu-1]/mass));
 #else
@@ -847,8 +941,8 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
       /*
 	(i/m)\sigma^{\MU\NU}Delta_\NU
       */
-      // mat(r->first,4) = zeroFuzz( (_I_/mass)*sigMuDelta );
-      mat(r->first,4) = zeroFuzz( (_I_/(2*mass))*sigMuDelta );
+      mat(r->first,4) = zeroFuzz( (_I_/mass)*sigMuDelta );
+      // mat(r->first,4) = zeroFuzz( (_I_/(2*mass))*sigMuDelta );
 
       /*
 	(P'+P)^\MU/2m i\sigma^{\a\b}z_aDelta_b
@@ -1444,14 +1538,42 @@ void Spinor::buildSpinors()
   absolute.build(mom,E,m,L);
   canon.build(canonMom,E,m,L);
 
+  std::cout << "Absolute spinors(1): " << &absolute.twoJz[1] << std::endl;
+  std::cout << "Absolute spinors(2): " << &absolute.twoJz[-1] << std::endl;
 
+  // std::cout << "Canonical spinors(1): " << &canon.twoJz[1] << std::endl;
+  // std::cout << "Canonical spinors(2): " << &canon.twoJz[-1] << std::endl;
+
+
+#if 0
+  // Left-mult Wigner-D on absolute spinors
+  gvc * hel1 = gsl_vector_complex_calloc(4);
+  gvc * hel2 = gsl_vector_complex_calloc(4);
+  gvc * hel;
+
+  for ( int ss = 1; ss >= -1; ss -= 2 )
+    {
+      hel = ( ss == 1 ) ? hel1 : hel2;
+      for ( int s = 1; s >= -1; s -= 2 )
+	{
+	  auto w = Hadron::Wigner_D_2rot(1,s,ss,latRot.alpha,latRot.beta,latRot.gamma,
+					 refRot.alpha,refRot.beta,refRot.gamma);
+
+	  gsl_blas_zaxpy(gc_rect(w.real(),w.imag()),&absolute.twoJz[s],hel);
+	}
+    }
+  std::pair<int, gvc> helIns(1,*hel1);
+  helicity.twoJz.insert(helIns);
+  helIns = std::make_pair(-1,*hel2);
+  helicity.twoJz.insert(helIns);
+
+  gsl_vector_complex_free(hel);
+
+#else
   // Form a single euler rotation matrix via product : (eulerLatRot) x (eulerRefRot)
   gmc * eulerRot = gsl_matrix_complex_calloc(2,2);
   gsl_blas_zgemm(CblasNoTrans,CblasNoTrans,one,eulerLatRot,eulerRefRot,zero,eulerRot);
-
-
-  std::cout << "Canonical spinors(1): " << &canon.twoJz[1] << std::endl;
-  std::cout << "Canonical spinors(2): " << &canon.twoJz[-1] << std::endl;
+  
   // Interate over both twoJz components of helicity spinor
   for ( int i = twoJ; i >= -twoJ; i -= subductInfo.irrep_dim )
     {
@@ -1478,6 +1600,9 @@ void Spinor::buildSpinors()
       std::pair<int, gvc> helSpinor(i,*hel);
       helicity.twoJz.insert(helSpinor);
     } // i
+#endif
+
+
   // Now have helicity spinors
 
 
@@ -1607,19 +1732,6 @@ void Spinor::initSubduce(const std::string& opName)
   coeffS = gsl_matrix_complex_calloc(subductInfo.irrep_dim,twoJ+1);
   
 
-  // // Build the Wigner-D
-  // for ( int i = 0; i < subductInfo.irrep_dim; ++i )
-  //   {
-  //     int twoJz_i = pow((-1),i);
-  //     for ( int j = 0; j < subductInfo.irrep_dim; ++j )
-  // 	{
-  // 	  int twoJz_j = pow((-1),j);
-  // 	  gsl_matrix_complex_set(wig,i,j,gc_rect(Hadron::Wigner_D(twoJ,twoJz_i,twoJz_j,rot.alpha,rot.beta,rot.gamma).real(),
-  // 						 Hadron::Wigner_D(twoJ,twoJz_i,twoJz_j,rot.alpha,rot.beta,rot.gamma).imag()));
-  // 	}
-  //   }
-
-
   // Build the subduction matrix
   for ( int row = 1; row <= subductInfo.irrep_dim; ++row )
     {
@@ -1629,6 +1741,30 @@ void Spinor::initSubduce(const std::string& opName)
 				 gc_rect((*subductInfo.H).operator()(row,h).real(),
 					 (*subductInfo.H).operator()(row,h).imag()));
 	}
+    }
+}
+
+// Build Wigner-D
+void Spinor::buildWigner()
+{
+  WignerD = gsl_matrix_complex_calloc(getIrrepDim(), getTwoJ()+1);
+  for ( int i = 0; i < getIrrepDim(); ++i )
+    {
+      int twoJz_i = pow((-1),i);
+      for ( int j = 0; j < getTwoJ()+1; ++j )
+  	{
+  	  int twoJz_j = pow((-1),j);
+
+	  std::cout << "WIGNER DEBUG:   2jzj = " << twoJz_j << "     2jzi = " << twoJz_i << std::endl;
+	  std::complex<double> wig = Hadron::Wigner_D_2rot(1,twoJz_j,twoJz_i,
+							   latRot.alpha,latRot.beta,latRot.gamma,
+							   refRot.alpha,refRot.beta,refRot.gamma);
+
+	  std::cout << "  WIGNER DEBUG:   wig = " << wig << std::endl;
+	  
+  	  gsl_matrix_complex_set(WignerD,j,i,
+				 gc_rect(wig.real(),wig.imag()));
+  	}
     }
 }
 // End of Spinor class methods
@@ -1671,9 +1807,12 @@ void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 6, 1> > * MAT
 		   std::vector<kinMatGPD_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP)
 #else
-void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 12, 1> > * MAT,
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
 		   std::vector<kinMatGPD_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP)
+// void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 12, 1> > * MAT,
+// 		   std::vector<kinMatGPD_t> * KIN,
+// 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP)
 #endif
 {
   for ( auto a = AMP->begin(); a != AMP->end(); ++a )
