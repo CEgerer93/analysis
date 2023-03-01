@@ -7,12 +7,13 @@ EIGEN=/u/home/cegerer/src/eigen
 # -DPRINT_SVS
 
 # -DMYDECOMP
+# -DMYDECOMP2
 # -DARDECOMP
 # -DMARTHADECOMP
 # -DDIAGMATS
 # -DROWONE
 
-CXXFLAGS=-g -qopenmp -fma -falias -std=c++14 -DROWONE -DMARTHADECOMP -DPRINT_SVS -DHAVE_DISPLIST -DVERBOSITY=1 -I/dist/gmp-6.0.0/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/adat/include -I/usr/include/libxml2 -I/home/cegerer/analysis/pPDF -I/home/cegerer/analysis/fitting -I/home/cegerer/analysis/linAlg -I/home/cegerer/analysis/kine -I/home/cegerer/analysis/corrUtil -I/u/home/cegerer/gsl-2.6/include -I/u/home/cegerer/hdf5-1.12.1/include -I$(EIGEN) -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/redstar/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/colorvec/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/hadron/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/tensor/include
+CXXFLAGS=-g -qopenmp -fma -falias -std=c++14 -DMYDECOMP2 -DPRINT_SVS -DHAVE_DISPLIST -DVERBOSITY=1 -I/dist/gmp-6.0.0/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/adat/include -I/usr/include/libxml2 -I/home/cegerer/analysis/pPDF -I/home/cegerer/analysis/fitting -I/home/cegerer/analysis/linAlg -I/home/cegerer/analysis/kine -I/home/cegerer/analysis/corrUtil -I/u/home/cegerer/gsl-2.6/include -I/u/home/cegerer/hdf5-1.12.1/include -I$(EIGEN) -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/redstar/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/colorvec/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/hadron/include -I/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/tensor/include
 
 LDFLAGS=-L/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/adat/lib -L/u/home/cegerer/gsl-2.6/lib -L/home/cegerer/analysis/pPDF -L/u/home/cegerer/hdf5-1.12.1/lib -L/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/hadron/lib -L/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/colorvec/lib -L/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/redstar/lib -L/home/cegerer/arch/jlab/scalar-knl_PDFs-no-AVX512/install/tensor/lib
 

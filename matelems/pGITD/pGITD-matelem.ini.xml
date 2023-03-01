@@ -50,10 +50,6 @@
 	  <twoI>2</twoI><threeY>0</threeY><twoI_z>0</twoI_z>
 	</flavor>
 	<names>
-	  <!-- <elem><Key>b_b0xDA__J0</Key><Val>1</Val></elem> -->
-	  <!-- <elem><Key>rho_rhoxDA__J1</Key><Val>2</Val></elem> -->
-	  <!-- <elem><Key>b_b0xDA__J0_A1pP</Key><Val>1</Val></elem> -->
-	  <!-- <elem><Key>rho_rhoxDA__J1_T1mP</Key><Val>3</Val></elem> -->
 	  <elem><Key>b_b0xDA__J0_A1pP</Key><Val>8</Val></elem>
 	  <elem><Key>gamma_x</Key><Val>1</Val></elem>
 	  <elem><Key>gamma_y</Key><Val>2</Val></elem>
