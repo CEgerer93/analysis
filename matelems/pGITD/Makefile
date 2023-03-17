@@ -29,8 +29,8 @@ LDLIBS=-lredstar -ladat -lcolorvec -lhadron -ltensor -lfiledb -lfilehash -lXPath
 
 
 
-pGITD-matelem: pGITD-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o rotations.o
-	$(CXX) $(CXXFLAGS) -o pGITD-matelem pGITD-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o rotations.o $(LDFLAGS) $(LDLIBS)
+pGITD-matelem: pGITD-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o rotations.o old_irrep_util_angles.o
+	$(CXX) $(CXXFLAGS) -o pGITD-matelem pGITD-matelem.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o rotations.o old_irrep_util_angles.o $(LDFLAGS) $(LDLIBS)
 
 pGITD-matelem.o:
 	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/matelems/pGITD/pGITD-matelem.cc
@@ -59,7 +59,9 @@ threept_tr.o:
 rotations.o:
 	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/kine/rotations.cc
 
+old_irrep_util_angles.o:
+	$(CXX) $(CXXFLAGS) -c /home/cegerer/analysis/kine/old_irrep_util_angles.cc
 clean:
 	rm -f pGITD-matelem pGITD-matelem.o threept_tr.o
 clean-all:
-	rm -f pGITD-matelem pGITD-matelem.o personal_fns.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o rotations.o
+	rm -f pGITD-matelem pGITD-matelem.o personal_fns.o operators.o pseudo_utils.o fit_util.o corr_utils.o cov_utils.o varpro.o threept_tr.o rotations.o old_irrep_util_angles.o
