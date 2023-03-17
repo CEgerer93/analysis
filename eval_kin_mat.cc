@@ -350,25 +350,25 @@ int main(int argc, char *argv[])
   ugu_t foo_x(1,true); ugu_t foo_y(2,true); ugu_t foo_z(3,true); ugu_t foo_4(4,true);
 
   std::cout << "Simple \gamma_x checks" << std::endl;
-  std::cout << foo_x.eval(&sf.absolute.twoJz[1],&si.absolute.twoJz[1]) << std::endl;
-  std::cout << foo_x.eval(&sf.absolute.twoJz[1],&si.absolute.twoJz[-1]) << std::endl;
-  std::cout << foo_x.eval(&sf.absolute.twoJz[-1],&si.absolute.twoJz[1]) << std::endl;
-  std::cout << foo_x.eval(&sf.absolute.twoJz[-1],&si.absolute.twoJz[-1]) << std::endl;
+  std::cout << foo_x.eval(&sf.subduced.twoJz[1],&si.subduced.twoJz[1]) << std::endl;
+  std::cout << foo_x.eval(&sf.subduced.twoJz[1],&si.subduced.twoJz[-1]) << std::endl;
+  std::cout << foo_x.eval(&sf.subduced.twoJz[-1],&si.subduced.twoJz[1]) << std::endl;
+  std::cout << foo_x.eval(&sf.subduced.twoJz[-1],&si.subduced.twoJz[-1]) << std::endl;
   std::cout << "Simple \gamma_y checks" << std::endl;
-  std::cout << foo_y.eval(&sf.absolute.twoJz[1],&si.absolute.twoJz[1]) << std::endl;
-  std::cout << foo_y.eval(&sf.absolute.twoJz[1],&si.absolute.twoJz[-1]) << std::endl;
-  std::cout << foo_y.eval(&sf.absolute.twoJz[-1],&si.absolute.twoJz[1]) << std::endl;
-  std::cout << foo_y.eval(&sf.absolute.twoJz[-1],&si.absolute.twoJz[-1]) << std::endl;
+  std::cout << foo_y.eval(&sf.subduced.twoJz[1],&si.subduced.twoJz[1]) << std::endl;
+  std::cout << foo_y.eval(&sf.subduced.twoJz[1],&si.subduced.twoJz[-1]) << std::endl;
+  std::cout << foo_y.eval(&sf.subduced.twoJz[-1],&si.subduced.twoJz[1]) << std::endl;
+  std::cout << foo_y.eval(&sf.subduced.twoJz[-1],&si.subduced.twoJz[-1]) << std::endl;
   std::cout << "Simple \gamma_z checks" << std::endl;
-  std::cout << foo_z.eval(&sf.absolute.twoJz[1],&si.absolute.twoJz[1]) << std::endl;
-  std::cout << foo_z.eval(&sf.absolute.twoJz[1],&si.absolute.twoJz[-1]) << std::endl;
-  std::cout << foo_z.eval(&sf.absolute.twoJz[-1],&si.absolute.twoJz[1]) << std::endl;
-  std::cout << foo_z.eval(&sf.absolute.twoJz[-1],&si.absolute.twoJz[-1]) << std::endl;
+  std::cout << foo_z.eval(&sf.subduced.twoJz[1],&si.subduced.twoJz[1]) << std::endl;
+  std::cout << foo_z.eval(&sf.subduced.twoJz[1],&si.subduced.twoJz[-1]) << std::endl;
+  std::cout << foo_z.eval(&sf.subduced.twoJz[-1],&si.subduced.twoJz[1]) << std::endl;
+  std::cout << foo_z.eval(&sf.subduced.twoJz[-1],&si.subduced.twoJz[-1]) << std::endl;
   std::cout << "Simple \gamma_4 checks" << std::endl;
-  std::cout << foo_4.eval(&sf.absolute.twoJz[1],&si.absolute.twoJz[1]) << std::endl;
-  std::cout << foo_4.eval(&sf.absolute.twoJz[1],&si.absolute.twoJz[-1]) << std::endl;
-  std::cout << foo_4.eval(&sf.absolute.twoJz[-1],&si.absolute.twoJz[1]) << std::endl;
-  std::cout << foo_4.eval(&sf.absolute.twoJz[-1],&si.absolute.twoJz[-1]) << std::endl;
+  std::cout << foo_4.eval(&sf.subduced.twoJz[1],&si.subduced.twoJz[1]) << std::endl;
+  std::cout << foo_4.eval(&sf.subduced.twoJz[1],&si.subduced.twoJz[-1]) << std::endl;
+  std::cout << foo_4.eval(&sf.subduced.twoJz[-1],&si.subduced.twoJz[1]) << std::endl;
+  std::cout << foo_4.eval(&sf.subduced.twoJz[-1],&si.subduced.twoJz[-1]) << std::endl;
   
   
   
