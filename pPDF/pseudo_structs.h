@@ -23,7 +23,8 @@ namespace Pseudo
     std::string ensem, observable, state;
     int cfgs, nvec, Lt, Lx;
     int t2ptRows; // 1, 2, -or- 0 (for both 1 & 2)
-    XMLArray::Array<int> pi, pf, rest; // lazy me
+    XMLArray::Array<int> rest; // lazy me
+    XMLArray::Array<XMLArray::Array<int> > pi, pf;
     std::vector<int> disp_list;
 
 

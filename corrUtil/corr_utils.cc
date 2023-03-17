@@ -433,15 +433,11 @@ namespace NCOR
 	    // Read in data line-by-line from file
 	    input >> t >> _r >> _i;
 	    _d.ens[config_num][t] = std::complex<double>(_r,_i);
-	    // _d.real[config_num][t] = _r;
-	    // _d.imag[config_num][t] = _i;
 
 	    cntr++; // Iterate the counter tracking line location in file
 
 	    if ( cntr%_n == 0 )
-	      {
-		config_num++; // increase the gauge_config tally by one
-	      }
+	      config_num++; // increase the gauge_config tally by one
 	  }
 	input.close();
       }
@@ -512,11 +508,6 @@ namespace NCOR
   /*
     H5 Support
   */
-  void H5Read(char *inH5, correlator *c)
-  {
-  }
-
-  
   void writeCorr(correlator *c)
   {
     Exception::dontPrint(); // silence auto-printing of failures - try/catch to manage them
@@ -661,6 +652,142 @@ namespace NCOR
     root.close();
     h5.close();
   }
+
+  bool readCorrFitResH5(correlator *c, char *inH5)
+  {
+    Exception::dontPrint(); // silence auto-printing of failures - try/catch to manage them
+
+    // Just need to fill c->res.params (string -> vec<double>)
+    
+
+    /*
+      Set up
+    */
+    
+    H5File h5;
+    
+    // Try to open FitRes file
+    try {
+      h5.openFile(inH5, H5F_ACC_RDWR);
+    } catch (H5::FileIException &file_dne) {
+      std::cerr << "2pt Fit Results file doesn't exist!" << std::endl;
+      return false;
+    }
+
+    // Define the datatype that will be read
+    PredType DTYPE(PredType::IEEE_F64LE);
+
+    //----------------------------------------------------------------------------------
+    // Some helpers
+    const char * const collections[] = {"mean", "bins"};
+    std::string fit = "/" + c->fit.theFit.verbose();
+    std::string DATASET = "tfit_" + std::to_string(c->fit.theFit.range.min) + "-" +
+      std::to_string(c->fit.theFit.range.max);
+    // Other group helpers
+    std::vector<std::string> cmzg(2);
+    cmzg[0] = "real";
+    switch(c->npt())
+      {
+      case 2:
+	cmzg[1] = "p"+Pseudo::shortMom(c->getPi(),"");
+	break;
+      case 3:
+	std::string pfpi = "pf" + Pseudo::shortMom(c->getPf(),"") + "_pi" +
+	  Pseudo::shortMom(c->getPi(),"");
+	std::string rows = "rowf" + std::to_string(c->getSnk().second) + 
+	  "_rowi" + std::to_string(c->getSrc().second);
+	cmzg[1] = pfpi; cmzg.push_back(rows);
+
+#if HAVE_DISPLIST
+	std::string z    = "zsep" + std::to_string(Pseudo::shortZ(c->getDisp())[0])
+	  + std::to_string(Pseudo::shortZ(c->getDisp())[1])
+	  + std::to_string(Pseudo::shortZ(c->getDisp())[2]);
+	cmzg.push_back(z);
+#endif
+	std::string gamma = "gamma-" + std::to_string(c->getGamma());
+	cmzg.push_back(gamma);
+	break;
+      } // switch
+    //----------------------------------------------------------------------
+
+    
+    // Try to access group at fit
+    Group root;
+    try {
+      root = h5.openGroup(&fit[0]);
+    } catch (ReferenceException &groupDNE) {
+      std::cerr << c->npt() << "pt fit func = " << c->fit.theFit.verbose()
+		<< " doesn't exist!" << std::endl;
+      return false;
+    }
+
+    // Loop over known named parameters
+    for ( auto p = c->res.params.begin(); p != c->res.params.end(); ++p )
+      {
+	Group param, means, bins;
+	
+	try {
+	  param = root.openGroup(&p->first[0]);
+	  means = param.openGroup(collections[0]);
+	  bins  = param.openGroup(collections[1]);
+	} catch (H5::ReferenceException &r) {
+	  std::cerr << "Could not access fit param = " << p->first[0] << " results" << std::endl;
+	  return false;
+	}
+
+	Group subMeans = means;
+	Group subBins  = bins;
+	for ( auto x = cmzg.begin(); x != cmzg.end(); ++x )
+	  {
+	    // Create more subgroups
+	    try {
+	      subMeans = subMeans.openGroup(&(*x)[0]);
+	      subBins  = subBins.openGroup(&(*x)[0]);
+	      std::cout << "Opened existing subMeans/Bins" << std::endl;
+	    } catch (GroupIException &groupDNE) {
+	      std::cerr << "Could not access subMeans/Bins for fit param = "
+			<< p->first[0] << std::endl;
+	      return false;
+	    }
+	  }
+
+	// // Spaces for mean/bins datasets
+	// hsize_t binDim[1]  = {c->getCfgs()};
+	// hsize_t meanDim[1] = {2};
+	
+	// // hid_t
+	// DataSpace * binSpace  = new DataSpace(1,binDim,NULL);
+	// DataSpace * meanSpace = new DataSpace(1,meanDim,NULL);
+
+	// Sizes of mean & bins data
+	double MEAN[2];
+	double BINS[c->getCfgs()];
+
+
+	DataSet bin, mean;
+	try {
+	  bin  = subBins.openDataSet(&DATASET[0]);
+	  mean = subMeans.openDataSet(&DATASET[0]);
+	} catch(GroupIException &dsetDNE) {
+	  return false;
+	}
+
+	try {
+	  bin.read(BINS, DTYPE);
+	  mean.read(MEAN, DTYPE);
+	} catch (DataSetIException &d) {
+	  std::cerr << "Failed to read bins/mean for fit param = " << p->first[0] << std::endl;
+	  return false;
+	}
+
+	bins.close();
+	means.close();
+	param.close();
+      } // auto p
+    root.close();
+    h5.close();
+  } // readCorrFitResH5
+
 
   void fitResW(correlator *c, std::string& comp) // const char * comp)
   {
@@ -848,208 +975,216 @@ namespace NCOR
     const std::string& outH5 = "amplitudes-FitRes.h5";
     H5File h5;
 
-    // Other groups to makes
-    std::vector<std::string> grps(3);
-    grps[0] = "pf" + Pseudo::shortMom(global->pf,"") + "_pi" + Pseudo::shortMom(global->pi,"");
-    grps[1] = "zsep" + std::to_string(Pseudo::shortZ(*disp)[0])
-      + std::to_string(Pseudo::shortZ(*disp)[1])
-      + std::to_string(Pseudo::shortZ(*disp)[2]);
+    // Loop over all (pf,pi) combinations
+    for ( int mom = 0; mom < global->pf.size(); ++mom )
+      {
+	// Convenience
+	const XMLArray::Array<int> _pf = global->pf[mom];
+	const XMLArray::Array<int> _pi = global->pi[mom];
+
+	// Other groups to makes
+	std::vector<std::string> grps(3);
+	grps[0] = "pf" + Pseudo::shortMom(_pf,"") + "_pi" + Pseudo::shortMom(_pi,"");
+	grps[1] = "zsep" + std::to_string(Pseudo::shortZ(*disp)[0])
+	  + std::to_string(Pseudo::shortZ(*disp)[1])
+	  + std::to_string(Pseudo::shortZ(*disp)[2]);
 #warning "Fix old chromaGamma member!"
-    grps[2] = "gamma-" + std::to_string(-1); //global->chromaGamma);
+	grps[2] = "gamma-" + std::to_string(-1); //global->chromaGamma);
 
     
-    try {
-      h5.openFile(outH5.c_str(), H5F_ACC_RDWR);
-      std::cout << "     Opened h5: " << outH5 << std::endl;
-    } catch (H5::FileIException &file_dne) {
-      h5 = H5File(outH5.c_str(), H5F_ACC_TRUNC);
-      std::cout << "     Created h5: " << outH5 << std::endl;
-    }
+	try {
+	  h5.openFile(outH5.c_str(), H5F_ACC_RDWR);
+	  std::cout << "     Opened h5: " << outH5 << std::endl;
+	} catch (H5::FileIException &file_dne) {
+	  h5 = H5File(outH5.c_str(), H5F_ACC_TRUNC);
+	  std::cout << "     Created h5: " << outH5 << std::endl;
+	}
 
-    // Define the datatypes that will be written
-    PredType DTYPE(PredType::IEEE_F64LE);
-    // Some helpers
-    const char * const collections[] = {"mean", "bins"};
-    const char * const components[]  = {"real", "imag"};
+	// Define the datatypes that will be written
+	PredType DTYPE(PredType::IEEE_F64LE);
+	// Some helpers
+	const char * const collections[] = {"mean", "bins"};
+	const char * const components[]  = {"real", "imag"};
 
     
-    std::string DATASET = "tfit_" + std::to_string(fitInfo->range.min) + "-" +
-      std::to_string(fitInfo->range.max);
+	std::string DATASET = "tfit_" + std::to_string(fitInfo->range.min) + "-" +
+	  std::to_string(fitInfo->range.max);
 
 
-    std::map<std::string, std::vector<std::complex<double> > > amps;
-    std::map<int,std::string> ampNames;
+	std::map<std::string, std::vector<std::complex<double> > > amps;
+	std::map<int,std::string> ampNames;
 
-    // Set the amplitude strings from the momenta passed
-    if ( global->pf == global->pi )
-      {
-	// ampNames[0] = "M"; ampNames[1] = "N"; ampNames[2] = "R"; ampNames[3] = "Y";
-	ampNames[0] = "Y"; ampNames[1] = "R";
-      }
-    else
-      {
-	for ( int i = 0; i < (*A)[0].size(); ++i )
-	  ampNames[i] = "A"+std::to_string(i+1);
-      }
-    //-----------------------------------------------------------------------------
+	// Set the amplitude strings from the momenta passed
+	if ( _pf == _pi )
+	  {
+	    // ampNames[0] = "M"; ampNames[1] = "N"; ampNames[2] = "R"; ampNames[3] = "Y";
+	    ampNames[0] = "Y"; ampNames[1] = "R";
+	  }
+	else
+	  {
+	    for ( int i = 0; i < (*A)[0].size(); ++i )
+	      ampNames[i] = "A"+std::to_string(i+1);
+	  }
+	//-----------------------------------------------------------------------------
 
 
-    for ( int r = 0; r < (*A)[0].size(); ++r )
-      {
-	std::vector<std::complex<double> > thisAmp;
-	for ( auto a = A->begin(); a != A->end(); ++a )
-	  thisAmp.push_back( (*a)[r] );
+	for ( int r = 0; r < (*A)[0].size(); ++r )
+	  {
+	    std::vector<std::complex<double> > thisAmp;
+	    for ( auto a = A->begin(); a != A->end(); ++a )
+	      thisAmp.push_back( (*a)[r] );
 	
-	std::pair<std::string, std::vector<std::complex<double> > > foo = 
-	  std::make_pair(ampNames[r],thisAmp);
+	    std::pair<std::string, std::vector<std::complex<double> > > foo = 
+	      std::make_pair(ampNames[r],thisAmp);
 
-	amps.insert(foo);
-      }
+	    amps.insert(foo);
+	  }
 
 
-    std::cout << "Spitting amps!" << std::endl;
-    for ( auto xx = amps.begin(); xx != amps.end(); ++xx )
-      std::cout << ">>> " << xx->first << " " << xx->second << std::endl;
+	std::cout << "Spitting amps!" << std::endl;
+	for ( auto xx = amps.begin(); xx != amps.end(); ++xx )
+	  std::cout << ">>> " << xx->first << " " << xx->second << std::endl;
 
     
-    // Make root groups based on named amplitude
-    Group root;
-    for ( auto a = amps.begin(); a != amps.end(); ++a )
-      {
-	try {
-	  root = h5.openGroup(&(a->first)[0]);
-	  std::cout << "Opened existing amplitude" << std::endl;
-	} catch (ReferenceException &groupDNE) {
-	  root = h5.createGroup(&(a->first)[0]);
-	  std::cout << "Created new amplitude" << std::endl;
-	} catch (FileIException &groupDNE) {
-	  root = h5.createGroup(&(a->first)[0]);
-	  std::cout << "Created new amplitude" << std::endl;
-	}
-
-	// Open mean/bins groups
-	Group means, bins;
-	try {
-	  means = root.openGroup(collections[0]);
-	  bins  = root.openGroup(collections[1]);
-	  std::cout << "Opened existing means/bins/" << std::endl;
-	} catch (GroupIException &groupDNE) {
-	  means = root.createGroup(collections[0]);
-	  bins  = root.createGroup(collections[1]);
-	} catch (H5::ReferenceException &r) {
-	  std::cout << "Caught reference exception:";
-	}
-
-	Group compMeans; //= means;
-	Group compBins; //  = bins;
-	// Open real/imag groups
-	for ( int c = 0; c < 2; ++c )
+	// Make root groups based on named amplitude
+	Group root;
+	for ( auto a = amps.begin(); a != amps.end(); ++a )
 	  {
 	    try {
-	      compMeans = means.openGroup(components[c]);
-	      compBins  = bins.openGroup(components[c]);
-	      std::cout << "Opened existing compMeans/Bins" << std::endl;
-	    } catch (GroupIException &groupDNE) {
-	      compMeans = means.createGroup(components[c]);
-	      compBins  = bins.createGroup(components[c]);
-	      std::cout << "Created new compMeans/Bins" << std::endl;
+	      root = h5.openGroup(&(a->first)[0]);
+	      std::cout << "Opened existing amplitude" << std::endl;
+	    } catch (ReferenceException &groupDNE) {
+	      root = h5.createGroup(&(a->first)[0]);
+	      std::cout << "Created new amplitude" << std::endl;
+	    } catch (FileIException &groupDNE) {
+	      root = h5.createGroup(&(a->first)[0]);
+	      std::cout << "Created new amplitude" << std::endl;
 	    }
+
+	    // Open mean/bins groups
+	    Group means, bins;
+	    try {
+	      means = root.openGroup(collections[0]);
+	      bins  = root.openGroup(collections[1]);
+	      std::cout << "Opened existing means/bins/" << std::endl;
+	    } catch (GroupIException &groupDNE) {
+	      means = root.createGroup(collections[0]);
+	      bins  = root.createGroup(collections[1]);
+	    } catch (H5::ReferenceException &r) {
+	      std::cout << "Caught reference exception:";
+	    }
+
+	    Group compMeans; //= means;
+	    Group compBins; //  = bins;
+	    // Open real/imag groups
+	    for ( int c = 0; c < 2; ++c )
+	      {
+		try {
+		  compMeans = means.openGroup(components[c]);
+		  compBins  = bins.openGroup(components[c]);
+		  std::cout << "Opened existing compMeans/Bins" << std::endl;
+		} catch (GroupIException &groupDNE) {
+		  compMeans = means.createGroup(components[c]);
+		  compBins  = bins.createGroup(components[c]);
+		  std::cout << "Created new compMeans/Bins" << std::endl;
+		}
 	  
 	
-	    Group subMeans = compMeans;
-	    Group subBins  = compBins;
-	    for ( auto g = grps.begin(); g != grps.end(); ++g )
-	      {
-		// Create more subgroups
+		Group subMeans = compMeans;
+		Group subBins  = compBins;
+		for ( auto g = grps.begin(); g != grps.end(); ++g )
+		  {
+		    // Create more subgroups
+		    try {
+		      subMeans = subMeans.openGroup(&(*g)[0]);
+		      subBins  = subBins.openGroup(&(*g)[0]);
+		      std::cout << "Opened existing subMeans/Bins" << std::endl;
+		    } catch (GroupIException &groupDNE) {
+		      subMeans = subMeans.createGroup(&(*g)[0]);
+		      subBins  = subBins.createGroup(&(*g)[0]);
+		      std::cout << "Created new subMeans/Bins" << std::endl;
+		    }
+		  }
+	    
+		// Spaces for mean/bins datasets
+		hsize_t binDim[1]  = {global->cfgs};
+		hsize_t meanDim[1] = {2};
+	    
+		// hid_t
+		DataSpace * binSpace  = new DataSpace(1,binDim,NULL);
+		DataSpace * meanSpace = new DataSpace(1,meanDim,NULL);
+	    
+	    
+		// Pull out amplitudes extracted per jackknife sample and organize data into arrays
+		// ---> these are coming from map "amps" above
+	    
+		double MEAN[2] = {0.0, 0.0};
+		double BINS[global->cfgs];
+
+
+		std::cout << ">>>> OTHER CHECKS = " << a->second.size() << " " << global->cfgs << std::endl;
+	    
+		// Would like a more elegant way to segregate real/imag components...
+		for ( int j = 0; j < a->second.size(); ++j )
+		  {
+		    if ( c == 0)
+		      {
+			BINS[j] = a->second[j].real(); MEAN[0] += ( a->second[j].real() / (1.0*global->cfgs) );
+		      }
+		    if ( c == 1 )
+		      {
+			BINS[j] = a->second[j].imag(); MEAN[0] += ( a->second[j].imag() / (1.0*global->cfgs) );
+		      }
+		  }
+
+		for ( int j = 0; j < a->second.size(); ++j )
+		  {
+		    if ( c == 0 )
+		      MEAN[1] += pow( a->second[j].real() - MEAN[0], 2 );
+		    if ( c == 1 )
+		      MEAN[1] += pow( a->second[j].imag() - MEAN[0], 2 );
+		  }
+		MEAN[1] = sqrt( (( global->cfgs - 1 )/(1.0*global->cfgs)) * MEAN[1] );
+
+	    
+		std::cout << ">>>>>>>>>>>>> WRITING MEAN = " << MEAN[0] << " " << MEAN[1] << std::endl;
+
+
+		DataSet bin, mean;
 		try {
-		  subMeans = subMeans.openGroup(&(*g)[0]);
-		  subBins  = subBins.openGroup(&(*g)[0]);
-		  std::cout << "Opened existing subMeans/Bins" << std::endl;
-		} catch (GroupIException &groupDNE) {
-		  subMeans = subMeans.createGroup(&(*g)[0]);
-		  subBins  = subBins.createGroup(&(*g)[0]);
-		  std::cout << "Created new subMeans/Bins" << std::endl;
+		  bin = subBins.openDataSet(&DATASET[0]);
+		  mean = subMeans.openDataSet(&DATASET[0]);
+		  std::cout << "Open existing dataset" << std::endl;
+		} catch(GroupIException &dsetDNE) {
+		  bin = subBins.createDataSet(&DATASET[0], DTYPE, *binSpace);
+		  mean = subMeans.createDataSet(&DATASET[0], DTYPE, *meanSpace);
+		  std::cout << "Create new dataset" << std::endl;
 		}
-	      }
 	    
-	    // Spaces for mean/bins datasets
-	    hsize_t binDim[1]  = {global->cfgs};
-	    hsize_t meanDim[1] = {2};
+		try {
+		  bin.write(BINS, DTYPE);
+		  mean.write(MEAN, DTYPE);
+		} catch (DataSetIException &d) {
+		  std::cout << "Failed to write dataset" << std::endl;
+		  exit(1);
+		}
 	    
-	    // hid_t
-	    DataSpace * binSpace  = new DataSpace(1,binDim,NULL);
-	    DataSpace * meanSpace = new DataSpace(1,meanDim,NULL);
-	    
-	    
-	    // Pull out amplitudes extracted per jackknife sample and organize data into arrays
-	    // ---> these are coming from map "amps" above
-	    
-	    double MEAN[2] = {0.0, 0.0};
-	    double BINS[global->cfgs];
+		delete binSpace;
+		delete meanSpace;
 
 
-	    std::cout << ">>>> OTHER CHECKS = " << a->second.size() << " " << global->cfgs << std::endl;
+		// subMeans.close();
+		// subBins.close();
+	      } // c
+
+	    compMeans.close();
+	    compBins.close();
 	    
-	    // Would like a more elegant way to segregate real/imag components...
-	    for ( int j = 0; j < a->second.size(); ++j )
-	      {
-		if ( c == 0)
-		  {
-		    BINS[j] = a->second[j].real(); MEAN[0] += ( a->second[j].real() / (1.0*global->cfgs) );
-		  }
-		if ( c == 1 )
-		  {
-		    BINS[j] = a->second[j].imag(); MEAN[0] += ( a->second[j].imag() / (1.0*global->cfgs) );
-		  }
-	      }
-
-	    for ( int j = 0; j < a->second.size(); ++j )
-	      {
-		if ( c == 0 )
-		  MEAN[1] += pow( a->second[j].real() - MEAN[0], 2 );
-		if ( c == 1 )
-		  MEAN[1] += pow( a->second[j].imag() - MEAN[0], 2 );
-	      }
-	    MEAN[1] = sqrt( (( global->cfgs - 1 )/(1.0*global->cfgs)) * MEAN[1] );
-
-	    
-	    std::cout << ">>>>>>>>>>>>> WRITING MEAN = " << MEAN[0] << " " << MEAN[1] << std::endl;
-
-
-	    DataSet bin, mean;
-	    try {
-	      bin = subBins.openDataSet(&DATASET[0]);
-	      mean = subMeans.openDataSet(&DATASET[0]);
-	      std::cout << "Open existing dataset" << std::endl;
-	    } catch(GroupIException &dsetDNE) {
-	      bin = subBins.createDataSet(&DATASET[0], DTYPE, *binSpace);
-	      mean = subMeans.createDataSet(&DATASET[0], DTYPE, *meanSpace);
-	      std::cout << "Create new dataset" << std::endl;
-	    }
-	    
-	    try {
-	      bin.write(BINS, DTYPE);
-	      mean.write(MEAN, DTYPE);
-	    } catch (DataSetIException &d) {
-	      std::cout << "Failed to write dataset" << std::endl;
-	      exit(1);
-	    }
-	    
-	    delete binSpace;
-	    delete meanSpace;
-
-
-	    // subMeans.close();
-	    // subBins.close();
-	  } // c
-
-	compMeans.close();
-	compBins.close();
-	    
-	bins.close();
-	means.close();
-	root.close();
-      } // amps iterator
+	    bins.close();
+	    means.close();
+	    root.close();
+	  } // amps iterator
+      } // mom
     h5.close();
   } // writeAmplitudes
 }

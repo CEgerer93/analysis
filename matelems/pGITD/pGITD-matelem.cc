@@ -330,7 +330,6 @@ void read(XMLReader& xml, const std::string path, global_t::nptProps_t& p)
   }
 }
 
-
 // Reader for global properties
 void read(XMLReader& xml, const std::string path, global_t& g)
 {
@@ -350,8 +349,8 @@ void read(XMLReader& xml, const std::string path, global_t& g)
     read(xml, path+"/Lt", g.Lt);
     read(xml, path+"/Lx", g.Lx);
     read(xml, path+"/rest", g.rest);
-    read(xml, path+"/pi", g.pi);
-    read(xml, path+"/pf", g.pf);
+    read(xml, path+"/pfpi/pf", g.pf);
+    read(xml, path+"/pfpi/pi", g.pi);
     read(xml, path+"/disp_list", g.disp_list);
     read(xml, path+"/dispNegate", g.dispNegate);
     read(xml, path+"/momNegate", g.momNegate);
@@ -552,30 +551,40 @@ std::vector<std::string> makeDBList(global_t& g, info2pt& I, Hadron::KeyHadronSU
 */
 std::vector<std::string> makeDBList(global_t& g, info3pt& I, domain_t& t)
 {
+  // Vectors of all dbs to search from
   std::vector<std::string> s;
-  for ( int ti = t.min; ti <= t.max; ti+=t.step )
+
+  // Loop over all (pf,pi) combinations
+  for ( int mom = 0; mom < g.pf.size(); ++mom )
     {
-      // A temporary db to set
-      std::string tmp_db_plus = I.base[0]+"/"+g.ensem+I.base[1]+ti+"/snk"+shortMom(g.pf,".") \
-	+"_src"+shortMom(g.pi,".")+"/EDB/"+g.ensem+"."+g.state+"."+g.observable+"_pf"+shortMom(g.pf,"") \
-	+"_pi"+shortMom(g.pi,"")+".n"+g.nvec+"."+I.t0Tag+"_"+
-	I.tsnkTag+ti+"."+I.zTag+".edb";
-	  
-      // Push to db list
-      s.push_back(tmp_db_plus);
-      // Check for any non-trivial 3pt momenta and make new db file names
-      if ( global.momNegate && ( shortMom(g.pf,"") != "000" || shortMom(g.pi,"") != "000" ) )
+      // Convenience
+      const XMLArray::Array<int> _pf = g.pf[mom];
+      const XMLArray::Array<int> _pi = g.pi[mom];
+      
+      for ( int ti = t.min; ti <= t.max; ti+=t.step )
 	{
 	  // A temporary db to set
-	  std::string tmp_db_minus = I.base[0]+"/"+g.ensem+I.base[1]+ti+"/snk"+shortMom(g.pf*-1,".") \
-	    +"_src"+shortMom(g.pi*-1,".")+"/EDB/"+g.ensem+"."+g.state+"."+g.observable+"_pf"+shortMom(g.pf*-1,"") \
-	    +"_pi"+shortMom(g.pi*-1,"")+".n"+g.nvec+"."+I.t0Tag+"_"+
+	  std::string tmp_db_plus = I.base[0]+"/"+g.ensem+I.base[1]+ti+"/snk"+shortMom(_pf,".") \
+	    +"_src"+shortMom(_pi,".")+"/EDB/"+g.ensem+"."+g.state+"."+g.observable+"_pf"+shortMom(_pf,"") \
+	    +"_pi"+shortMom(_pi,"")+".n"+g.nvec+"."+I.t0Tag+"_"+
 	    I.tsnkTag+ti+"."+I.zTag+".edb";
+	  
 	  // Push to db list
-	  s.push_back(tmp_db_minus);
-	}
-    }
-  std::cout << "  Made 3pt db list" << std::endl;
+	  s.push_back(tmp_db_plus);
+	  // Check for any non-trivial 3pt momenta and make new db file names
+	  if ( global.momNegate && ( shortMom(_pf,"") != "000" || shortMom(_pi,"") != "000" ) )
+	    {
+	      // A temporary db to set
+	      std::string tmp_db_minus = I.base[0]+"/"+g.ensem+I.base[1]+ti+"/snk"+shortMom(_pf*-1,".") \
+		+"_src"+shortMom(_pi*-1,".")+"/EDB/"+g.ensem+"."+g.state+"."+g.observable+"_pf"+shortMom(_pf*-1,"") \
+		+"_pi"+shortMom(_pi*-1,"")+".n"+g.nvec+"."+I.t0Tag+"_"+
+		I.tsnkTag+ti+"."+I.zTag+".edb";
+	      // Push to db list
+	      s.push_back(tmp_db_minus);
+	    }
+	} // ti
+    } // mom
+  std::cout << "  Made 3pt db list of size = " << s.size() << std::endl;
   return s;
 }
 
@@ -627,79 +636,89 @@ std::vector<std::string> subName(const ADAT::MapObject<std::string, int> cont_op
 std::vector<K> templateKeys(const global_t &g, int npt)
 {
   // Vector of template keys
-  std::vector<K> tmp;
+  std::vector<K> tmpKeys;
 
-  Hadron::KeyCGCIrrepMom_t pfIrrepMom(1,g.pf);
-  Hadron::KeyCGCIrrepMom_t piIrrepMom(1,g.pi);
-  Hadron::KeyCGCIrrepMom_t qIrrepMom(1,g.pf-g.pi);
-  
-  /*
-    Inserted op names
-  */
-  // auto subOps = subName(g.ins.cont_names,g.pf-g.pi); // will blow up w/o update to adat (reverting to old DA operator names)
-  std::vector<std::string> insOps;
-  for ( auto it = g.ins.cont_names.begin(); it != g.ins.cont_names.end(); ++it )
-    insOps.push_back(it->first);
-  // Manually duplicate rho entry
-  // insOps.push_back("rho_rhoxDA__J1_T1mP");
-
-  
-  // Number of template keys set by unique subduced insertions
-  tmp.resize(insOps.size());
-
-  // Fill the keys
-  bool rho_visit = false;
-  for ( auto k = tmp.begin(); k != tmp.end(); ++k )
+  // Loop over all (pf,pi) combinations
+  for ( int mom = 0; mom < g.pf.size(); ++mom )
     {
-      int idx = std::distance(tmp.begin(),k);
-      // Common
-      for ( int n = 1; n <= npt; ++n )
+      // Convenience
+      const XMLArray::Array<int> _pf = g.pf[mom];
+      const XMLArray::Array<int> _pi = g.pi[mom];
+
+      Hadron::KeyCGCIrrepMom_t pfIrrepMom(1,_pf);
+      Hadron::KeyCGCIrrepMom_t piIrrepMom(1,_pi);
+      Hadron::KeyCGCIrrepMom_t qIrrepMom(1,_pf-_pi);
+  
+      /*
+	Inserted op names
+      */
+      // auto subOps = subName(g.ins.cont_names,_pf-_pi); // will blow up w/o update to adat (reverting to old DA operator names)
+      std::vector<std::string> insOps;
+      for ( auto it = g.ins.cont_names.begin(); it != g.ins.cont_names.end(); ++it )
+	insOps.push_back(it->first);
+      // Manually duplicate rho entry
+      // insOps.push_back("rho_rhoxDA__J1_T1mP");
+
+  
+      // Number of template keys for this (pf,pi) set by unique subduced insertions
+      std::vector<K> tmp(insOps.size());
+
+      // Fill the keys
+      bool rho_visit = false;
+      for ( auto k = tmp.begin(); k != tmp.end(); ++k )
 	{
-	  k->npoint.resize(3);
-	  k->npoint[n].irrep = g.basic_op;
-	}
+	  int idx = std::distance(tmp.begin(),k);
+	  // Common
+	  for ( int n = 1; n <= npt; ++n )
+	    {
+	      k->npoint.resize(3);
+	      k->npoint[n].irrep = g.basic_op;
+	    }
       
-      // Snk
-      k->npoint[1].t_slice              = 4;
-      k->npoint[1].irrep.creation_op    = g.snk.create;
-      k->npoint[1].irrep.smearedP       = g.snk.smear;
-      k->npoint[1].irrep.flavor         = g.snk.cgc;
-      k->npoint[1].irrep.irrep_mom      = pfIrrepMom;
-      k->npoint[1].irrep.op.ops[1] = Hadron::KeyParticleOp_t(subName(g.snk.cont_names,g.pf)[0],
-							     "", Hadron::canonicalOrder(g.pf),
-							     g.snk.disp_list);
+	  // Snk
+	  k->npoint[1].t_slice              = 4;
+	  k->npoint[1].irrep.creation_op    = g.snk.create;
+	  k->npoint[1].irrep.smearedP       = g.snk.smear;
+	  k->npoint[1].irrep.flavor         = g.snk.cgc;
+	  k->npoint[1].irrep.irrep_mom      = pfIrrepMom;
+	  k->npoint[1].irrep.op.ops[1] = Hadron::KeyParticleOp_t(subName(g.snk.cont_names,_pf)[0],
+								 "", Hadron::canonicalOrder(_pf),
+								 g.snk.disp_list);
       
-      // Ins
-      k->npoint[2].t_slice = -3;
-      k->npoint[2].irrep.creation_op    = g.ins.create;
-      k->npoint[2].irrep.smearedP       = g.ins.smear;
-      k->npoint[2].irrep.flavor         = g.ins.cgc;
-      k->npoint[2].irrep.irrep_mom      = qIrrepMom;
-      k->npoint[2].irrep.op.ops[1] = Hadron::KeyParticleOp_t(insOps[idx],"",
-							     Hadron::canonicalOrder(g.pf-g.pi),
-							     g.ins.disp_list);
+	  // Ins
+	  k->npoint[2].t_slice = -3;
+	  k->npoint[2].irrep.creation_op    = g.ins.create;
+	  k->npoint[2].irrep.smearedP       = g.ins.smear;
+	  k->npoint[2].irrep.flavor         = g.ins.cgc;
+	  k->npoint[2].irrep.irrep_mom      = qIrrepMom;
+	  k->npoint[2].irrep.op.ops[1] = Hadron::KeyParticleOp_t(insOps[idx],"",
+								 Hadron::canonicalOrder(_pf-_pi),
+								 g.ins.disp_list);
 
 
-      // If this is second time visiting rho entry, change the row to 3
-      // ..this will ensure both \gamma_x & \gamma_y are accessible
-      if ( rho_visit && insOps[idx] == "rho_rhoxDA__J1_T1mP" )
-	k->npoint[2].irrep.irrep_mom.row = 3;
+	  // If this is second time visiting rho entry, change the row to 3
+	  // ..this will ensure both \gamma_x & \gamma_y are accessible
+	  if ( rho_visit && insOps[idx] == "rho_rhoxDA__J1_T1mP" )
+	    k->npoint[2].irrep.irrep_mom.row = 3;
       
-      // Src
-      k->npoint[3].irrep.creation_op    = g.src.create;
-      k->npoint[3].irrep.smearedP       = g.src.smear;
-      k->npoint[3].irrep.flavor         = g.src.cgc;
-      k->npoint[3].irrep.irrep_mom      = piIrrepMom;
-      k->npoint[3].irrep.op.ops[1] = Hadron::KeyParticleOp_t(subName(g.src.cont_names,g.pi)[0],
-							     "", Hadron::canonicalOrder(g.pi),
-							     g.src.disp_list);
+	  // Src
+	  k->npoint[3].irrep.creation_op    = g.src.create;
+	  k->npoint[3].irrep.smearedP       = g.src.smear;
+	  k->npoint[3].irrep.flavor         = g.src.cgc;
+	  k->npoint[3].irrep.irrep_mom      = piIrrepMom;
+	  k->npoint[3].irrep.op.ops[1] = Hadron::KeyParticleOp_t(subName(g.src.cont_names,_pi)[0],
+								 "", Hadron::canonicalOrder(_pi),
+								 g.src.disp_list);
       
-      // Note if rho has been seen
-      if ( insOps[idx] == "rho_rhoxDA__J1_T1mP" )
-	rho_visit = true;
-    }
+	  // Note if rho has been seen
+	  if ( insOps[idx] == "rho_rhoxDA__J1_T1mP" )
+	    rho_visit = true;
+	} // auto k
 
-  return tmp;
+      // Push this collection of tmp keys for this (pf,pi) into tmpKeys
+      tmpKeys.insert(tmpKeys.end(), tmp.begin(), tmp.end());
+    } // mom
+  return tmpKeys;
 }
 
 
@@ -896,7 +915,6 @@ int main(int argc, char *argv[])
   // dumpRowInfo(db2ptInfo.rows,db2ptInfo.signs,2);
 
 
-
   // Set the number of tseps once and for all
   const int nTSeps = temporal3pt.numT();
 
@@ -916,46 +934,9 @@ int main(int argc, char *argv[])
   } threePt, twoPi, twoPf, twoPtRest;
 
 
-  // struct keyTemplate_t
-  // {
-  //   Hadron::KeyHadronSUNNPartNPtCorr_t key;
-  // } tempKey2Pi, tempKey2Pf, tempKeyRest;
-
-
   std::vector<K> tempKey3pt = templateKeys(global,3);
-  
-
-  /*
-    All tempKey3pt elems have same npoint[1] & npoint[3]  -->  use these to form 2pt temp keys
-  */
-  K tempKey2Pf; tempKey2Pf.npoint.resize(2);
-  K tempKey2Pi; tempKey2Pi.npoint.resize(2);
-  for ( int i = 1; i <= 2; ++i )
-    {
-      tempKey2Pf.npoint[i] = tempKey3pt[0].npoint[1];
-      tempKey2Pi.npoint[i] = tempKey3pt[0].npoint[3];
-    }
-  tempKey2Pf.npoint[1].t_slice = tempKey2Pi.npoint[1].t_slice = -2;
-  tempKey2Pf.npoint[2].t_slice = tempKey2Pi.npoint[2].t_slice = 0;
-  
-  // Assuming same general structure for a template 2pt rest key as tempKey2Pi
-  K tempKeyRest = tempKey2Pi;
-  tempKeyRest.npoint[1].irrep.op.ops[1].name = "NucleonMG1g1MxD0J0S_J1o2_G1g1";
-  tempKeyRest.npoint[1].irrep.irrep_mom.mom = global.rest;
-  tempKeyRest.npoint[1].irrep.op.ops[1].mom_type = global.rest;
-
-  tempKeyRest.npoint[2] = tempKeyRest.npoint[1];
-  tempKeyRest.npoint[2].t_slice = 0;
-
-
   for ( auto a : tempKey3pt )
     std::cout << a << std::endl;
-
-  std::cout << tempKey2Pf << std::endl;
-  std::cout << tempKey2Pi << std::endl;
-  std::cout << tempKeyRest << std::endl;
-
-  std::cout << "MADE THE TEMPLATE KEYS TO FETCH" << std::endl;
 
 
 
@@ -984,11 +965,10 @@ int main(int argc, char *argv[])
   std::cout << "...........3pt Correlators   ---   SUCCESS!" << std::endl;
 
 
-
   /*
     Do some checks of the three-pt functions
   */
-#if 0
+#if 1
   // for ( std::unordered_map<std::string, std::vector<NCOR::corrEquivalence> >::iterator m = funcs3pt.begin(); m != funcs3pt.end(); ++m )
   for ( auto m = funcs3pt.begin(); m != funcs3pt.end(); ++m )
     {
@@ -1019,347 +999,34 @@ int main(int argc, char *argv[])
 #endif
 
 
-  /*
-    TRY ROWS 11/22 AVERAGING ONCE AGAIN!
-  */
-  // // Uniquify
-  // std::unordered_map<std::string, NCOR::corrEquivalence> uniq;
-  // for ( auto m = funcs3pt.begin(); m != funcs3pt.end(); ++m ) // map
-  //   {
-  //     // I know first element is row1-row1 combo
-  //     std::pair<std::string, NCOR::corrEquivalence> u = std::make_pair(m->first, m->second[0]);
-  //     uniq.insert(u);
-
-  //     // Loop over corrEquivalence keys - this is loop over rows
-  //     for ( auto it = m->second[0].begin(); it != m->second[0].end(); ++it )
-  // 	{
-	  
-  // 	  std::vector<NCOR::VVC> toAvg(2);
-  // 	  toAvg[0] = it->second
-
-
-  //     for ( auto it = uniq[m->first].keyCorrMap.begin();
-  // 	    it != uniq[m->first].keyCorrMap.end(); ++it )
-  // 	{
-  // 	  std::vector<NCOR::VVC> toAvg(2);
-
-  // 	  toAvg[0] = m->second[0].keyCorrMap[it->first].ensemble.ens;
-  // 	  toAvg[1] = m->second[3].keyCorrMap[it->first].ensemble.ens;
-  // 	  // K keyToAvg = it->first;
-
-  // 	  it->second = mergeCorrs(toAvg);
-	  
-  // 	  // it->second.ensemble.ens = mergeCorrs(it->second.ensemble.ens, it->second.ensemble.ens);
-  // 	  // // mergeCorrs(it->second.ensemble.ens, m->second[3].keyCorrMap
-  // 	}
-  //   }
-  // exit(3);
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  
-  
 
   /*
-    NOW LOAD THE 2PT FUNCTIONS
+    GLOBAL PROPERTIES FOR CONSTRAINED SYSTEM TO SOLVE VIA SVD
   */
-  twoPi.keydbs.dbs      = makeDBList(global, db2ptIniInfo, &tempKey2Pi);
-  twoPi.keydbs.keys     = makeKeyList(tempKey2Pi);
-  twoPf.keydbs.dbs      = makeDBList(global, db2ptFinInfo, &tempKey2Pf);
-  twoPf.keydbs.keys     = makeKeyList(tempKey2Pf);
-  twoPtRest.keydbs.dbs  = makeDBList(global, db2ptRestInfo, &tempKeyRest);
-  twoPtRest.keydbs.keys = makeKeyList(tempKeyRest);
-
-
-  /*
-    Access and store all 2pt functions
-  */
-  // std::vector<NCOR::corrEquivalence> twoPtIni(1), twoPtFin(1);
-  prop_t * propsIni = new prop_t(global.cfgs,temporal2ptIni,tempKey2Pi);
-  propsIni->npt = 2;
-
-#if 0
-  std::cout << propsIni->cfgs << " " << propsIni->npt << " " << propsIni->Nt << " " << propsIni->gamma << " " << std::endl;
-  std::cout << propsIni->key << std::endl;
-  std::cout << propsIni->domain.min << " " << propsIni->domain.step << " " << propsIni->domain.max << " "<< propsIni->domain.numT() << std::endl;
-  exit(90);
-#endif
-
-  
-  NCOR::correlator twoPtIni(*propsIni);
-  delete propsIni;
-
-  prop_t * propsFin = new prop_t(global.cfgs,temporal2ptFin,tempKey2Pf);
-  propsFin->npt = 2;
-  NCOR::correlator twoPtFin(*propsFin);
-  delete propsFin;
-
-  prop_t * props = new prop_t(global.cfgs,temporal2ptRest,tempKeyRest);
-  props->npt = 2;
-  NCOR::correlator rest2pt(*props);
-  delete props;
-
-
-#ifdef HAVE_DISPLIST_2PT
-#warning "Using getCorrs to read 2pt correlators"
-  twoPtIni = getCorrs(twoPi.keydbs.dbs,twoPi.keydbs.keys);
-  twoPtFin = getCorrs(twoPf.keydbs.dbs,twoPf.keydbs.keys);
-#else
-#warning ">>>>>>>>>>>  2pt correlators constructed w/o disp_list  -->  reverting to ascii reader"
-  std::ifstream inFile;
-  
-  for ( auto k = twoPi.keydbs.keys.begin(); k != twoPi.keydbs.keys.end(); ++k )
-    Reads2pt(inFile, twoPtIni, db2ptIniInfo, &(*k) );
-  for ( auto k = twoPf.keydbs.keys.begin(); k != twoPf.keydbs.keys.end(); ++k )
-    Reads2pt(inFile, twoPtFin, db2ptFinInfo, &(*k) );
-  for ( auto k = twoPtRest.keydbs.keys.begin(); k != twoPtRest.keydbs.keys.end(); ++k )
-      Reads2pt(inFile, rest2pt, db2ptRestInfo, &(*k) );
-#endif
-
-
-
-  twoPtIni.jackknife(); twoPtFin.jackknife(); rest2pt.jackknife();
-  twoPtIni.ensAvg();    twoPtFin.ensAvg();    rest2pt.ensAvg();
-  twoPtIni.Cov();       twoPtFin.Cov();       rest2pt.Cov();
-
-
-  // LinAlg::printMat(twoPtFin.cov.dat["real"]);
-  // LinAlg::printMat(twoPtFin.cov.inv["real"]);
-
-
-  // Get the fit info for ini/fin 2pts & 3pt
-  NCOR::fitInfo_t twoPtRestFitInfo, twoPtFinFitInfo, twoPtIniFitInfo, threePtFitInfo;
-  read(xmlSR, "/PGITD/fitting/twoPtFin", twoPtFinFitInfo);
-  read(xmlSR, "/PGITD/fitting/twoPtIni", twoPtIniFitInfo);
-  read(xmlSR, "/PGITD/fitting/twoPtRest", twoPtRestFitInfo);
-  read(xmlSR, "/PGITD/fitting/threePt", threePtFitInfo);
-
-  // Parse the strParamValMaps
-  twoPtFinFitInfo.parseParamMaps();
-  twoPtIniFitInfo.parseParamMaps();
-  twoPtRestFitInfo.parseParamMaps();
-  threePtFitInfo.parseParamMaps();
-
-  // To set up fit properly, pass the correlator's data covariance
-  // Submatrix of covariance is internally grabbed, and its inverse computed
-  twoPtFin.fit = NCOR::fitFunc_t(twoPtFinFitInfo,twoPtFin.cov.dat,temporal2ptFin);
-  twoPtIni.fit = NCOR::fitFunc_t(twoPtIniFitInfo,twoPtIni.cov.dat,temporal2ptIni);
-  rest2pt.fit = NCOR::fitFunc_t(twoPtRestFitInfo,rest2pt.cov.dat,temporal2ptRest);
-
-  // Fire up the fits
-  std::vector<std::string> components(2);
-  components[0] = "real"; components[1] = "imag";
-  NFIT::driver(&twoPtFin, components[0], true); fitResW(&twoPtFin, components[0]);
-  NFIT::driver(&twoPtIni, components[0], true); fitResW(&twoPtIni, components[0]);
-  NFIT::driver(&rest2pt, components[0], true);  fitResW(&rest2pt, components[0]);
-
-
-  writeCorr(&twoPtFin);
-  writeCorr(&twoPtIni);
-  writeCorr(&rest2pt);
-
-  /*
-    Do some checks of 2pt functions
-  */
-#if 0
-  std::cout << "2pt INI KEYS" << std::endl; dumpKeys(twoPi.keydbs.keys,2);
-  std::cout << "2pt FIN KEYS" << std::endl; dumpKeys(twoPf.keydbs.keys,2);
-  parseCheck(twoPtIni); std::cout << "\n";
-  parseCheck(twoPtFin); std::cout << "\n";
-  exit(9);
-#endif
-
-
-  /*
-    Do some checks of the 2pt fit results
-  */
-#if 0
-  std::cout << "PARAMS FOR 2PT INI:" << std::endl;
-  for ( auto i = twoPtIni.res.params.begin(); i != twoPtIni.res.params.end(); ++i )
-    {
-      std::cout << "    " << i->first << " : ";
-      for ( auto p = i->second.begin(); p != i->second.end(); ++p )
-	{
-	  std::cout << *p << " ";
-	}
-      std::cout << "\n";
-    }
-
-  std::cout << "PARAMS FOR 2PT FIN:" << std::endl;
-  for ( auto i = twoPtFin.res.params.begin(); i != twoPtFin.res.params.end(); ++i )
-    {
-      std::cout << "    " << i->first << " : ";
-      for ( auto p = i->second.begin(); p != i->second.end(); ++p )
-        {
-	  std::cout << *p << " ";
-        }
-      std::cout << "\n";
-    }
-
-  std::cout << "PARAMS FOR 2PT REST:" << std::endl;
-  for ( auto i = rest2pt.res.params.begin(); i != rest2pt.res.params.end(); ++i )
-    {
-      std::cout << "    " << i->first << " : ";
-      for ( auto p = i->second.begin(); p != i->second.end(); ++p )
-        {
-	  std::cout << *p << " ";
-        }
-      std::cout << "\n";
-    }
-  std::cout << "REST chi2: " << std::endl;
-  for ( auto c = rest2pt.res.chi2.begin(); c != rest2pt.res.chi2.end(); ++c )
-    std::cout << *c << " ";
-  std::cout << "\n";
-#endif
-
-
-  // Global properties
+  const int GPD_RANK               = 8;                            // # AMPLITUDES EXTRACTED
+  const int NUM_PFPI               = global.pf.size();             // # (PF,PI) TO SIMULTANEOUSLY CONSIDER
+  const int NUM_CURRENTS           = global.ins.cont_names.size(); // # CURRENTS PER (PF,PI)
 #if ROWONE
-  const int NUM_MATS           = 3;
-  const int MATS_PER_INSERTION = 1; 
+  const int NUM_ROWS_PER_INSERTION = 1;
 #elif DIAGMATS
-  const int NUM_MATS           = 6;
-  const int MATS_PER_INSERTION = 2;
+  const int NUM_ROWS_PER_INSERTION = 2;
 #else
-  const int NUM_MATS           = 12;
-  const int MATS_PER_INSERTION = 4;
+  const int NUM_ROWS_PER_INSERTION = 4;
 #endif
+  const int NUM_MATS = NUM_PFPI*NUM_CURRENTS*NUM_ROWS_PER_INSERTION;
   // const int NUM_MATS = 8;
   // const int MATS_PER_INSERTION = 4;
-  const int GPD_RANK           = 8;
-
-  const std::vector<int> DISP  = shortZ(global.disp_list);
-
-
-  // Collect AvgP & Delta per jackknife sample to form correct lin.comb. of amps that project onto H & E
-  std::vector<std::vector<double> > collectAvgP(global.cfgs,std::vector<double>(4,0.0));
-  std::vector<std::vector<double> > collectDelta(global.cfgs,std::vector<double>(4,0.0));
-
-
-  std::vector<Eigen::Matrix<std::complex<double>, NUM_MATS, 1> > MAT(global.cfgs);
-  std::vector<kinMatGPD_t> KIN(global.cfgs,
-  			       kinMatGPD_t(global.ins.cont_names.size()*MATS_PER_INSERTION,
-					   GPD_RANK, current::VECTOR, DISP));
-
-  for ( auto k = KIN.begin(); k != KIN.end(); ++k )
-    {
-      int j = std::distance(KIN.begin(),k);
-      
-      /*
-	03/08/2023: try passing energies dictated by dispersion relation
-      */
-      double dispersionEf = sqrt( pow(rest2pt.res.params["E0"][j],2) + pow(2*PI/global.Lx,2)*(global.pf*global.pf) );
-      double dispersionEi = sqrt( pow(rest2pt.res.params["E0"][j],2) + pow(2*PI/global.Lx,2)*(global.pi*global.pi) );
-
-      double Ef = twoPtFin.res.params["E0"][j];
-      double Ei = twoPtIni.res.params["E0"][j];
-      // double Ef = dispersionEf;
-      // double Ei = dispersionEi;
-
-      // Initialize the final/initial state spinors for this jackknife sample
-      Spinor finSpin(tempKey2Pf.npoint[1].irrep.op.ops[1].name,
-		     global.pf,Ef,rest2pt.res.params["E0"][j],global.Lx);
-      Spinor iniSpin(tempKey2Pi.npoint[1].irrep.op.ops[1].name,
-		     global.pi,Ei,rest2pt.res.params["E0"][j],global.Lx);
-      // Build the spinors
-      finSpin.buildSpinors();
-      iniSpin.buildSpinors();
-
-
-
-
-      // Constant MASS variable for convenience
-      const double MASS = rest2pt.res.params["E0"][j];
-
-
-      // Init kinematic matrices for each of \gamma_4, \gamma_1, \gamma_2
-      kinMatGPD_t GPD_4(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,4,DISP);
-      kinMatGPD_t GPD_1(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,1,DISP);
-      kinMatGPD_t GPD_2(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,2,DISP);
-      kinMatGPD_t GPD_3(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,3,DISP);
-      // Assemble the kinematic matrices
-      GPD_4.assemble(true,MASS,&finSpin,&iniSpin);
-      GPD_1.assemble(true,MASS,&finSpin,&iniSpin);
-      GPD_2.assemble(true,MASS,&finSpin,&iniSpin);
-      GPD_3.assemble(true,MASS,&finSpin,&iniSpin);
-
-
-      // Hold avgP and Delta per config - for building actual amplitudes that project onto H/E
-      collectAvgP[j][0] = 0.5*(finSpin.getPhysMom()[0] + iniSpin.getPhysMom()[0]);
-      collectAvgP[j][1] = 0.5*(finSpin.getPhysMom()[1] + iniSpin.getPhysMom()[1]);
-      collectAvgP[j][2] = 0.5*(finSpin.getPhysMom()[2] + iniSpin.getPhysMom()[2]);
-      collectAvgP[j][3] = 0.5*(finSpin.getE() + iniSpin.getE());
-      collectDelta[j][0] = (finSpin.getPhysMom()[0] - iniSpin.getPhysMom()[0]);
-      collectDelta[j][1] = (finSpin.getPhysMom()[1] - iniSpin.getPhysMom()[1]);
-      collectDelta[j][2] = (finSpin.getPhysMom()[2] - iniSpin.getPhysMom()[2]);
-      collectDelta[j][3] = (finSpin.getE() - iniSpin.getE());
-
-      
-      // Concatenate GPD_4,1,2 matrices into one large one for SVD
-      Eigen::MatrixXcd GPD(global.ins.cont_names.size()*MATS_PER_INSERTION, GPD_RANK);
-
-
-      // if ( global.ins.cont_names.begin()->first == "b_b0xDA__J0_A1pP" )
-      // 	for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
-      // if ( global.ins.cont_names.begin()->first == "gamma_x" )
-      // 	for ( int i = 0; i < GPD_1.mat.rows(); ++i ) GPD.row(i) << GPD_1.mat.row(i);
-      // if ( global.ins.cont_names.begin()->first == "gamma_y" )
-      // 	for ( int i = 0; i < GPD_2.mat.rows(); ++i ) GPD.row(i) << GPD_2.mat.row(i);
-      // if ( global.ins.cont_names.begin()->first == "gamma_z" )
-      // 	for ( int i = 0; i < GPD_3.mat.rows(); ++i ) GPD.row(i) << GPD_3.mat.row(i);
-
-
-      // for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
-      // for ( int i = MATS_PER_INSERTION; i < 2*MATS_PER_INSERTION; ++i )
-      // 	GPD.row(i) << GPD_2.mat.row(i-MATS_PER_INSERTION);
-
-      
-
-      // Push GPD_4.mat, GPD_1.mat, GPD_2.mat into GPD
-      for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
-      for ( int i = MATS_PER_INSERTION; i < 2*MATS_PER_INSERTION; ++i )
-      	GPD.row(i) << GPD_1.mat.row(i-MATS_PER_INSERTION);
-      for ( int i = 2*MATS_PER_INSERTION; i < 3*MATS_PER_INSERTION; ++i )
-      	GPD.row(i) << GPD_2.mat.row(i-2*MATS_PER_INSERTION);
-      // for ( int i = 3*MATS_PER_INSERTION; i < 4*MATS_PER_INSERTION; ++i )
-      // 	GPD.row(i) << GPD_3.mat.row(i-3*MATS_PER_INSERTION);
-      
-
-
-      std::cout << "FINAL GPD = " << GPD << std::endl;
-      getSVs(&GPD);
-      getSingVecs(&GPD);
-
-      
-      // Fill KIN matrix for this jackknife sample
-      k->mat = GPD;
-
-    }
-  std::vector<Eigen::Matrix<std::complex<double>, GPD_RANK, 1> > AMP(global.cfgs);
-
-
-
-
-  /*
-    Map the snk/src row combinations to a given element of correlator column vector
-  */
-  std::map<std::pair<int,int>, int> matIDX;
-  std::pair<int,int> rfri;
   
-#if ROWONE
-  rfri = std::make_pair(1,1); matIDX[rfri] = 0;
-#elif DIAGMATS
-  rfri = std::make_pair(1,1); matIDX[rfri] = 0;
-  rfri = std::make_pair(2,2); matIDX[rfri] = 1;
-#else
-  rfri = std::make_pair(1,1); matIDX[rfri] = 0;
-  rfri = std::make_pair(1,2); matIDX[rfri] = 1;
-  rfri = std::make_pair(2,1); matIDX[rfri] = 2;
-  rfri = std::make_pair(2,2); matIDX[rfri] = 3;
-#endif
-
-
+  // std::vector<Eigen::Matrix<std::complex<double>, NUM_MATS, 1> > MAT(global.cfgs);
+  // std::vector<Eigen::MatrixXcd(NUM_MATS,1)> MAT(global.cfgs);
+  std::vector<Eigen::MatrixXcd> MAT(global.cfgs,Eigen::MatrixXcd(NUM_MATS,1));
+  std::vector<Eigen::Matrix<std::complex<double>, GPD_RANK, 1> > AMP(global.cfgs);
+  const std::vector<int> DISP  = shortZ(global.disp_list);
+  
   /*
-    How each current should be organized into "MAT"
+    SPECIFY HOW COLLECTION OF (PF,PI), GAMMAS, AND ROWS ARE ASSEMBLED
   */
+  // How each current is organized for a fixed (pf,pi)
   std::unordered_map<std::string, int> currentInMATOrder =
     {
 #if ROWONE
@@ -1371,283 +1038,613 @@ int main(int argc, char *argv[])
       // { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 4 }, { "gamma_y", 8 }, { "gamma_z", 12 }
 #endif
     };
-
-  // std::unordered_map<std::string, int> currentInMATOrder
-  //   = { {  global.ins.cont_names.begin()->first, 0 } };
-  // std::unordered_map<std::string, int> currentInMATOrder
-  //   = { { "b_b0xDA__J0_A1pP", 0 }, { "gamma_y", 4 } };
-
-
-  /*
-    Loop over inserted operators
-        -> formed summed ratios
-	-> fit summed ratios and pack into 'MAT'
-  */
-  for ( auto OP = funcs3pt.begin(); OP != funcs3pt.end(); ++OP )
-    {
-      /*
-	For this inserted operator, loop over all equivalent 3pt functions
-	    --> diff. rows, but kinematically the same
-      */
-      for ( std::vector<NCOR::corrEquivalence>::iterator tsepItr = OP->second.begin();
-	    tsepItr != OP->second.end(); ++tsepItr )
-	{
-	  // Convenience
-	  int rowf = tsepItr->keyCorrMap.begin()->first.npoint[1].irrep.irrep_mom.row;
-	  int rowi = tsepItr->keyCorrMap.begin()->first.npoint[3].irrep.irrep_mom.row;
+  // How rows are organized for a fixed (pf,pi,gamma) 
+  std::map<std::pair<int,int>, int> matIDX;
 #if ROWONE
-	  if ( rowf != 1 || rowi != 1 ) continue;
+  matIDX[std::make_pair(1,1)] = 0;
 #elif DIAGMATS
-	  if ( rowf != rowi ) continue;
+  matIDX[std::make_pair(1,1)] = 0; matIDX[std::make_pair(2,2)] = 1;
+#else
+  matIDX[std::make_pair(1,1)] = 0; matIDX[std::make_pair(1,2)] = 1;
+  matIDX[std::make_pair(2,1)] = 2; matIDX[std::make_pair(2,2)] = 3;
 #endif
-
-      
-	  /*
-	    For each correlator stored in each corrEquivalence,
-	    divide by 2pt function at same tsep
-	    Done per jackknife ensemble average
-	    Bias corrected after making ratio
-	    
-	    Sum up operator insertion time slice
-	  */
-	  std::vector<NCOR::correlator> ratio(nTSeps); // nTseps correlators of same rows/kinematics
-	  for ( auto it = tsepItr->keyCorrMap.begin(); it != tsepItr->keyCorrMap.end(); ++it )
-	    {
-	      // tsepItr->keyCorrMap is not ordered by tsep yet --> form an index to store in ascending order
-	      int idx = (it->first.npoint[1].t_slice - temporal3pt.min)/temporal3pt.step;
-	      // Local copy of this tsep
-	      const int TSEP = it->first.npoint[1].t_slice;
-	      
-	      
-	      // Init this ratio --> REMEMBER, 3PTS HAVE TSLICES\IN[0,TSEP)
-	      Pseudo::domain_t * d = new Pseudo::domain_t(0,1,it->first.npoint[1].t_slice-1);
-	      prop_t * props = new prop_t(global.cfgs, *d, it->first);
-	      props->npt     = 3;
-// #warning "Fix old chromaGamma member!"
-// 	      props->gamma   = -1; //global.chromaGamma;
-	      
-	      
-	      // Now construct a new ratio
-	      ratio[idx] = NCOR::correlator(*props, it->second.ensemble);
-	      
-	      // Jackknife this ratio so 3pt/2pt ratio can be formed
-	      ratio[idx].jackknife();
-	      // ratio[idx].ensAvg();
-	      
-	      
-	      // Loop over insertion times for this 3pt TSEP
-	      for ( auto tau = ratio[idx].ensemble.T.begin(); tau != ratio[idx].ensemble.T.end(); ++tau )
-		{
-		  // Loop over the jackknife ensemble averages
-		  // ratio[idx] is for fixed T with tau varying
-		  for ( int j = 0; j < global.cfgs; ++j )
-		    {
-		      // ratio[idx].ensemble.ens[j][*tau] =
-		      // 	( ratio[idx].jack[j].avg[*tau] / twoPtFin.jack[j].avg[TSEP].real() )
-		      // 	* sqrt(( twoPtIni.jack[j].avg[TSEP-*tau].real() * twoPtFin.jack[j].avg[*tau].real()
-		      // 		 * twoPtFin.jack[j].avg[TSEP].real() )/
-		      // 	       ( twoPtFin.jack[j].avg[TSEP-*tau].real() * twoPtIni.jack[j].avg[*tau].real()
-		      // 		 * twoPtIni.jack[j].avg[TSEP].real() ));
-
-		      ratio[idx].ensemble.ens[j][*tau] =
-			( ratio[idx].jack[j].avg[*tau] / twoPtFin.jack[j].avg[TSEP] )
-			* sqrt(( twoPtIni.jack[j].avg[TSEP-*tau] * twoPtFin.jack[j].avg[*tau]
-				 * twoPtFin.jack[j].avg[TSEP] )/
-			       ( twoPtFin.jack[j].avg[TSEP-*tau] * twoPtIni.jack[j].avg[*tau]
-				 * twoPtIni.jack[j].avg[TSEP] ));
-		    } // j
-		} // tau
-	      
-	      
-	      
-	      // Include standard kinematic prefactors arising in forming optimized 3pt/2pt ratio
-	      for ( int j = 0; j < global.cfgs; ++j )
-		{
-		  std::complex<double> commonKin(sqrt(4*twoPtFin.res.params["E0"][j]*twoPtIni.res.params["E0"][j]), 0.0);
-		  
-		  // Remove common kinematic factor & 1/\sqrt(2) from isovector current normalization
-		  ratio[idx].ensemble.ens[j] *= (redFact*commonKin);
-		} // j
-	      
-	      
-	      // Get ensemble avg so bias removal can proceed
-	      ratio[idx].ensAvg();
-#if 1
-	      std::cout << "**************" << std::endl;
-	      std::cout << "Ratio ens avg" << std::endl;
-	      std::cout << ratio[idx] << std::endl;
-	      std::cout << "**************" << std::endl;
-#endif
-	      // Correct for bias in forming ratio
-	      ratio[idx].removeBias();
-	      
-	      
-	      // Summation of operator insertion
-	      ratio[idx].summation();
-	      
-	      delete d;
-	      delete props;
-	    } // it
-      
-
-	  // Map the summed ratio data into correlator instance 'SR'
-	  // --> so covariance/fitting members can be used
-	  prop_t * xprops = new prop_t(global.cfgs, temporal3pt, ratio[0].key());
-	  xprops->npt     = 3;
-// #warning "Fix old chromaGamma member!"
-// 	  xprops->gamma   = -1 ; //global.chromaGamma;
-
-
-	  // Construct the single correlator instance 'SR'
-	  // ---> this will be fit
-	  NCOR::correlator SR(*xprops);
-	  
-	  for ( auto rptr = ratio.begin(); rptr != ratio.end(); ++rptr )
-	    {
-	      int ridx = std::distance(ratio.begin(), rptr);
-	      for ( auto gg = rptr->ensemble.ens.begin(); gg != rptr->ensemble.ens.end(); ++gg )
-		{
-		  int gdx = std::distance(rptr->ensemble.ens.begin(), gg);
-		  SR.ensemble.ens[gdx][ridx] = (*gg)[0];
-		} // gg
-	    } // rptr
-	  /*
-	    Now SR has been constructed
-	  */
-
-      
-	  
-	  /*
-	    Perform linear fit to this summed ratio 'SR'
-	    --> exposes matrix element that will be fed into SVD to extract amplitudes
-	  */
-	  SR.jackknife();
-	  SR.ensAvg();
-	  
-#if 1
-	  std::cout << "With key = " << SR.key() << " ..." << std::endl;
-	  std::cout << SR << std::endl;
-#endif
-#if 1
-	  
-	  // Make data covariance and initialize fit
-	  SR.Cov();
-	  SR.fit = NCOR::fitFunc_t(threePtFitInfo,SR.cov.dat,temporal3pt);
-	  
-	  writeCorr(&SR);
-	  /*
-	    Do the linear fits -- for both real/imag components
-	  */
-	  for ( auto f = components.begin(); f != components.end(); ++f )
-	    {
-	      NFIT::driver(&SR, *f, false);
-	      
-	      // Write out the fit results
-	      fitResW(&SR, *f);
-	      
-	      
-	      // Pipe fit results foreach jackknife sample into appropriate entry of MAT
-	      for ( int g = 0; g < global.cfgs; ++g )
-		{
-		  std::pair<int,int> lookUp = std::make_pair(rowf,rowi);
-		  if ( *f == "real" )
-		    MAT[g](matIDX[lookUp] + currentInMATOrder[OP->first]).real(SR.res.params["b"][g]);
-		  if ( *f == "imag" )
-		    MAT[g](matIDX[lookUp] + currentInMATOrder[OP->first]).imag(SR.res.params["b"][g]);
-		}
-	      
-	      // Destroy the stored fits values since they've been written
-	      SR.res.chi2.clear(); SR.res.params.clear();
-	    }
-#endif
-	  delete xprops;
-	  
-	} // tsepItr
-
-    } // funcs3pt iterator
-
-
-      /*
-	Now have summed ratios for inserted operators and src/snk row combinations
-      */
-
-
-  /*
-    Convenience for building two amplitudes that project onto H & E GPDs
-  */
   
 
 
-  // With MAT populated per jackknife ensemble avg
-  // Do the SVD per jackknife ensemble avg to extract amplitudes
-  extAmplitudes(&MAT,&KIN,&AMP);
-  std::cout << "What do these solutions look like?\n";
-  std::cout << "We have " << AMP.size() << " amplitudes" << std::endl;
-  // Put AMP results into a VectorXcd so writeAmplitudes can be reused - GPD_RANK + 2 to include two derived amplitudes that are correct combos we want
-  std::vector<Eigen::VectorXcd> finalAMP(global.cfgs,Eigen::VectorXcd(GPD_RANK+2));
-  for ( auto itr = AMP.begin(); itr != AMP.end(); ++itr )
+
+
+  /*
+    PROCESS FIT INFORMATION FOR ALL 2PTS & 3PT
+  */
+  // Get the fit info for ini/fin 2pts & 3pt
+  NCOR::fitInfo_t twoPtRestFitInfo, twoPtFinFitInfo, twoPtIniFitInfo, threePtFitInfo;
+  read(xmlSR, "/PGITD/fitting/twoPtFin", twoPtFinFitInfo);
+  read(xmlSR, "/PGITD/fitting/twoPtIni", twoPtIniFitInfo);
+  read(xmlSR, "/PGITD/fitting/twoPtRest", twoPtRestFitInfo);
+  read(xmlSR, "/PGITD/fitting/threePt", threePtFitInfo);
+  // Parse the strParamValMaps
+  twoPtFinFitInfo.parseParamMaps();
+  twoPtIniFitInfo.parseParamMaps();
+  twoPtRestFitInfo.parseParamMaps();
+  threePtFitInfo.parseParamMaps();
+  //*****************************************************************************************
+
+
+  /*
+    STANDARD 2PT REST FRAME STUFF
+  */
+  // Assuming same general structure for a template 2pt rest key as tempKey2Pi
+  K tempKeyRest; tempKeyRest.npoint.resize(2);
+  tempKeyRest.npoint[1].irrep.op.ops[1].name = "NucleonMG1g1MxD0J0S_J1o2_G1g1";
+  tempKeyRest.npoint[1].irrep.irrep_mom.mom = global.rest;
+  tempKeyRest.npoint[1].irrep.op.ops[1].mom_type = global.rest;
+  tempKeyRest.npoint[2] = tempKeyRest.npoint[1];
+  tempKeyRest.npoint[1].t_slice = -2;
+  tempKeyRest.npoint[2].t_slice = 0;
+  std::cout << tempKeyRest << std::endl;
+
+  twoPtRest.keydbs.dbs  = makeDBList(global, db2ptRestInfo, &tempKeyRest);
+  twoPtRest.keydbs.keys = makeKeyList(tempKeyRest);
+
+  prop_t * props = new prop_t(global.cfgs,temporal2ptRest,tempKeyRest);
+  props->npt = 2;
+  NCOR::correlator rest2pt(*props);
+  delete props;
+
+  /*
+    ACCESS 2PT REST FRAME - IF FIT RESULTS EXIST, READ THEM AND SKIP READING DBS & FITTING
+  */
+  if ( ! readCorrFitResH5(&rest2pt,"corr2pt-FitRes.h5") )
+  // if ( ! rest2pt.fitExists )
     {
-      int idx = std::distance(AMP.begin(), itr);
+      for ( auto k = twoPtRest.keydbs.keys.begin(); k != twoPtRest.keydbs.keys.end(); ++k )
+	Reads2pt(inFile, rest2pt, db2ptRestInfo, &(*k) );
 
-      // Compute z\dot\Delta, z\dotP
-      double zDotDelta(0.0), zDotAvgP(0.0);
-      double zDotDeltaOverZDotAvgP = (-1.0*collectDelta[idx][2])/(-1.0*collectAvgP[idx][2]);
-      std::vector<int> disp(DISP); disp.push_back(0); // z^4 = 0 --> No time-like Wilson lines!
-      for ( int mu = 1; mu <=4; ++mu )
-	{
-	  for ( int nu = 1; nu <=4; ++nu )
-	    {
-	      zDotAvgP  += collectAvgP[idx][mu-1]*disp[nu-1]*metric(mu%4,nu%4);
-	      zDotDelta += collectDelta[idx][mu-1]*disp[nu-1]*metric(mu%4,nu%4);
-	    }
-	}
-      // Done computing z\dot\Delta, z\dotP
-      // ------------------------------------------
+      rest2pt.jackknife();  rest2pt.ensAvg();  rest2pt.Cov();
+      // Pass correlator data covariance to set up fit
+      // submatrix of covariance grabbed internally & inverse computed
+      rest2pt.fit = NCOR::fitFunc_t(twoPtRestFitInfo,rest2pt.cov.dat,temporal2ptRest);
 
-      for ( auto amp = 0; amp < itr->size(); ++amp )
-	{
-	  if ( amp < 8 )
-	    {
-	      std::cout << "A" << amp+1 << " = "  << (*itr)(amp) << "    ";
-	      finalAMP[idx](amp) = (*itr)(amp);
-	    }
-	}
-
-      // G1 = A1 + (z\dot\Delta)/(2z\dot P)*A5
-      finalAMP[idx](8) = (*itr)(0) + 0.5*zDotDeltaOverZDotAvgP*(*itr)(4);
-      std::cout << "G1 = "  <<  finalAMP[idx](8) << "    ";
-
-      // G1 = A4 - (z\dot\Delta)/(2z\dot P)*A5 + (z\dot P)*A6 + (z\dot\Delta)*A7
-      finalAMP[idx](9) = (*itr)(3) - 0.5*zDotDeltaOverZDotAvgP*(*itr)(4) + zDotAvgP*(*itr)(5) + zDotDelta*(*itr)(6);
-      std::cout << "G2 = "  <<  finalAMP[idx](9) << "    ";
-	    
-      std::cout << "\n";
+      NFIT::driver(&rest2pt, "real", true);  fitResW(&rest2pt, "real");
+      writeCorr(&rest2pt);
     }
-  std::cout << "\n";
-
-  std::cout << "This was the MAT[g=348] = ";
-  for ( int i = 0; i < NUM_MATS; ++i )
-    std::cout << MAT[348](i) << " ";
-  std::cout << "\n";
-
-  // // Put AMP results into a VectorXcd so writeAmplitudes can be reused
-  // std::vector<Eigen::VectorXcd> finalAMP(global.cfgs,Eigen::VectorXcd(4));
-  // for ( auto itr = AMP.begin(); itr != AMP.end(); ++itr )
+  // else
   //   {
-  //     int idx = std::distance(AMP.begin(),itr);
-
-  //     finalAMP[idx](0) = (*itr)(0);
-  //     finalAMP[idx](1) = (*itr)(1);
-  //     finalAMP[idx](2) = (*itr)(2);
-  //     finalAMP[idx](3) = (*itr)(3);
+  //     readCorrFitResH5(&rest2pt,"corr2pt-FitRes.h5");
   //   }
+  std::cout << "Whoop" << std::endl;
+  exit(10);
+  //************************************************************************************************
+  
+
+//   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//   /// MASSIVE LOOP OVER EACH (PF,PI) COMBINATION - EACH SUCCESSIVELY PROCESSED AND STACKED INTO SVD PROCEDURE ///
+//   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  
+//   for ( int _MOM = 0; _MOM < g.pf.size(); ++_MOM )
+//     {
+//       // Convenience
+//       const XMLArray::Array<int> _PF = g.pf[_MOM];
+//       const XMLArray::Array<int> _PI = g.pi[_MOM];
+
+//       // Template 2pt stuff
+//       K tempKey2Pf, tempKey2Pi;
+//       tempKey2Pf.npoint.resize(2); tempKey2Pi.npoint.resize(2);
+//       for ( int i = 1; i <= 2; ++i )
+// 	{
+// 	  tempKey2Pf.npoint[i] = tempKey3pt[0].npoint[1];
+// 	  tempKey2Pi.npoint[i] = tempKey3pt[0].npoint[3];
+// 	}
+//       tempKey2Pf.npoint[1].t_slice = tempKey2Pi.npoint[1].t_slice = -2;
+//       tempKey2Pf.npoint[2].t_slice = tempKey2Pi.npoint[2].t_slice = 0;
+      
+      
+      
+//       std::cout << tempKey2Pf << std::endl;
+//       std::cout << tempKey2Pi << std::endl;
+      
+      
+  
+//   /*
+//     NOW LOAD THE 2PT FUNCTIONS
+//   */
+//   twoPi.keydbs.dbs      = makeDBList(global, db2ptIniInfo, &tempKey2Pi);
+//   twoPi.keydbs.keys     = makeKeyList(tempKey2Pi);
+//   twoPf.keydbs.dbs      = makeDBList(global, db2ptFinInfo, &tempKey2Pf);
+//   twoPf.keydbs.keys     = makeKeyList(tempKey2Pf);
+  
 
 
-#if 1
-  // Write the extracted amplitudes to h5
-  // -->clunky way to pass displacement
-  writeAmplitudes(&finalAMP,&global,&threePtFitInfo,&global.disp_list);
-#endif
+//   /*
+//     Access and store all 2pt functions
+//   */
+//   // std::vector<NCOR::corrEquivalence> twoPtIni(1), twoPtFin(1);
+//   prop_t * propsIni = new prop_t(global.cfgs,temporal2ptIni,tempKey2Pi);
+//   propsIni->npt = 2;  
+//   NCOR::correlator twoPtIni(*propsIni);
+//   delete propsIni;
+
+//   prop_t * propsFin = new prop_t(global.cfgs,temporal2ptFin,tempKey2Pf);
+//   propsFin->npt = 2;
+//   NCOR::correlator twoPtFin(*propsFin);
+//   delete propsFin;
+
+
+
+
+// #ifdef HAVE_DISPLIST_2PT
+// #warning "Using getCorrs to read 2pt correlators"
+//   twoPtIni = getCorrs(twoPi.keydbs.dbs,twoPi.keydbs.keys);
+//   twoPtFin = getCorrs(twoPf.keydbs.dbs,twoPf.keydbs.keys);
+// #else
+// #warning ">>>>>>>>>>>  2pt correlators constructed w/o disp_list  -->  reverting to ascii reader"
+//   std::ifstream inFile;
+  
+//   for ( auto k = twoPi.keydbs.keys.begin(); k != twoPi.keydbs.keys.end(); ++k )
+//     Reads2pt(inFile, twoPtIni, db2ptIniInfo, &(*k) );
+//   for ( auto k = twoPf.keydbs.keys.begin(); k != twoPf.keydbs.keys.end(); ++k )
+//     Reads2pt(inFile, twoPtFin, db2ptFinInfo, &(*k) );
+
+// #endif
+
+
+
+//   twoPtIni.jackknife(); twoPtFin.jackknife(); 
+//   twoPtIni.ensAvg();    twoPtFin.ensAvg();    
+//   twoPtIni.Cov();       twoPtFin.Cov();       
+
+
+
+  
+
+//   // To set up fit properly, pass the correlator's data covariance
+//   // Submatrix of covariance is internally grabbed, and its inverse computed
+//   twoPtFin.fit = NCOR::fitFunc_t(twoPtFinFitInfo,twoPtFin.cov.dat,temporal2ptFin);
+//   twoPtIni.fit = NCOR::fitFunc_t(twoPtIniFitInfo,twoPtIni.cov.dat,temporal2ptIni);
+  
+
+//   // Fire up the fits
+//   std::vector<std::string> components(2);
+//   components[0] = "real"; components[1] = "imag";
+//   NFIT::driver(&twoPtFin, components[0], true); fitResW(&twoPtFin, components[0]);
+//   NFIT::driver(&twoPtIni, components[0], true); fitResW(&twoPtIni, components[0]);
+  
+
+
+//   writeCorr(&twoPtFin);
+//   writeCorr(&twoPtIni);
+
+
+//   /*
+//     Do some checks of 2pt functions
+//   */
+// #if 0
+//   std::cout << "2pt INI KEYS" << std::endl; dumpKeys(twoPi.keydbs.keys,2);
+//   std::cout << "2pt FIN KEYS" << std::endl; dumpKeys(twoPf.keydbs.keys,2);
+//   parseCheck(twoPtIni); std::cout << "\n";
+//   parseCheck(twoPtFin); std::cout << "\n";
+//   exit(9);
+// #endif
+
+
+//   /*
+//     Do some checks of the 2pt fit results
+//   */
+// #if 0
+//   std::cout << "PARAMS FOR 2PT INI:" << std::endl;
+//   for ( auto i = twoPtIni.res.params.begin(); i != twoPtIni.res.params.end(); ++i )
+//     {
+//       std::cout << "    " << i->first << " : ";
+//       for ( auto p = i->second.begin(); p != i->second.end(); ++p )
+// 	{
+// 	  std::cout << *p << " ";
+// 	}
+//       std::cout << "\n";
+//     }
+
+//   std::cout << "PARAMS FOR 2PT FIN:" << std::endl;
+//   for ( auto i = twoPtFin.res.params.begin(); i != twoPtFin.res.params.end(); ++i )
+//     {
+//       std::cout << "    " << i->first << " : ";
+//       for ( auto p = i->second.begin(); p != i->second.end(); ++p )
+//         {
+// 	  std::cout << *p << " ";
+//         }
+//       std::cout << "\n";
+//     }
+
+//   std::cout << "PARAMS FOR 2PT REST:" << std::endl;
+//   for ( auto i = rest2pt.res.params.begin(); i != rest2pt.res.params.end(); ++i )
+//     {
+//       std::cout << "    " << i->first << " : ";
+//       for ( auto p = i->second.begin(); p != i->second.end(); ++p )
+//         {
+// 	  std::cout << *p << " ";
+//         }
+//       std::cout << "\n";
+//     }
+//   std::cout << "REST chi2: " << std::endl;
+//   for ( auto c = rest2pt.res.chi2.begin(); c != rest2pt.res.chi2.end(); ++c )
+//     std::cout << *c << " ";
+//   std::cout << "\n";
+// #endif
+
+
+
+
+//   // Collect AvgP & Delta per jackknife sample to form correct lin.comb. of amps that project onto H & E
+//   std::vector<std::vector<double> > collectAvgP(global.cfgs,std::vector<double>(4,0.0));
+//   std::vector<std::vector<double> > collectDelta(global.cfgs,std::vector<double>(4,0.0));
+
+
+  
+//   std::vector<kinMatGPD_t> KIN(global.cfgs,
+//   			       kinMatGPD_t(global.ins.cont_names.size()*MATS_PER_INSERTION,
+// 					   GPD_RANK, current::VECTOR, DISP));
+
+//   for ( auto k = KIN.begin(); k != KIN.end(); ++k )
+//     {
+//       int j = std::distance(KIN.begin(),k);
+      
+//       /*
+// 	03/08/2023: try passing energies dictated by dispersion relation
+//       */
+//       double dispersionEf = sqrt( pow(rest2pt.res.params["E0"][j],2) + pow(2*PI/global.Lx,2)*(global.pf*global.pf) );
+//       double dispersionEi = sqrt( pow(rest2pt.res.params["E0"][j],2) + pow(2*PI/global.Lx,2)*(global.pi*global.pi) );
+
+//       double Ef = twoPtFin.res.params["E0"][j];
+//       double Ei = twoPtIni.res.params["E0"][j];
+//       // double Ef = dispersionEf;
+//       // double Ei = dispersionEi;
+
+//       // Initialize the final/initial state spinors for this jackknife sample
+//       Spinor finSpin(tempKey2Pf.npoint[1].irrep.op.ops[1].name,
+// 		     global.pf,Ef,rest2pt.res.params["E0"][j],global.Lx);
+//       Spinor iniSpin(tempKey2Pi.npoint[1].irrep.op.ops[1].name,
+// 		     global.pi,Ei,rest2pt.res.params["E0"][j],global.Lx);
+//       // Build the spinors
+//       finSpin.buildSpinors();
+//       iniSpin.buildSpinors();
+
+
+
+
+//       // Constant MASS variable for convenience
+//       const double MASS = rest2pt.res.params["E0"][j];
+
+
+//       // Init kinematic matrices for each of \gamma_4, \gamma_1, \gamma_2
+//       kinMatGPD_t GPD_4(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,4,DISP);
+//       kinMatGPD_t GPD_1(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,1,DISP);
+//       kinMatGPD_t GPD_2(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,2,DISP);
+//       kinMatGPD_t GPD_3(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,3,DISP);
+//       // Assemble the kinematic matrices
+//       GPD_4.assemble(true,MASS,&finSpin,&iniSpin);
+//       GPD_1.assemble(true,MASS,&finSpin,&iniSpin);
+//       GPD_2.assemble(true,MASS,&finSpin,&iniSpin);
+//       GPD_3.assemble(true,MASS,&finSpin,&iniSpin);
+
+
+//       // Hold avgP and Delta per config - for building actual amplitudes that project onto H/E
+//       collectAvgP[j][0] = 0.5*(finSpin.getPhysMom()[0] + iniSpin.getPhysMom()[0]);
+//       collectAvgP[j][1] = 0.5*(finSpin.getPhysMom()[1] + iniSpin.getPhysMom()[1]);
+//       collectAvgP[j][2] = 0.5*(finSpin.getPhysMom()[2] + iniSpin.getPhysMom()[2]);
+//       collectAvgP[j][3] = 0.5*(finSpin.getE() + iniSpin.getE());
+//       collectDelta[j][0] = (finSpin.getPhysMom()[0] - iniSpin.getPhysMom()[0]);
+//       collectDelta[j][1] = (finSpin.getPhysMom()[1] - iniSpin.getPhysMom()[1]);
+//       collectDelta[j][2] = (finSpin.getPhysMom()[2] - iniSpin.getPhysMom()[2]);
+//       collectDelta[j][3] = (finSpin.getE() - iniSpin.getE());
+
+      
+//       // Concatenate GPD_4,1,2 matrices into one large one for SVD
+//       Eigen::MatrixXcd GPD(global.ins.cont_names.size()*MATS_PER_INSERTION, GPD_RANK);
+
+
+//       // if ( global.ins.cont_names.begin()->first == "b_b0xDA__J0_A1pP" )
+//       // 	for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
+//       // if ( global.ins.cont_names.begin()->first == "gamma_x" )
+//       // 	for ( int i = 0; i < GPD_1.mat.rows(); ++i ) GPD.row(i) << GPD_1.mat.row(i);
+//       // if ( global.ins.cont_names.begin()->first == "gamma_y" )
+//       // 	for ( int i = 0; i < GPD_2.mat.rows(); ++i ) GPD.row(i) << GPD_2.mat.row(i);
+//       // if ( global.ins.cont_names.begin()->first == "gamma_z" )
+//       // 	for ( int i = 0; i < GPD_3.mat.rows(); ++i ) GPD.row(i) << GPD_3.mat.row(i);
+
+
+//       // for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
+//       // for ( int i = MATS_PER_INSERTION; i < 2*MATS_PER_INSERTION; ++i )
+//       // 	GPD.row(i) << GPD_2.mat.row(i-MATS_PER_INSERTION);
+
+      
+
+//       // Push GPD_4.mat, GPD_1.mat, GPD_2.mat into GPD
+//       for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
+//       for ( int i = MATS_PER_INSERTION; i < 2*MATS_PER_INSERTION; ++i )
+//       	GPD.row(i) << GPD_1.mat.row(i-MATS_PER_INSERTION);
+//       for ( int i = 2*MATS_PER_INSERTION; i < 3*MATS_PER_INSERTION; ++i )
+//       	GPD.row(i) << GPD_2.mat.row(i-2*MATS_PER_INSERTION);
+//       // for ( int i = 3*MATS_PER_INSERTION; i < 4*MATS_PER_INSERTION; ++i )
+//       // 	GPD.row(i) << GPD_3.mat.row(i-3*MATS_PER_INSERTION);
+      
+
+
+//       std::cout << "FINAL GPD = " << GPD << std::endl;
+//       getSVs(&GPD);
+//       getSingVecs(&GPD);
+
+      
+//       // Fill KIN matrix for this jackknife sample
+//       k->mat = GPD;
+//     }
+  
+  
+//    } // MOM
+//   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+  
+//   /*
+//     Loop over inserted operators
+//         -> formed summed ratios
+// 	-> fit summed ratios and pack into 'MAT'
+//   */
+//   for ( auto OP = funcs3pt.begin(); OP != funcs3pt.end(); ++OP )
+//     {
+//       /*
+// 	For this inserted operator, loop over all equivalent 3pt functions
+// 	    --> diff. rows, but kinematically the same
+//       */
+//       for ( std::vector<NCOR::corrEquivalence>::iterator tsepItr = OP->second.begin();
+// 	    tsepItr != OP->second.end(); ++tsepItr )
+// 	{
+// 	  // Convenience
+// 	  int rowf = tsepItr->keyCorrMap.begin()->first.npoint[1].irrep.irrep_mom.row;
+// 	  int rowi = tsepItr->keyCorrMap.begin()->first.npoint[3].irrep.irrep_mom.row;
+// #if ROWONE
+// 	  if ( rowf != 1 || rowi != 1 ) continue;
+// #elif DIAGMATS
+// 	  if ( rowf != rowi ) continue;
+// #endif
+
+      
+// 	  /*
+// 	    For each correlator stored in each corrEquivalence,
+// 	    divide by 2pt function at same tsep
+// 	    Done per jackknife ensemble average
+// 	    Bias corrected after making ratio
+	    
+// 	    Sum up operator insertion time slice
+// 	  */
+// 	  std::vector<NCOR::correlator> ratio(nTSeps); // nTseps correlators of same rows/kinematics
+// 	  for ( auto it = tsepItr->keyCorrMap.begin(); it != tsepItr->keyCorrMap.end(); ++it )
+// 	    {
+// 	      // tsepItr->keyCorrMap is not ordered by tsep yet --> form an index to store in ascending order
+// 	      int idx = (it->first.npoint[1].t_slice - temporal3pt.min)/temporal3pt.step;
+// 	      // Local copy of this tsep
+// 	      const int TSEP = it->first.npoint[1].t_slice;
+	      
+	      
+// 	      // Init this ratio --> REMEMBER, 3PTS HAVE TSLICES\IN[0,TSEP)
+// 	      Pseudo::domain_t * d = new Pseudo::domain_t(0,1,it->first.npoint[1].t_slice-1);
+// 	      prop_t * props = new prop_t(global.cfgs, *d, it->first);
+// 	      props->npt     = 3;
+// // #warning "Fix old chromaGamma member!"
+// // 	      props->gamma   = -1; //global.chromaGamma;
+	      
+	      
+// 	      // Now construct a new ratio
+// 	      ratio[idx] = NCOR::correlator(*props, it->second.ensemble);
+	      
+// 	      // Jackknife this ratio so 3pt/2pt ratio can be formed
+// 	      ratio[idx].jackknife();
+// 	      // ratio[idx].ensAvg();
+	      
+	      
+// 	      // Loop over insertion times for this 3pt TSEP
+// 	      for ( auto tau = ratio[idx].ensemble.T.begin(); tau != ratio[idx].ensemble.T.end(); ++tau )
+// 		{
+// 		  // Loop over the jackknife ensemble averages
+// 		  // ratio[idx] is for fixed T with tau varying
+// 		  for ( int j = 0; j < global.cfgs; ++j )
+// 		    {
+// 		      // ratio[idx].ensemble.ens[j][*tau] =
+// 		      // 	( ratio[idx].jack[j].avg[*tau] / twoPtFin.jack[j].avg[TSEP].real() )
+// 		      // 	* sqrt(( twoPtIni.jack[j].avg[TSEP-*tau].real() * twoPtFin.jack[j].avg[*tau].real()
+// 		      // 		 * twoPtFin.jack[j].avg[TSEP].real() )/
+// 		      // 	       ( twoPtFin.jack[j].avg[TSEP-*tau].real() * twoPtIni.jack[j].avg[*tau].real()
+// 		      // 		 * twoPtIni.jack[j].avg[TSEP].real() ));
+
+// 		      ratio[idx].ensemble.ens[j][*tau] =
+// 			( ratio[idx].jack[j].avg[*tau] / twoPtFin.jack[j].avg[TSEP] )
+// 			* sqrt(( twoPtIni.jack[j].avg[TSEP-*tau] * twoPtFin.jack[j].avg[*tau]
+// 				 * twoPtFin.jack[j].avg[TSEP] )/
+// 			       ( twoPtFin.jack[j].avg[TSEP-*tau] * twoPtIni.jack[j].avg[*tau]
+// 				 * twoPtIni.jack[j].avg[TSEP] ));
+// 		    } // j
+// 		} // tau
+	      
+	      
+	      
+// 	      // Include standard kinematic prefactors arising in forming optimized 3pt/2pt ratio
+// 	      for ( int j = 0; j < global.cfgs; ++j )
+// 		{
+// 		  std::complex<double> commonKin(sqrt(4*twoPtFin.res.params["E0"][j]*twoPtIni.res.params["E0"][j]), 0.0);
+		  
+// 		  // Remove common kinematic factor & 1/\sqrt(2) from isovector current normalization
+// 		  ratio[idx].ensemble.ens[j] *= (redFact*commonKin);
+// 		} // j
+	      
+	      
+// 	      // Get ensemble avg so bias removal can proceed
+// 	      ratio[idx].ensAvg();
+// #if 1
+// 	      std::cout << "**************" << std::endl;
+// 	      std::cout << "Ratio ens avg" << std::endl;
+// 	      std::cout << ratio[idx] << std::endl;
+// 	      std::cout << "**************" << std::endl;
+// #endif
+// 	      // Correct for bias in forming ratio
+// 	      ratio[idx].removeBias();
+	      
+	      
+// 	      // Summation of operator insertion
+// 	      ratio[idx].summation();
+	      
+// 	      delete d;
+// 	      delete props;
+// 	    } // it
+      
+
+// 	  // Map the summed ratio data into correlator instance 'SR'
+// 	  // --> so covariance/fitting members can be used
+// 	  prop_t * xprops = new prop_t(global.cfgs, temporal3pt, ratio[0].key());
+// 	  xprops->npt     = 3;
+// // #warning "Fix old chromaGamma member!"
+// // 	  xprops->gamma   = -1 ; //global.chromaGamma;
+
+
+// 	  // Construct the single correlator instance 'SR'
+// 	  // ---> this will be fit
+// 	  NCOR::correlator SR(*xprops);
+	  
+// 	  for ( auto rptr = ratio.begin(); rptr != ratio.end(); ++rptr )
+// 	    {
+// 	      int ridx = std::distance(ratio.begin(), rptr);
+// 	      for ( auto gg = rptr->ensemble.ens.begin(); gg != rptr->ensemble.ens.end(); ++gg )
+// 		{
+// 		  int gdx = std::distance(rptr->ensemble.ens.begin(), gg);
+// 		  SR.ensemble.ens[gdx][ridx] = (*gg)[0];
+// 		} // gg
+// 	    } // rptr
+// 	  /*
+// 	    Now SR has been constructed
+// 	  */
+
+      
+	  
+// 	  /*
+// 	    Perform linear fit to this summed ratio 'SR'
+// 	    --> exposes matrix element that will be fed into SVD to extract amplitudes
+// 	  */
+// 	  SR.jackknife();
+// 	  SR.ensAvg();
+	  
+// #if 1
+// 	  std::cout << "With key = " << SR.key() << " ..." << std::endl;
+// 	  std::cout << SR << std::endl;
+// #endif
+// #if 1
+	  
+// 	  // Make data covariance and initialize fit
+// 	  SR.Cov();
+// 	  SR.fit = NCOR::fitFunc_t(threePtFitInfo,SR.cov.dat,temporal3pt);
+	  
+// 	  writeCorr(&SR);
+// 	  /*
+// 	    Do the linear fits -- for both real/imag components
+// 	  */
+// 	  for ( auto f = components.begin(); f != components.end(); ++f )
+// 	    {
+// 	      NFIT::driver(&SR, *f, false);
+	      
+// 	      // Write out the fit results
+// 	      fitResW(&SR, *f);
+	      
+	      
+// 	      // Pipe fit results foreach jackknife sample into appropriate entry of MAT
+// 	      for ( int g = 0; g < global.cfgs; ++g )
+// 		{
+// 		  std::pair<int,int> lookUp = std::make_pair(rowf,rowi);
+// 		  if ( *f == "real" )
+// 		    MAT[g](matIDX[lookUp] + currentInMATOrder[OP->first]).real(SR.res.params["b"][g]);
+// 		  if ( *f == "imag" )
+// 		    MAT[g](matIDX[lookUp] + currentInMATOrder[OP->first]).imag(SR.res.params["b"][g]);
+// 		}
+	      
+// 	      // Destroy the stored fits values since they've been written
+// 	      SR.res.chi2.clear(); SR.res.params.clear();
+// 	    }
+// #endif
+// 	  delete xprops;
+	  
+// 	} // tsepItr
+
+//     } // funcs3pt iterator
+
+
+//       /*
+// 	Now have summed ratios for inserted operators and src/snk row combinations
+//       */
+
+
+//   /*
+//     Convenience for building two amplitudes that project onto H & E GPDs
+//   */
+  
+
+
+//   // With MAT populated per jackknife ensemble avg
+//   // Do the SVD per jackknife ensemble avg to extract amplitudes
+//   extAmplitudes(&MAT,&KIN,&AMP);
+//   std::cout << "What do these solutions look like?\n";
+//   std::cout << "We have " << AMP.size() << " amplitudes" << std::endl;
+//   // Put AMP results into a VectorXcd so writeAmplitudes can be reused - GPD_RANK + 2 to include two derived amplitudes that are correct combos we want
+//   std::vector<Eigen::VectorXcd> finalAMP(global.cfgs,Eigen::VectorXcd(GPD_RANK+2));
+//   for ( auto itr = AMP.begin(); itr != AMP.end(); ++itr )
+//     {
+//       int idx = std::distance(AMP.begin(), itr);
+
+//       // Compute z\dot\Delta, z\dotP
+//       double zDotDelta(0.0), zDotAvgP(0.0);
+//       double zDotDeltaOverZDotAvgP = (-1.0*collectDelta[idx][2])/(-1.0*collectAvgP[idx][2]);
+//       std::vector<int> disp(DISP); disp.push_back(0); // z^4 = 0 --> No time-like Wilson lines!
+//       for ( int mu = 1; mu <=4; ++mu )
+// 	{
+// 	  for ( int nu = 1; nu <=4; ++nu )
+// 	    {
+// 	      zDotAvgP  += collectAvgP[idx][mu-1]*disp[nu-1]*metric(mu%4,nu%4);
+// 	      zDotDelta += collectDelta[idx][mu-1]*disp[nu-1]*metric(mu%4,nu%4);
+// 	    }
+// 	}
+//       // Done computing z\dot\Delta, z\dotP
+//       // ------------------------------------------
+
+//       for ( auto amp = 0; amp < itr->size(); ++amp )
+// 	{
+// 	  if ( amp < 8 )
+// 	    {
+// 	      std::cout << "A" << amp+1 << " = "  << (*itr)(amp) << "    ";
+// 	      finalAMP[idx](amp) = (*itr)(amp);
+// 	    }
+// 	}
+
+//       // G1 = A1 + (z\dot\Delta)/(2z\dot P)*A5
+//       finalAMP[idx](8) = (*itr)(0) + 0.5*zDotDeltaOverZDotAvgP*(*itr)(4);
+//       std::cout << "G1 = "  <<  finalAMP[idx](8) << "    ";
+
+//       // G1 = A4 - (z\dot\Delta)/(2z\dot P)*A5 + (z\dot P)*A6 + (z\dot\Delta)*A7
+//       finalAMP[idx](9) = (*itr)(3) - 0.5*zDotDeltaOverZDotAvgP*(*itr)(4) + zDotAvgP*(*itr)(5) + zDotDelta*(*itr)(6);
+//       std::cout << "G2 = "  <<  finalAMP[idx](9) << "    ";
+	    
+//       std::cout << "\n";
+//     }
+//   std::cout << "\n";
+
+//   std::cout << "This was the MAT[g=348] = ";
+//   for ( int i = 0; i < NUM_MATS; ++i )
+//     std::cout << MAT[348](i) << " ";
+//   std::cout << "\n";
+
+
+
+// #if 1
+//   // Write the extracted amplitudes to h5
+//   // -->clunky way to pass displacement
+//   writeAmplitudes(&finalAMP,&global,&threePtFitInfo,&global.disp_list);
+// #endif
 
   return 0;
 }

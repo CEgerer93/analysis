@@ -579,10 +579,9 @@ namespace NCOR
   /*
     H5 Support
   */
-  void H5Read(char *inH5, correlator *c, int gauge_configs, int zmin, int zmax, int pmin,
-              int pmax, std::string dTypeName);
-
   void writeCorr(correlator *c);
+  
+  void readCorrFitResH5(correlator *c);
 
   void fitResW(correlator *c, std::string& comp); /* const char *comp); */
 

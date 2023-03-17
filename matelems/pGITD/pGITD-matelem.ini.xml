@@ -71,8 +71,20 @@
     <Lt>64</Lt>
     <Lx>32</Lx>
     <rest>0 0 0</rest> <!-- lazy me -->
-    <pf>XPFX</pf>
-    <pi>XPIX</pi>
+    <pfpi>
+      <pf>
+	<elem>0 1 1</elem>
+	<elem>1 0 1</elem>
+	<elem>0 1 -1</elem>
+	<elem>1 0 -1</elem>
+      </pf>
+      <pi>
+	<elem>0 0 1</elem>
+	<elem>0 0 1</elem>
+	<elem>0 0 -1</elem>
+	<elem>0 0 -1</elem>
+      </pi>
+    </pfpi>
     <disp_list>DISP</disp_list>
     <dispNegate>false</dispNegate>
     <momNegate>false</momNegate> <!-- When forming keys/dbs, include those w/ opposite parity momenta from {pf,pi} -->
