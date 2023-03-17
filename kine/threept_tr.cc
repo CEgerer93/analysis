@@ -606,10 +606,11 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 
   // Difference four-momentum
   XMLArray::Array<double> Rmu(4);
+  Rmu[3] = ini->getE() - fin->getE();
   Rmu[0] = ini->getPhysMom()[0] - fin->getPhysMom()[0];
   Rmu[1] = ini->getPhysMom()[1] - fin->getPhysMom()[1];
   Rmu[2] = ini->getPhysMom()[2] - fin->getPhysMom()[2];
-  Rmu[3] = ini->getE() - fin->getE();
+  
 
   // Convenient disp
   std::vector<int> zmu(disp);
@@ -725,9 +726,26 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 #endif
 
 #ifdef MYDECOMP2
-#warning "\n*******************USING ABSOLUTE SPINORS FOR MYDECOMP2\n"
-      res = ugu.eval(&(fin->absolute.twoJz[r->second.first]),
-		     &(ini->absolute.twoJz[r->second.second]));
+#warning "\n*******************USING SUBDUCED SPINORS FOR MYDECOMP2\n"
+      std::complex<double> sigZDelta(0.0,0.0);
+      for ( int a = 1; a <= 4; ++a )
+	{
+	  for ( int b = 1; b <= 4; ++b )
+	    {
+	      utu_t sig(a,b,MINK);
+	      res = sig.eval(&(fin->subduced.twoJz[r->second.first]),
+			     &(ini->subduced.twoJz[r->second.second]));
+
+	      for ( int rho = 1; rho <= 4; ++rho )
+		{
+		  for ( int lambda = 1; lambda <= 4; ++lambda )
+		    sigZDelta -= res*metric(a%4,rho%4)*zmu[rho-1]*metric(b%4,lambda%4)*Rmu[lambda-1];
+		} // rho
+	    } // b 
+	} // a
+      
+      res = ugu.eval(&(fin->subduced.twoJz[r->second.first]),
+		     &(ini->subduced.twoJz[r->second.second]));
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	          UBAR' \GAMMA_MU U
@@ -751,8 +769,8 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
       for ( int nu = 1; nu <= 4; ++nu )
 	{
 	  utu_t sig(mu,nu,MINK);
-	  res = sig.eval(&(fin->absolute.twoJz[r->second.first]),
-			 &(ini->absolute.twoJz[r->second.second]));
+	  res = sig.eval(&(fin->subduced.twoJz[r->second.first]),
+			 &(ini->subduced.twoJz[r->second.second]));
 	  for ( int rho = 1; rho <= 4; ++rho )
 	    sigMuZ += res*zmu[rho-1]*metric(nu%4,rho%4);
 	} // nu
@@ -773,8 +791,8 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
       for ( int nu = 1; nu <= 4; ++nu )
 	{
 	  utu_t sig(mu,nu,MINK);
-	  res = sig.eval(&(fin->absolute.twoJz[r->second.first]),
-			 &(ini->absolute.twoJz[r->second.second]));
+	  res = sig.eval(&(fin->subduced.twoJz[r->second.first]),
+			 &(ini->subduced.twoJz[r->second.second]));
 	  for ( int rho = 1; rho <= 4; ++rho )
 	    sigMuDelta -= res*Rmu[rho-1]*metric(nu%4,rho%4);
 	} // nu
@@ -784,31 +802,49 @@ void contractHandler::vectorContract(int mu, bool MINK, double mass, Spinor *fin
 	          R^MU/2M  UBAR' U
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-#if 0
+#if 1
 #warning "************** Intentionally NOT killing A5 term for z = 0 tests!************** "
-      mat(r->first,4) = zeroFuzz( (Rmu[mu-1]/(2*mass))*ubaru );
+      mat(r->first,4) = zeroFuzz( -1.0*(Rmu[mu-1]/(2*mass))*ubaru );
 #else
 #warning "************** Intentionally killing A5 term for z = 0 tests!************** "
       mat(r->first,4) = _ZERO_;
 #endif
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-	 {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * (P'+P)^MU/2
+	 I/2M * UBAR' \SIGMA^{\RHO\LAMBDA} Z_\RHO DELTA_\LAMBDA U * (P'+P)^\MU
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      mat(r->first,5) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*avgP[mu-1]);
+      mat(r->first,5) = zeroFuzz((_I_/(2*mass))*sigZDelta*avgP[mu-1]);
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * R^MU
+	 I/2M * UBAR' \SIGMA^{\RHO\LAMBDA} Z_\RHO DELTA_\LAMBDA U * DELTA^\MU
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      mat(r->first,6) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*Rmu[mu-1]);
+      mat(r->first,6) = zeroFuzz((_I_/(2*mass))*sigZDelta*-1.0*Rmu[mu-1]);
       /*
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * Z^MU
+	   I/2M * UBAR' \SIGMA^{\RHO\LAMBDA} Z_\RHO DELTA_\LAMBDA U * Z^\MU
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       */
-      mat(r->first,7) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*zmu[mu-1]);
+      mat(r->first,7) = zeroFuzz((_I_/(2*mass))*sigZDelta*zmu[mu-1]);
+      // /*
+      // 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      // 	 {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * (P'+P)^MU/2
+      // 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      // */
+      // mat(r->first,5) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*avgP[mu-1]);
+      // /*
+      // 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      //       {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * R^MU
+      // 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      // */
+      // mat(r->first,6) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*Rmu[mu-1]);
+      // /*
+      // 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      //       {  [ (P'+P)\cdot Z / 2M ] UBAR' U  -  UBAR' ZSLASH U } * Z^MU
+      // 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      // */
+      // mat(r->first,7) = zeroFuzz(((avgPDotZ/mass)*ubaru - ubarZSlashU)*zmu[mu-1]);
 #endif
 
 #ifdef ARDECOMP
@@ -1807,12 +1843,18 @@ void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 6, 1> > * MAT
 		   std::vector<kinMatGPD_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP)
 #else
-void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
-		   std::vector<kinMatGPD_t> * KIN,
-		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP)
-// void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 12, 1> > * MAT,
+// void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
 // 		   std::vector<kinMatGPD_t> * KIN,
 // 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP)
+// void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
+// 		   std::vector<kinMatGPD_t> * KIN,
+// 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP)
+// void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * MAT,
+// 		   std::vector<kinMatGPD_t> * KIN,
+// 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP)
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 12, 1> > * MAT,
+		   std::vector<kinMatGPD_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP)
 #endif
 {
   for ( auto a = AMP->begin(); a != AMP->end(); ++a )
