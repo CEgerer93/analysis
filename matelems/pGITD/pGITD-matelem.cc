@@ -136,11 +136,34 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
 	      exit(1);
 	    }
 
+	  // If inserted operator name is 'gamma_z' then need another rho_rhoxDA__J1_T1mP
+	  if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_z" )
+	    {
+	      ADATIO::SerialDBKey<K> rhoOpRow = *k;
+	      std::vector<ADATIO::SerialDBData<V> > rhoDatRow2Fetch;
 
+	      rhoOpRow.key().npoint[2].irrep.op.ops[1].name = "rho_rhoxDA__J1_T1mP";
+	      rhoOpRow.key().npoint[2].irrep.irrep_mom.row  = 2;
+
+	      ret = database.get(rhoOpRow,rhoDatRow2Fetch);
+
+	      for ( int g = 0; g < rhoDatRow2Fetch.size(); ++g )
+		{
+		  std::vector<std::complex<double> > foo;
+		  foo = rhoDatRow2Fetch[g].data();
+		  // foo *= _I_;
+		  foo *= -1.0;
+
+		  ADATIO::SerialDBData<V> fooDBData;
+		  fooDBData.data() = foo;
+
+		  dataFetch[cnt].push_back(fooDBData);
+		}
+	    }
 	  // If inserted operator name is 'gamma_x' or 'gamma_y' then linear combinations
 	  // ..of rho_rhoxDA__J1_T1mP are needed
-	  if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_x" ||
-	       k->key().npoint[2].irrep.op.ops[1].name == "gamma_y" )
+	  else if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_x" ||
+		    k->key().npoint[2].irrep.op.ops[1].name == "gamma_y" )
 	    {
 	      
 	      ADATIO::SerialDBKey<K> rhoOpRow = *k;
@@ -164,37 +187,11 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
 		  std::vector<std::complex<double> > foo;
 		  if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_x" )
 		    {
-		      // /*
-		      // 	i \times polvec \cdot \gamma
-		      //  */
-		      // foo = rhoDatRow1Fetch[g].data() - rhoDatRow3Fetch[g].data();
-		      // foo *= (_I_/sqrt(2));
-		      /*
-			polvec \cdot \gamma
-		       */
-		      // foo = rhoDatRow3Fetch[g].data() - rhoDatRow1Fetch[g].data();
-		      // foo *= (1/sqrt(2));
-		      /*
-			dagger polvec \cdot \gamma^\dagger (Euc. gammas hermitian)
-		      */
-		      foo = rhoDatRow3Fetch[g].data() - rhoDatRow1Fetch[g].data();
-		      foo *= (1/sqrt(2));
+		      foo = rhoDatRow1Fetch[g].data() - rhoDatRow3Fetch[g].data();
+		      foo *= (1.0/sqrt(2));
 		    }
 		  if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_y" )
 		    {
-		      /*
-			i \times polvec \cdot \gamma
-		       */
-		      // foo = rhoDatRow1Fetch[g].data() + rhoDatRow3Fetch[g].data();
-		      // foo *= (1/sqrt(2));
-		      /*
-			polvec \cdot \gamma
-		       */
-		      // foo = rhoDatRow1Fetch[g].data() + rhoDatRow3Fetch[g].data();
-		      // foo *= (_I_/sqrt(2));
-		      /*
-			dagger polvec \cdot \gamma^\dagger (Euc. gammas hermitian)
-		      */
 		      foo = rhoDatRow1Fetch[g].data() + rhoDatRow3Fetch[g].data();
 		      foo *= (_mI_/sqrt(2));
 		    }
@@ -205,12 +202,6 @@ getCorrs(const std::vector<std::string>& dbases, std::vector<Hadron::KeyHadronSU
 		  dataFetch[cnt].push_back(fooDBData);
 		}
 #endif
-
-	      // // Linear Combination
-	      // if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_x" ) // i/sqrt(2) missing
-	      // 	dataFetch[cnt] = (rhoDatRow1Fetch.data() - rhoDatRow3Fetch.data());
-	      // if ( k->key().npoint[2].irrep.op.ops[1].name == "gamma_y" )
-	      // 	dataFetch[cnt] = (rhoDatRow1Fetch.data() + rhoDatRow3Fetch.data());
 	    }
 	  else
 	    {
@@ -993,6 +984,7 @@ int main(int argc, char *argv[])
   std::cout << "...........3pt Correlators   ---   SUCCESS!" << std::endl;
 
 
+
   /*
     Do some checks of the three-pt functions
   */
@@ -1164,7 +1156,6 @@ int main(int argc, char *argv[])
   writeCorr(&twoPtIni);
   writeCorr(&rest2pt);
 
-
   /*
     Do some checks of 2pt functions
   */
@@ -1221,97 +1212,57 @@ int main(int argc, char *argv[])
 
 
   // Global properties
-// #if ROWONE
-//   const int NUM_MATS           = 3;
-//   const int MATS_PER_INSERTION = 1; 
-// #elif DIAGMATS
-//   const int NUM_MATS           = 6;
-//   const int MATS_PER_INSERTION = 2;
-// #else
-//   const int NUM_MATS           = 12;
-//   const int MATS_PER_INSERTION = 4;
-// #endif
-  const int NUM_MATS = 4;
+#if ROWONE
+  const int NUM_MATS           = 3;
+  const int MATS_PER_INSERTION = 1; 
+#elif DIAGMATS
+  const int NUM_MATS           = 6;
+  const int MATS_PER_INSERTION = 2;
+#else
+  const int NUM_MATS           = 12;
   const int MATS_PER_INSERTION = 4;
+#endif
+  // const int NUM_MATS = 8;
+  // const int MATS_PER_INSERTION = 4;
   const int GPD_RANK           = 8;
 
   const std::vector<int> DISP  = shortZ(global.disp_list);
 
 
+  // Collect AvgP & Delta per jackknife sample to form correct lin.comb. of amps that project onto H & E
+  std::vector<std::vector<double> > collectAvgP(global.cfgs,std::vector<double>(4,0.0));
+  std::vector<std::vector<double> > collectDelta(global.cfgs,std::vector<double>(4,0.0));
 
 
   std::vector<Eigen::Matrix<std::complex<double>, NUM_MATS, 1> > MAT(global.cfgs);
   std::vector<kinMatGPD_t> KIN(global.cfgs,
-  			       kinMatGPD_t(MATS_PER_INSERTION, GPD_RANK, current::VECTOR, DISP));
-  // std::vector<kinMatGPD_t> KIN(global.cfgs,
-  // 			       kinMatGPD_t(3*MATS_PER_INSERTION, GPD_RANK, current::VECTOR, DISP));
+  			       kinMatGPD_t(global.ins.cont_names.size()*MATS_PER_INSERTION,
+					   GPD_RANK, current::VECTOR, DISP));
+
   for ( auto k = KIN.begin(); k != KIN.end(); ++k )
     {
       int j = std::distance(KIN.begin(),k);
       
+      /*
+	03/08/2023: try passing energies dictated by dispersion relation
+      */
+      double dispersionEf = sqrt( pow(rest2pt.res.params["E0"][j],2) + pow(2*PI/global.Lx,2)*(global.pf*global.pf) );
+      double dispersionEi = sqrt( pow(rest2pt.res.params["E0"][j],2) + pow(2*PI/global.Lx,2)*(global.pi*global.pi) );
+
+      double Ef = twoPtFin.res.params["E0"][j];
+      double Ei = twoPtIni.res.params["E0"][j];
+      // double Ef = dispersionEf;
+      // double Ei = dispersionEi;
+
       // Initialize the final/initial state spinors for this jackknife sample
       Spinor finSpin(tempKey2Pf.npoint[1].irrep.op.ops[1].name,
-		     global.pf,twoPtFin.res.params["E0"][j],rest2pt.res.params["E0"][j],global.Lx);
+		     global.pf,Ef,rest2pt.res.params["E0"][j],global.Lx);
       Spinor iniSpin(tempKey2Pi.npoint[1].irrep.op.ops[1].name,
-		     global.pi,twoPtIni.res.params["E0"][j],rest2pt.res.params["E0"][j],global.Lx);
+		     global.pi,Ei,rest2pt.res.params["E0"][j],global.Lx);
       // Build the spinors
       finSpin.buildSpinors();
       iniSpin.buildSpinors();
-#if 0
-#warning "Some test!"
-      u1u_t idCHECK(true);
 
-      std::cout << "ID[11]" << idCHECK.eval(&finSpin.subduced.twoJz[1],
-					    &iniSpin.subduced.twoJz[1]) << std::endl;
-      std::cout << "ID[12]" << idCHECK.eval(&finSpin.subduced.twoJz[1],
-					    &iniSpin.subduced.twoJz[-1]) << std::endl;
-      std::cout << "ID[21]" << idCHECK.eval(&finSpin.subduced.twoJz[-1],
-					    &iniSpin.subduced.twoJz[1]) << std::endl;
-      std::cout << "ID[22]" << idCHECK.eval(&finSpin.subduced.twoJz[-1],
-					    &iniSpin.subduced.twoJz[-1]) << std::endl;
-
-      ugu_t G4(4,true);
-      std::cout << "G4[11]" << G4.eval(&finSpin.subduced.twoJz[1],
-				      &iniSpin.subduced.twoJz[1]) << std::endl;
-      std::cout << "G4[12]" << G4.eval(&finSpin.subduced.twoJz[1],
-				      &iniSpin.subduced.twoJz[-1]) << std::endl;
-      std::cout << "G4[21]" << G4.eval(&finSpin.subduced.twoJz[-1],
-				      &iniSpin.subduced.twoJz[1]) << std::endl;
-      std::cout << "G4[22]" << G4.eval(&finSpin.subduced.twoJz[-1],
-				      &iniSpin.subduced.twoJz[-1]) << std::endl;
-
-
-      ugu_t Gy(2,true);
-      std::cout << "Gy[11]" << Gy.eval(&finSpin.subduced.twoJz[1],
-				       &iniSpin.subduced.twoJz[1]) << std::endl;
-      std::cout << "Gy[12]" << Gy.eval(&finSpin.subduced.twoJz[1],
-				       &iniSpin.subduced.twoJz[-1]) << std::endl;
-      std::cout << "Gy[21]" << Gy.eval(&finSpin.subduced.twoJz[-1],
-				       &iniSpin.subduced.twoJz[1]) << std::endl;
-      std::cout << "Gy[22]" << Gy.eval(&finSpin.subduced.twoJz[-1],
-				       &iniSpin.subduced.twoJz[-1]) << std::endl;
-      
-
-      ugu_t Gz(3,true);
-      std::cout << "Gz[11]" << Gz.eval(&finSpin.subduced.twoJz[1],
-				       &iniSpin.subduced.twoJz[1]) << std::endl;
-      std::cout << "Gz[12]" << Gz.eval(&finSpin.subduced.twoJz[1],
-				       &iniSpin.subduced.twoJz[-1]) << std::endl;
-      std::cout << "Gz[21]" << Gz.eval(&finSpin.subduced.twoJz[-1],
-				       &iniSpin.subduced.twoJz[1]) << std::endl;
-      std::cout << "Gz[22]" << Gz.eval(&finSpin.subduced.twoJz[-1],
-				       &iniSpin.subduced.twoJz[-1]) << std::endl;
-
-      
-      std::cout << "GAMMA4: " << G4.d.gamma << "\n\n" << std::endl;
-      std::cout << "GAMMAY: " << Gy.d.gamma << "\n\n" << std::endl;
-      std::cout << "GAMMAZ: " << Gz.d.gamma << "\n\n" << std::endl;
-
-
-      std::cout << "dE = " << finSpin.getE() - iniSpin.getE() << std::endl;
-      std::cout << "Momentum diff = " << finSpin.getPhysMom() - iniSpin.getPhysMom() << std::endl;
-      exit(10);
-#endif
 
 
 
@@ -1323,30 +1274,55 @@ int main(int argc, char *argv[])
       kinMatGPD_t GPD_4(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,4,DISP);
       kinMatGPD_t GPD_1(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,1,DISP);
       kinMatGPD_t GPD_2(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,2,DISP);
+      kinMatGPD_t GPD_3(MATS_PER_INSERTION,GPD_RANK,current::VECTOR,3,DISP);
       // Assemble the kinematic matrices
-      GPD_4.assemble(false,MASS,&finSpin,&iniSpin);
-      GPD_1.assemble(false,MASS,&finSpin,&iniSpin);
-      GPD_2.assemble(false,MASS,&finSpin,&iniSpin);
+      GPD_4.assemble(true,MASS,&finSpin,&iniSpin);
+      GPD_1.assemble(true,MASS,&finSpin,&iniSpin);
+      GPD_2.assemble(true,MASS,&finSpin,&iniSpin);
+      GPD_3.assemble(true,MASS,&finSpin,&iniSpin);
+
+
+      // Hold avgP and Delta per config - for building actual amplitudes that project onto H/E
+      collectAvgP[j][0] = 0.5*(finSpin.getPhysMom()[0] + iniSpin.getPhysMom()[0]);
+      collectAvgP[j][1] = 0.5*(finSpin.getPhysMom()[1] + iniSpin.getPhysMom()[1]);
+      collectAvgP[j][2] = 0.5*(finSpin.getPhysMom()[2] + iniSpin.getPhysMom()[2]);
+      collectAvgP[j][3] = 0.5*(finSpin.getE() + iniSpin.getE());
+      collectDelta[j][0] = (finSpin.getPhysMom()[0] - iniSpin.getPhysMom()[0]);
+      collectDelta[j][1] = (finSpin.getPhysMom()[1] - iniSpin.getPhysMom()[1]);
+      collectDelta[j][2] = (finSpin.getPhysMom()[2] - iniSpin.getPhysMom()[2]);
+      collectDelta[j][3] = (finSpin.getE() - iniSpin.getE());
 
       
       // Concatenate GPD_4,1,2 matrices into one large one for SVD
-      // Eigen::Matrix<std::complex<double>, 3*MATS_PER_INSERTION, GPD_RANK> GPD;
-      Eigen::MatrixXcd GPD(MATS_PER_INSERTION, GPD_RANK);
-      // Eigen::MatrixXcd GPD(3*MATS_PER_INSERTION, GPD_RANK);
+      Eigen::MatrixXcd GPD(global.ins.cont_names.size()*MATS_PER_INSERTION, GPD_RANK);
 
 
-      // for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
-      for ( int i = 0; i < GPD_1.mat.rows(); ++i ) GPD.row(i) << GPD_1.mat.row(i);
-      // for ( int i = 0; i < GPD_2.mat.rows(); ++i ) GPD.row(i) << GPD_2.mat.row(i);
+      // if ( global.ins.cont_names.begin()->first == "b_b0xDA__J0_A1pP" )
+      // 	for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
+      // if ( global.ins.cont_names.begin()->first == "gamma_x" )
+      // 	for ( int i = 0; i < GPD_1.mat.rows(); ++i ) GPD.row(i) << GPD_1.mat.row(i);
+      // if ( global.ins.cont_names.begin()->first == "gamma_y" )
+      // 	for ( int i = 0; i < GPD_2.mat.rows(); ++i ) GPD.row(i) << GPD_2.mat.row(i);
+      // if ( global.ins.cont_names.begin()->first == "gamma_z" )
+      // 	for ( int i = 0; i < GPD_3.mat.rows(); ++i ) GPD.row(i) << GPD_3.mat.row(i);
 
-      
-      // // Push GPD_4.mat, GPD_1.mat, GPD_2.mat into GPD
+
       // for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
       // for ( int i = MATS_PER_INSERTION; i < 2*MATS_PER_INSERTION; ++i )
-      // 	GPD.row(i) << GPD_1.mat.row(i-MATS_PER_INSERTION);
-      // for ( int i = 2*MATS_PER_INSERTION; i < 3*MATS_PER_INSERTION; ++i )
-      // 	GPD.row(i) << GPD_2.mat.row(i-2*MATS_PER_INSERTION);
+      // 	GPD.row(i) << GPD_2.mat.row(i-MATS_PER_INSERTION);
+
       
+
+      // Push GPD_4.mat, GPD_1.mat, GPD_2.mat into GPD
+      for ( int i = 0; i < GPD_4.mat.rows(); ++i ) GPD.row(i) << GPD_4.mat.row(i);
+      for ( int i = MATS_PER_INSERTION; i < 2*MATS_PER_INSERTION; ++i )
+      	GPD.row(i) << GPD_1.mat.row(i-MATS_PER_INSERTION);
+      for ( int i = 2*MATS_PER_INSERTION; i < 3*MATS_PER_INSERTION; ++i )
+      	GPD.row(i) << GPD_2.mat.row(i-2*MATS_PER_INSERTION);
+      // for ( int i = 3*MATS_PER_INSERTION; i < 4*MATS_PER_INSERTION; ++i )
+      // 	GPD.row(i) << GPD_3.mat.row(i-3*MATS_PER_INSERTION);
+      
+
 
       std::cout << "FINAL GPD = " << GPD << std::endl;
       getSVs(&GPD);
@@ -1384,21 +1360,22 @@ int main(int argc, char *argv[])
   /*
     How each current should be organized into "MAT"
   */
-//   std::unordered_map<std::string, int> currentInMATOrder =
-//     {
-// #if ROWONE
-//       { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 1 }, { "gamma_y", 2 },
-// #elif DIAGMATS
-//       { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 2 }, { "gamma_y", 4 },
-// #else
-//       { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 4 }, { "gamma_y", 8 },
-// #endif
-//     };
+  std::unordered_map<std::string, int> currentInMATOrder =
+    {
+#if ROWONE
+      { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 1 }, { "gamma_y", 2 },
+#elif DIAGMATS
+      { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 2 }, { "gamma_y", 4 },
+#else
+      { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 4 }, { "gamma_y", 8 }
+      // { "b_b0xDA__J0_A1pP", 0 }, { "gamma_x", 4 }, { "gamma_y", 8 }, { "gamma_z", 12 }
+#endif
+    };
 
-  // std::unordered_map<std::string, int> currentInMATOrder = { { "b_b0xDA__J0_A1pP", 0 } };
-  std::unordered_map<std::string, int> currentInMATOrder = { { "gamma_x", 0 } };
-  // std::unordered_map<std::string, int> currentInMATOrder = { { "gamma_y", 0 } };
- 
+  // std::unordered_map<std::string, int> currentInMATOrder
+  //   = { {  global.ins.cont_names.begin()->first, 0 } };
+  // std::unordered_map<std::string, int> currentInMATOrder
+  //   = { { "b_b0xDA__J0_A1pP", 0 }, { "gamma_y", 4 } };
 
 
   /*
@@ -1458,7 +1435,6 @@ int main(int argc, char *argv[])
 	      // ratio[idx].ensAvg();
 	      
 	      
-	      
 	      // Loop over insertion times for this 3pt TSEP
 	      for ( auto tau = ratio[idx].ensemble.T.begin(); tau != ratio[idx].ensemble.T.end(); ++tau )
 		{
@@ -1466,13 +1442,19 @@ int main(int argc, char *argv[])
 		  // ratio[idx] is for fixed T with tau varying
 		  for ( int j = 0; j < global.cfgs; ++j )
 		    {
+		      // ratio[idx].ensemble.ens[j][*tau] =
+		      // 	( ratio[idx].jack[j].avg[*tau] / twoPtFin.jack[j].avg[TSEP].real() )
+		      // 	* sqrt(( twoPtIni.jack[j].avg[TSEP-*tau].real() * twoPtFin.jack[j].avg[*tau].real()
+		      // 		 * twoPtFin.jack[j].avg[TSEP].real() )/
+		      // 	       ( twoPtFin.jack[j].avg[TSEP-*tau].real() * twoPtIni.jack[j].avg[*tau].real()
+		      // 		 * twoPtIni.jack[j].avg[TSEP].real() ));
+
 		      ratio[idx].ensemble.ens[j][*tau] =
-			( ratio[idx].jack[j].avg[*tau] / twoPtFin.jack[j].avg[TSEP].real() )
-			* sqrt(( twoPtIni.jack[j].avg[TSEP-*tau].real() * twoPtFin.jack[j].avg[*tau].real()
-				 * twoPtFin.jack[j].avg[TSEP].real() )/
-			       ( twoPtFin.jack[j].avg[TSEP-*tau].real() * twoPtIni.jack[j].avg[*tau].real()
-				 * twoPtIni.jack[j].avg[TSEP].real() ));
-		      
+			( ratio[idx].jack[j].avg[*tau] / twoPtFin.jack[j].avg[TSEP] )
+			* sqrt(( twoPtIni.jack[j].avg[TSEP-*tau] * twoPtFin.jack[j].avg[*tau]
+				 * twoPtFin.jack[j].avg[TSEP] )/
+			       ( twoPtFin.jack[j].avg[TSEP-*tau] * twoPtIni.jack[j].avg[*tau]
+				 * twoPtIni.jack[j].avg[TSEP] ));
 		    } // j
 		} // tau
 	      
@@ -1590,6 +1572,10 @@ int main(int argc, char *argv[])
       */
 
 
+  /*
+    Convenience for building two amplitudes that project onto H & E GPDs
+  */
+  
 
 
   // With MAT populated per jackknife ensemble avg
@@ -1597,16 +1583,44 @@ int main(int argc, char *argv[])
   extAmplitudes(&MAT,&KIN,&AMP);
   std::cout << "What do these solutions look like?\n";
   std::cout << "We have " << AMP.size() << " amplitudes" << std::endl;
-  // Put AMP results into a VectorXcd so writeAmplitudes can be reused
-  std::vector<Eigen::VectorXcd> finalAMP(global.cfgs,Eigen::VectorXcd(GPD_RANK));
+  // Put AMP results into a VectorXcd so writeAmplitudes can be reused - GPD_RANK + 2 to include two derived amplitudes that are correct combos we want
+  std::vector<Eigen::VectorXcd> finalAMP(global.cfgs,Eigen::VectorXcd(GPD_RANK+2));
   for ( auto itr = AMP.begin(); itr != AMP.end(); ++itr )
     {
       int idx = std::distance(AMP.begin(), itr);
+
+      // Compute z\dot\Delta, z\dotP
+      double zDotDelta(0.0), zDotAvgP(0.0);
+      double zDotDeltaOverZDotAvgP = (-1.0*collectDelta[idx][2])/(-1.0*collectAvgP[idx][2]);
+      std::vector<int> disp(DISP); disp.push_back(0); // z^4 = 0 --> No time-like Wilson lines!
+      for ( int mu = 1; mu <=4; ++mu )
+	{
+	  for ( int nu = 1; nu <=4; ++nu )
+	    {
+	      zDotAvgP  += collectAvgP[idx][mu-1]*disp[nu-1]*metric(mu%4,nu%4);
+	      zDotDelta += collectDelta[idx][mu-1]*disp[nu-1]*metric(mu%4,nu%4);
+	    }
+	}
+      // Done computing z\dot\Delta, z\dotP
+      // ------------------------------------------
+
       for ( auto amp = 0; amp < itr->size(); ++amp )
 	{
-	  std::cout << "A" << amp+1 << " = "  << (*itr)(amp) << "    ";
-	  finalAMP[idx](amp) = (*itr)(amp);
+	  if ( amp < 8 )
+	    {
+	      std::cout << "A" << amp+1 << " = "  << (*itr)(amp) << "    ";
+	      finalAMP[idx](amp) = (*itr)(amp);
+	    }
 	}
+
+      // G1 = A1 + (z\dot\Delta)/(2z\dot P)*A5
+      finalAMP[idx](8) = (*itr)(0) + 0.5*zDotDeltaOverZDotAvgP*(*itr)(4);
+      std::cout << "G1 = "  <<  finalAMP[idx](8) << "    ";
+
+      // G1 = A4 - (z\dot\Delta)/(2z\dot P)*A5 + (z\dot P)*A6 + (z\dot\Delta)*A7
+      finalAMP[idx](9) = (*itr)(3) - 0.5*zDotDeltaOverZDotAvgP*(*itr)(4) + zDotAvgP*(*itr)(5) + zDotDelta*(*itr)(6);
+      std::cout << "G2 = "  <<  finalAMP[idx](9) << "    ";
+	    
       std::cout << "\n";
     }
   std::cout << "\n";
@@ -1615,7 +1629,6 @@ int main(int argc, char *argv[])
   for ( int i = 0; i < NUM_MATS; ++i )
     std::cout << MAT[348](i) << " ";
   std::cout << "\n";
-
 
   // // Put AMP results into a VectorXcd so writeAmplitudes can be reused
   // std::vector<Eigen::VectorXcd> finalAMP(global.cfgs,Eigen::VectorXcd(4));
