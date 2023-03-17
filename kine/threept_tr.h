@@ -35,6 +35,7 @@
 #include "pseudo_utils.h"
 #include "rotations.h"
 #include "shortcuts_gsl.h"
+#include "old_irrep_util_angles.h"
 
 using namespace Pseudo;
 /* using namespace std::complex_literals; */
@@ -330,6 +331,8 @@ class Spinor
   Hadron::CubicCanonicalRotation_t getRefRot() { return refRot; }
   Hadron::CubicCanonicalRotation_t getLatRot() { return latRot; }
 
+  gmc * getSubductCoeff() { return coeffS; }
+
   /*
     Public Methods
   */
@@ -362,10 +365,22 @@ class Spinor
     // Determine the rotation angles from |\vec{p}|\hat{z} to \vec{p} outright
     if ( shortMom(mom,"") != "000" )
       {
-	/* rot = Hadron::cubicCanonicalRotation(mom); */
-	// Split rotations to helicity eigenstates
-	refRot = Hadron::refRotation(mom);
-	latRot = Hadron::latticeRotation(mom);
+	// Check passed momentum and use old (unsplit angles) version of adat
+	if ( SingleRotations::supportedSingleRotationMoms.count(mom) > 0 )
+	  {
+	    refRot.alpha = refRot.beta = refRot.gamma = 0;
+	    
+	    SingleRotations::angles_t oldAngles = SingleRotations::momSingleRotationAngles(mom);
+	    latRot.alpha = oldAngles.alpha;
+	    latRot.beta  = oldAngles.beta;
+	    latRot.gamma = oldAngles.gamma;
+	  }
+	else {
+	  /* rot = Hadron::cubicCanonicalRotation(mom); */
+	  // Split rotations to helicity eigenstates
+	  refRot = Hadron::refRotation(mom);
+	  latRot = Hadron::latticeRotation(mom);
+	}
       }
     else
       {
@@ -684,12 +699,18 @@ void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 6, 1> > * MAT
 		   std::vector<kinMatGPD_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP);
 #else
-void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
-		   std::vector<kinMatGPD_t> * KIN,
-		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP);
-/* void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 12, 1> > * MAT, */
+/* void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT, */
 /* 		   std::vector<kinMatGPD_t> * KIN, */
 /* 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP); */
+/* void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT, */
+/* 		   std::vector<kinMatGPD_t> * KIN, */
+/* 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP); */
+/* void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * MAT, */
+/* 		   std::vector<kinMatGPD_t> * KIN, */
+/* 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP); */
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 12, 1> > * MAT,
+		   std::vector<kinMatGPD_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP);
 #endif
 
 //---------
