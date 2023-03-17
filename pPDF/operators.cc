@@ -42,6 +42,17 @@ namespace Pseudo
     return ioffe;
   }
 
+  // Scale an XMLArray::Array<T1>
+  // template<typename T>
+  // XMLArray::Array<T> operator*(T scale, const XMLArray::Array<int>& a)
+  XMLArray::Array<double> operator*(double scale, const XMLArray::Array<int>& a)
+  {
+    XMLArray::Array<double> rescaled; rescaled.resize(a.size());
+    for ( int i = 0; i < a.size(); ++i )
+      rescaled[i] = scale*a[i];
+    return rescaled;
+  }
+
   // Handle inner product of two XMLArrays
   int operator*(const XMLArray::Array<int>& l, const XMLArray::Array<int>& r)
   {

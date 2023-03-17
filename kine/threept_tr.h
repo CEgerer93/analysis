@@ -35,6 +35,7 @@
 #include "pseudo_utils.h"
 #include "rotations.h"
 #include "shortcuts_gsl.h"
+#include "old_irrep_util_angles.h"
 
 using namespace Pseudo;
 /* using namespace std::complex_literals; */
@@ -135,9 +136,16 @@ struct projector_t
 const Eigen::Matrix4i metric
 { {1, 0, 0, 0}, {0, -1, 0, 0}, {0, 0, -1, 0}, {0, 0, 0, -1} };
 
+/* const Eigen::Matrix4i metric */
+/* { {1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1} }; */
+
+
+
+
 struct leviCivita
 {
   int at(int i, int j, int k, int l);
+  int operator()(int i, int j, int k, int l);
 };
 
 struct polVecBasis_t
@@ -297,6 +305,9 @@ class Spinor
   // Euler Rotation for spin=1/2
   gmc * eulerRefRot;
   gmc * eulerLatRot;
+
+  // Wigner-D for spin=1/2
+  gmc * WignerD;
   
   // Subduction coefficients
   gmc * coeffS;
@@ -313,13 +324,20 @@ class Spinor
   double               getE()        const { return E; }
   double               getM()        const { return m; }
   XMLArray::Array<int> getMom()      const { return mom; }
+  XMLArray::Array<double> getPhysMom() const { return (2*PI/getL())*getMom(); }
   double               absMom()      const { return sqrt(1.0*(mom*mom)); }
   int                  getIrrepDim() const { return subductInfo.irrep_dim; }
+
+  Hadron::CubicCanonicalRotation_t getRefRot() { return refRot; }
+  Hadron::CubicCanonicalRotation_t getLatRot() { return latRot; }
+
+  gmc * getSubductCoeff() { return coeffS; }
 
   /*
     Public Methods
   */
   void initSubduce(const std::string& s);
+  void buildWigner();
   void buildSpinors();
   // Evaluate \sum_s u(p,s)\bar{u}(p,s)
   void projector(); 
@@ -331,6 +349,7 @@ class Spinor
     {
       gsl_matrix_complex_free(eulerRefRot);
       gsl_matrix_complex_free(eulerLatRot);
+      gsl_matrix_complex_free(WignerD);
       gsl_matrix_complex_free(coeffS);
     }
 
@@ -346,10 +365,22 @@ class Spinor
     // Determine the rotation angles from |\vec{p}|\hat{z} to \vec{p} outright
     if ( shortMom(mom,"") != "000" )
       {
-	/* rot = Hadron::cubicCanonicalRotation(mom); */
-	// Split rotations to helicity eigenstates
-	refRot = Hadron::refRotation(mom);
-	latRot = Hadron::latticeRotation(mom);
+	// Check passed momentum and use old (unsplit angles) version of adat
+	if ( SingleRotations::supportedSingleRotationMoms.count(mom) > 0 )
+	  {
+	    refRot.alpha = refRot.beta = refRot.gamma = 0;
+	    
+	    SingleRotations::angles_t oldAngles = SingleRotations::momSingleRotationAngles(mom);
+	    latRot.alpha = oldAngles.alpha;
+	    latRot.beta  = oldAngles.beta;
+	    latRot.gamma = oldAngles.gamma;
+	  }
+	else {
+	  /* rot = Hadron::cubicCanonicalRotation(mom); */
+	  // Split rotations to helicity eigenstates
+	  refRot = Hadron::refRotation(mom);
+	  latRot = Hadron::latticeRotation(mom);
+	}
       }
     else
       {
@@ -360,8 +391,12 @@ class Spinor
     // Get the Euler rotation matrix
     eulerRefRot = Rotations::eulerRotMat2(refRot.alpha, refRot.beta, refRot.gamma);
     eulerLatRot = Rotations::eulerRotMat2(latRot.alpha, latRot.beta, latRot.gamma);
+
+
     // Build subductions
     initSubduce(name);
+    // Build Wigner-D
+    buildWigner();
   }
 };
 
@@ -655,9 +690,29 @@ void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * MAT
 		   std::vector<kinMatPDF_t> * KIN,
 		   std::vector<Eigen::Matrix<std::complex<double>, 2, 1> > * AMP);
 //--------- Unpol. GPD
+#if ROWONE
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 3, 1> > * MAT,
+		   std::vector<kinMatGPD_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP);
+#elif DIAGMATS
+void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 6, 1> > * MAT,
+		   std::vector<kinMatGPD_t> * KIN,
+		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP);
+#else
+/* void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT, */
+/* 		   std::vector<kinMatGPD_t> * KIN, */
+/* 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP); */
+/* void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT, */
+/* 		   std::vector<kinMatGPD_t> * KIN, */
+/* 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP); */
+/* void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * MAT, */
+/* 		   std::vector<kinMatGPD_t> * KIN, */
+/* 		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP); */
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 12, 1> > * MAT,
 		   std::vector<kinMatGPD_t> * KIN,
-		   std::vector<Eigen::Matrix<std::complex<double>, 6, 1> > * AMP);
+		   std::vector<Eigen::Matrix<std::complex<double>, 8, 1> > * AMP);
+#endif
+
 //---------
 void extAmplitudes(std::vector<Eigen::Matrix<std::complex<double>, 4, 1> > * MAT,
 		   std::vector<kinMat3_t> * KIN,

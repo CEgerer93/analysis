@@ -29,6 +29,7 @@ const gc mI   = gsl_complex_rect(0.0,-1.0);
 
 const double PI = 3.1415926535897931;
 const std::complex<double> _I_(0.0,1.0);
+const std::complex<double> _mI_(0.0,-1.0);
 const std::complex<double> _ZERO_(0.0,0.0);
 
 const double aLat  = 0.094; // fm
