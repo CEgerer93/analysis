@@ -673,7 +673,7 @@ namespace NCOR
       std::cerr << "2pt Fit Results file doesn't exist!" << std::endl;
       return false;
     }
-
+    std::cout << "DEBUG - past open" << std::endl;
     // Define the datatype that will be read
     PredType DTYPE(PredType::IEEE_F64LE);
 
@@ -710,7 +710,7 @@ namespace NCOR
       } // switch
     //----------------------------------------------------------------------
 
-    
+    std::cout << "try root" << std::endl;
     // Try to access group at fit
     Group root;
     try {
@@ -719,11 +719,17 @@ namespace NCOR
       std::cerr << c->npt() << "pt fit func = " << c->fit.theFit.verbose()
 		<< " doesn't exist!" << std::endl;
       return false;
+    } catch (H5::FileIException &groupDNE) {
+      std::cerr << c->npt() << "pt fit func = " << c->fit.theFit.verbose()
+		<< " doesn't exist!" << std::endl;
+      return false;
     }
-
+    std::cout << "DEBUG - past root" << std::endl;
+    std::cout << "DEBUG - res.params.size() = " << c->res.params.size() << std::endl;
     // Loop over known named parameters
     for ( auto p = c->res.params.begin(); p != c->res.params.end(); ++p )
       {
+	std::cout << "  REZ PARAM = " << p->first[0] << std::endl;
 	Group param, means, bins;
 	
 	try {
@@ -734,7 +740,7 @@ namespace NCOR
 	  std::cerr << "Could not access fit param = " << p->first[0] << " results" << std::endl;
 	  return false;
 	}
-
+	std::cout << "DEBUG - past param/means/bins " << std::endl;
 	Group subMeans = means;
 	Group subBins  = bins;
 	for ( auto x = cmzg.begin(); x != cmzg.end(); ++x )
@@ -786,6 +792,8 @@ namespace NCOR
       } // auto p
     root.close();
     h5.close();
+
+    return true;
   } // readCorrFitResH5
 
 

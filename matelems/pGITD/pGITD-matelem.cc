@@ -83,7 +83,7 @@ info2pt db2ptFinInfo, db2ptIniInfo, db2ptRestInfo;
 
 // Constants
 const std::complex<double> redFact(sqrt(2),0);
-
+std::vector<std::string> components = { "real", "imag"};
 
 /*
   SOME CALLS TO HELP ADAT READ
@@ -633,6 +633,40 @@ std::vector<std::string> subName(const ADAT::MapObject<std::string, int> cont_op
   return sub_ops;
 }
 
+/*
+  Template key for 2pt functions
+*/
+K templateKeys(const global_t &g, const XMLArray::Array<int> mom)
+{
+  // Vector of template keys
+  K tmp;
+
+  Hadron::KeyCGCIrrepMom_t irrepMom(1,mom);
+
+  tmp.npoint.resize(2);
+  tmp.npoint[1].irrep = tmp.npoint[2].irrep = g.basic_op;
+  tmp.npoint[1].t_slice           = -2;
+  tmp.npoint[1].irrep.creation_op = g.snk.create;
+  tmp.npoint[1].irrep.smearedP    = g.snk.smear;
+  tmp.npoint[1].irrep.flavor      = g.snk.cgc;
+  tmp.npoint[1].irrep.irrep_mom   = irrepMom;
+  tmp.npoint[1].irrep.op.ops[1]   = Hadron::KeyParticleOp_t(subName(g.snk.cont_names,mom)[0],
+							    "", Hadron::canonicalOrder(mom),
+							    g.snk.disp_list);
+  tmp.npoint[2].t_slice           = 0;
+  tmp.npoint[2].irrep.creation_op = g.src.create;
+  tmp.npoint[2].irrep.smearedP    = g.src.smear;
+  tmp.npoint[2].irrep.flavor      = g.src.cgc;
+  tmp.npoint[2].irrep.irrep_mom   = irrepMom;
+  tmp.npoint[2].irrep.op.ops[1]   = Hadron::KeyParticleOp_t(subName(g.src.cont_names,mom)[0],
+							    "", Hadron::canonicalOrder(mom),
+							    g.src.disp_list);
+  return tmp;
+}
+
+/*
+  Template keys for 3pt functions
+*/
 std::vector<K> templateKeys(const global_t &g, int npt)
 {
   // Vector of template keys
@@ -671,12 +705,12 @@ std::vector<K> templateKeys(const global_t &g, int npt)
 	  // Common
 	  for ( int n = 1; n <= npt; ++n )
 	    {
-	      k->npoint.resize(3);
+	      k->npoint.resize(npt);
 	      k->npoint[n].irrep = g.basic_op;
 	    }
       
 	  // Snk
-	  k->npoint[1].t_slice              = 4;
+	  k->npoint[1].t_slice              = -2; //4;
 	  k->npoint[1].irrep.creation_op    = g.snk.create;
 	  k->npoint[1].irrep.smearedP       = g.snk.smear;
 	  k->npoint[1].irrep.flavor         = g.snk.cgc;
@@ -685,30 +719,34 @@ std::vector<K> templateKeys(const global_t &g, int npt)
 								 "", Hadron::canonicalOrder(_pf),
 								 g.snk.disp_list);
       
-	  // Ins
-	  k->npoint[2].t_slice = -3;
-	  k->npoint[2].irrep.creation_op    = g.ins.create;
-	  k->npoint[2].irrep.smearedP       = g.ins.smear;
-	  k->npoint[2].irrep.flavor         = g.ins.cgc;
-	  k->npoint[2].irrep.irrep_mom      = qIrrepMom;
-	  k->npoint[2].irrep.op.ops[1] = Hadron::KeyParticleOp_t(insOps[idx],"",
-								 Hadron::canonicalOrder(_pf-_pi),
-								 g.ins.disp_list);
-
-
-	  // If this is second time visiting rho entry, change the row to 3
-	  // ..this will ensure both \gamma_x & \gamma_y are accessible
-	  if ( rho_visit && insOps[idx] == "rho_rhoxDA__J1_T1mP" )
-	    k->npoint[2].irrep.irrep_mom.row = 3;
-      
 	  // Src
-	  k->npoint[3].irrep.creation_op    = g.src.create;
-	  k->npoint[3].irrep.smearedP       = g.src.smear;
-	  k->npoint[3].irrep.flavor         = g.src.cgc;
-	  k->npoint[3].irrep.irrep_mom      = piIrrepMom;
-	  k->npoint[3].irrep.op.ops[1] = Hadron::KeyParticleOp_t(subName(g.src.cont_names,_pi)[0],
-								 "", Hadron::canonicalOrder(_pi),
-								 g.src.disp_list);
+	  k->npoint[npt].t_slice              = 0;
+	  k->npoint[npt].irrep.creation_op    = g.src.create;
+	  k->npoint[npt].irrep.smearedP       = g.src.smear;
+	  k->npoint[npt].irrep.flavor         = g.src.cgc;
+	  k->npoint[npt].irrep.irrep_mom      = piIrrepMom;
+	  k->npoint[npt].irrep.op.ops[1] = Hadron::KeyParticleOp_t(subName(g.src.cont_names,_pi)[0],
+								   "", Hadron::canonicalOrder(_pi),
+								   g.src.disp_list);
+	  // Ins
+	  if ( npt == 3 )
+	    {
+	      k->npoint[2].t_slice = -3;
+	      k->npoint[2].irrep.creation_op    = g.ins.create;
+	      k->npoint[2].irrep.smearedP       = g.ins.smear;
+	      k->npoint[2].irrep.flavor         = g.ins.cgc;
+	      k->npoint[2].irrep.irrep_mom      = qIrrepMom;
+	      k->npoint[2].irrep.op.ops[1] = Hadron::KeyParticleOp_t(insOps[idx],"",
+								     Hadron::canonicalOrder(_pf-_pi),
+								     g.ins.disp_list);
+	      
+	      
+	      // If this is second time visiting rho entry, change the row to 3
+	      // ..this will ensure both \gamma_x & \gamma_y are accessible
+	      if ( rho_visit && insOps[idx] == "rho_rhoxDA__J1_T1mP" )
+		k->npoint[2].irrep.irrep_mom.row = 3;
+	    } // npt == 3
+
       
 	  // Note if rho has been seen
 	  if ( insOps[idx] == "rho_rhoxDA__J1_T1mP" )
@@ -968,7 +1006,7 @@ int main(int argc, char *argv[])
   /*
     Do some checks of the three-pt functions
   */
-#if 1
+#if 0
   // for ( std::unordered_map<std::string, std::vector<NCOR::corrEquivalence> >::iterator m = funcs3pt.begin(); m != funcs3pt.end(); ++m )
   for ( auto m = funcs3pt.begin(); m != funcs3pt.end(); ++m )
     {
@@ -979,7 +1017,7 @@ int main(int argc, char *argv[])
 	  for ( auto it = i->keyCorrMap.begin(); it != i->keyCorrMap.end(); ++it )
 	    {
 	      std::cout << it->first << std::endl;
-	      std::cout << it->second << std::endl;
+	      // std::cout << it->second << std::endl;
 	      // std::cout << it->second.getSrc().second << std::endl;
 	      // std::cout << it->second.ensemble.ens << std::endl;
 
@@ -1069,20 +1107,11 @@ int main(int argc, char *argv[])
   threePtFitInfo.parseParamMaps();
   //*****************************************************************************************
 
-
   /*
     STANDARD 2PT REST FRAME STUFF
   */
-  // Assuming same general structure for a template 2pt rest key as tempKey2Pi
-  K tempKeyRest; tempKeyRest.npoint.resize(2);
-  tempKeyRest.npoint[1].irrep.op.ops[1].name = "NucleonMG1g1MxD0J0S_J1o2_G1g1";
-  tempKeyRest.npoint[1].irrep.irrep_mom.mom = global.rest;
-  tempKeyRest.npoint[1].irrep.op.ops[1].mom_type = global.rest;
-  tempKeyRest.npoint[2] = tempKeyRest.npoint[1];
-  tempKeyRest.npoint[1].t_slice = -2;
-  tempKeyRest.npoint[2].t_slice = 0;
+  K tempKeyRest = templateKeys(global,global.rest);
   std::cout << tempKeyRest << std::endl;
-
   twoPtRest.keydbs.dbs  = makeDBList(global, db2ptRestInfo, &tempKeyRest);
   twoPtRest.keydbs.keys = makeKeyList(tempKeyRest);
 
@@ -1090,13 +1119,15 @@ int main(int argc, char *argv[])
   props->npt = 2;
   NCOR::correlator rest2pt(*props);
   delete props;
-
+  std::cout << "Rest props" << std::endl;
   /*
     ACCESS 2PT REST FRAME - IF FIT RESULTS EXIST, READ THEM AND SKIP READING DBS & FITTING
   */
+  std::ifstream inFile;
+  rest2pt.fit.theFit = twoPtRestFitInfo;
   if ( ! readCorrFitResH5(&rest2pt,"corr2pt-FitRes.h5") )
-  // if ( ! rest2pt.fitExists )
     {
+      std::cout << "Reading rest stuff from file" << std::endl;
       for ( auto k = twoPtRest.keydbs.keys.begin(); k != twoPtRest.keydbs.keys.end(); ++k )
 	Reads2pt(inFile, rest2pt, db2ptRestInfo, &(*k) );
 
@@ -1105,116 +1136,112 @@ int main(int argc, char *argv[])
       // submatrix of covariance grabbed internally & inverse computed
       rest2pt.fit = NCOR::fitFunc_t(twoPtRestFitInfo,rest2pt.cov.dat,temporal2ptRest);
 
-      NFIT::driver(&rest2pt, "real", true);  fitResW(&rest2pt, "real");
+      NFIT::driver(&rest2pt, components[0], true);  fitResW(&rest2pt, components[0]);
       writeCorr(&rest2pt);
     }
-  // else
-  //   {
-  //     readCorrFitResH5(&rest2pt,"corr2pt-FitRes.h5");
-  //   }
-  std::cout << "Whoop" << std::endl;
-  exit(10);
   //************************************************************************************************
   
 
-//   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//   /// MASSIVE LOOP OVER EACH (PF,PI) COMBINATION - EACH SUCCESSIVELY PROCESSED AND STACKED INTO SVD PROCEDURE ///
-//   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  
-//   for ( int _MOM = 0; _MOM < g.pf.size(); ++_MOM )
-//     {
-//       // Convenience
-//       const XMLArray::Array<int> _PF = g.pf[_MOM];
-//       const XMLArray::Array<int> _PI = g.pi[_MOM];
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  /// MASSIVE LOOP OVER EACH (PF,PI) COMBINATION - EACH SUCCESSIVELY PROCESSED AND STACKED INTO SVD PROCEDURE ///
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//       // Template 2pt stuff
-//       K tempKey2Pf, tempKey2Pi;
-//       tempKey2Pf.npoint.resize(2); tempKey2Pi.npoint.resize(2);
-//       for ( int i = 1; i <= 2; ++i )
-// 	{
-// 	  tempKey2Pf.npoint[i] = tempKey3pt[0].npoint[1];
-// 	  tempKey2Pi.npoint[i] = tempKey3pt[0].npoint[3];
-// 	}
-//       tempKey2Pf.npoint[1].t_slice = tempKey2Pi.npoint[1].t_slice = -2;
-//       tempKey2Pf.npoint[2].t_slice = tempKey2Pi.npoint[2].t_slice = 0;
+  for ( int _MOM = 0; _MOM < global.pf.size(); ++_MOM )
+    {
+      // Convenience
+      const XMLArray::Array<int> _PF = global.pf[_MOM];
+      const XMLArray::Array<int> _PI = global.pi[_MOM];
       
+      std::cout << "This pf, pi= " << _PF << "\n   " << _PI << std::endl;
       
+      // Template 2pt stuff
+      K tempKey2Pf = templateKeys(global,_PF);
+      K tempKey2Pi = templateKeys(global,_PI);
+      // tempKey2Pf.npoint.resize(2); tempKey2Pi.npoint.resize(2);
+      // for ( int i = 1; i <= 2; ++i )
+      // 	{
+      // 	  tempKey2Pf.npoint[i] = tempKey3pt[0].npoint[1];
+      // 	  tempKey2Pi.npoint[i] = tempKey3pt[0].npoint[3];
+
+      // 	  tempKey2Pi.npoint[i].irrep.op.ops[1] =
+      // 	    Hadron::KeyParticleOp_t(subName(global.src.cont_names,_PI)[0],
+      // 				    "", Hadron::canonicalOrder(_PI),
+      // 				    global.src.disp_list);
+      // 	  tempKey2Pf.npoint[i].irrep.op.ops[1] =
+      // 	    Hadron::KeyParticleOp_t(subName(global.snk.cont_names,_PF)[0],
+      // 				    "", Hadron::canonicalOrder(_PF),
+      // 				    global.snk.disp_list);
+      // 	}
+      // tempKey2Pf.npoint[1].t_slice = tempKey2Pi.npoint[1].t_slice = -2;
+      // tempKey2Pf.npoint[2].t_slice = tempKey2Pi.npoint[2].t_slice = 0;
+      // tempKey2Pf.npoint[2].creation_op = tempKey2Pi.npoint[2].creation_op = true;
       
-//       std::cout << tempKey2Pf << std::endl;
-//       std::cout << tempKey2Pi << std::endl;
-      
-      
+      std::cout << tempKey2Pf << std::endl;
+      std::cout << tempKey2Pi << std::endl;
   
-//   /*
-//     NOW LOAD THE 2PT FUNCTIONS
-//   */
-//   twoPi.keydbs.dbs      = makeDBList(global, db2ptIniInfo, &tempKey2Pi);
-//   twoPi.keydbs.keys     = makeKeyList(tempKey2Pi);
-//   twoPf.keydbs.dbs      = makeDBList(global, db2ptFinInfo, &tempKey2Pf);
-//   twoPf.keydbs.keys     = makeKeyList(tempKey2Pf);
+      /*
+	FORM KEYS & DBS ARRAYS
+      */
+      twoPi.keydbs.dbs      = makeDBList(global, db2ptIniInfo, &tempKey2Pi);
+      twoPi.keydbs.keys     = makeKeyList(tempKey2Pi);
+      twoPf.keydbs.dbs      = makeDBList(global, db2ptFinInfo, &tempKey2Pf);
+      twoPf.keydbs.keys     = makeKeyList(tempKey2Pf);
   
 
+      /*
+	Access and store pf/pi 2pt functions
+      */
+      prop_t * propsIni = new prop_t(global.cfgs,temporal2ptIni,tempKey2Pi);
+      propsIni->npt = 2;  
+      NCOR::correlator twoPtIni(*propsIni);
+      delete propsIni;
 
-//   /*
-//     Access and store all 2pt functions
-//   */
-//   // std::vector<NCOR::corrEquivalence> twoPtIni(1), twoPtFin(1);
-//   prop_t * propsIni = new prop_t(global.cfgs,temporal2ptIni,tempKey2Pi);
-//   propsIni->npt = 2;  
-//   NCOR::correlator twoPtIni(*propsIni);
-//   delete propsIni;
-
-//   prop_t * propsFin = new prop_t(global.cfgs,temporal2ptFin,tempKey2Pf);
-//   propsFin->npt = 2;
-//   NCOR::correlator twoPtFin(*propsFin);
-//   delete propsFin;
+      prop_t * propsFin = new prop_t(global.cfgs,temporal2ptFin,tempKey2Pf);
+      propsFin->npt = 2;
+      NCOR::correlator twoPtFin(*propsFin);
+      delete propsFin;
 
 
+      std::cout << "2pi fit = " << twoPtIni.fit.theFit.type << std::endl;
+      /*
+	ACCESS BOTH 2PT PI/PF FRAMES - IF FIT RESULTS EXIST, READ THEM AND SKIP READING DBS & FITTING
+      */
+      twoPtIni.fit.theFit = twoPtIniFitInfo;
+      if ( ! readCorrFitResH5(&twoPtIni,"corr2pt-FitRes.h5") )
+	{
+	  std::cout << "Reading data & performing fits for 2pt(pi)" << std::endl;
+	  for ( auto k = twoPi.keydbs.keys.begin(); k != twoPi.keydbs.keys.end(); ++k )
+	    Reads2pt(inFile, twoPtIni, db2ptIniInfo, &(*k) );
 
+	  twoPtIni.jackknife(); twoPtIni.ensAvg(); twoPtIni.Cov();
+	  // Pass correlator data covariance to set up fit
+	  // submatrix of covariance grabbed internally & inverse computed
+	  twoPtIni.fit = NCOR::fitFunc_t(twoPtIniFitInfo,twoPtIni.cov.dat,temporal2ptIni);
 
-// #ifdef HAVE_DISPLIST_2PT
-// #warning "Using getCorrs to read 2pt correlators"
-//   twoPtIni = getCorrs(twoPi.keydbs.dbs,twoPi.keydbs.keys);
-//   twoPtFin = getCorrs(twoPf.keydbs.dbs,twoPf.keydbs.keys);
-// #else
-// #warning ">>>>>>>>>>>  2pt correlators constructed w/o disp_list  -->  reverting to ascii reader"
-//   std::ifstream inFile;
-  
-//   for ( auto k = twoPi.keydbs.keys.begin(); k != twoPi.keydbs.keys.end(); ++k )
-//     Reads2pt(inFile, twoPtIni, db2ptIniInfo, &(*k) );
-//   for ( auto k = twoPf.keydbs.keys.begin(); k != twoPf.keydbs.keys.end(); ++k )
-//     Reads2pt(inFile, twoPtFin, db2ptFinInfo, &(*k) );
+	  NFIT::driver(&twoPtIni, components[0], true); fitResW(&twoPtIni, components[0]);
+	  writeCorr(&twoPtIni);
+	}
+      twoPtFin.fit.theFit = twoPtFinFitInfo;
+      std::cout << "2pf fit = " << twoPtFin.fit.theFit.type << std::endl;
+      if ( ! readCorrFitResH5(&twoPtFin,"corr2pt-FitRes.h5") )
+	{
+	  std::cout << "Reading data & performing fits for 2pt(pf)" << std::endl;
+	  for ( auto k = twoPf.keydbs.keys.begin(); k != twoPf.keydbs.keys.end(); ++k )
+	    Reads2pt(inFile, twoPtFin, db2ptFinInfo, &(*k) );
 
-// #endif
+	  twoPtFin.jackknife(); twoPtFin.ensAvg(); twoPtFin.Cov();
+	  // Pass correlator data covariance to set up fit
+	  // submatrix of covariance grabbed internally & inverse computed
+	  twoPtFin.fit = NCOR::fitFunc_t(twoPtFinFitInfo,twoPtFin.cov.dat,temporal2ptFin);
 
+	  NFIT::driver(&twoPtFin, components[0], true); fitResW(&twoPtFin, components[0]);
+	  writeCorr(&twoPtFin);
+	}
 
-
-//   twoPtIni.jackknife(); twoPtFin.jackknife(); 
-//   twoPtIni.ensAvg();    twoPtFin.ensAvg();    
-//   twoPtIni.Cov();       twoPtFin.Cov();       
-
-
-
-  
-
-//   // To set up fit properly, pass the correlator's data covariance
-//   // Submatrix of covariance is internally grabbed, and its inverse computed
-//   twoPtFin.fit = NCOR::fitFunc_t(twoPtFinFitInfo,twoPtFin.cov.dat,temporal2ptFin);
-//   twoPtIni.fit = NCOR::fitFunc_t(twoPtIniFitInfo,twoPtIni.cov.dat,temporal2ptIni);
-  
-
-//   // Fire up the fits
-//   std::vector<std::string> components(2);
-//   components[0] = "real"; components[1] = "imag";
-//   NFIT::driver(&twoPtFin, components[0], true); fitResW(&twoPtFin, components[0]);
-//   NFIT::driver(&twoPtIni, components[0], true); fitResW(&twoPtIni, components[0]);
-  
-
-
-//   writeCorr(&twoPtFin);
-//   writeCorr(&twoPtIni);
+      std::cout << "End MOM block" << std::endl;
+    } 
 
 
 //   /*
@@ -1255,16 +1282,16 @@ int main(int argc, char *argv[])
 //       std::cout << "\n";
 //     }
 
-//   std::cout << "PARAMS FOR 2PT REST:" << std::endl;
-//   for ( auto i = rest2pt.res.params.begin(); i != rest2pt.res.params.end(); ++i )
-//     {
-//       std::cout << "    " << i->first << " : ";
-//       for ( auto p = i->second.begin(); p != i->second.end(); ++p )
-//         {
-// 	  std::cout << *p << " ";
-//         }
-//       std::cout << "\n";
-//     }
+  std::cout << "PARAMS FOR 2PT REST:" << std::endl;
+  for ( auto i = rest2pt.res.params.begin(); i != rest2pt.res.params.end(); ++i )
+    {
+      std::cout << "    " << i->first << " : ";
+      for ( auto p = i->second.begin(); p != i->second.end(); ++p )
+        {
+	  std::cout << *p << " ";
+        }
+      std::cout << "\n";
+    }
 //   std::cout << "REST chi2: " << std::endl;
 //   for ( auto c = rest2pt.res.chi2.begin(); c != rest2pt.res.chi2.end(); ++c )
 //     std::cout << *c << " ";

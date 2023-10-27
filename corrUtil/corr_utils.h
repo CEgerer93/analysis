@@ -581,7 +581,7 @@ namespace NCOR
   */
   void writeCorr(correlator *c);
   
-  void readCorrFitResH5(correlator *c);
+  bool readCorrFitResH5(correlator *c, char *inH5);
 
   void fitResW(correlator *c, std::string& comp); /* const char *comp); */
 
